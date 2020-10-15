@@ -7,10 +7,30 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 
+    <Authors>btburnett3</Authors>
+    <PackageTags>snappy;compression;fast;io</PackageTags>
+    <!-- Copyright remains with Google since this is a direct port of the C++ source from https://github.com/google/snappy -->
+    <Copyright>Copyright 2011, Google Inc. All rights reserved.</Copyright>
+    <Description>
+      A near-C++ performance implementation of the Snappy compression algorithm for .NET. Snappier is ported to C# directly
+      from the official C++ implementation, with the addition of support for the framed stream format.
+
+      By avoiding P/Invoke, Snappier is fully cross-platform and works on both Linux and Windows and against any CPU supported
+      by .NET Core. However, Snappier performs best in .NET Core 3.0 and later on little-endian x86/64 processors with the
+      help of System.Runtime.Instrinsics.
+    </Description>
+    <PackageLicenseFile>COPYING.txt</PackageLicenseFile>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
 
     <NoWarn Condition=" '$(TargetFramework)' == 'netstandard2.0' ">$(NoWarn);CS8602</NoWarn>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\COPYING.txt" Pack="true" PackagePath="$(PackageLicenseFile)" />
+  </ItemGroup>
 
   <ItemGroup Condition=" '$(TargetFramework)' == 'netstandard2.0' ">
     <PackageReference Include="System.Memory" Version="4.5.4" />
@@ -19,6 +39,13 @@
 
   <ItemGroup Condition=" '$(TargetFramework)' != 'netcoreapp3.0' ">
     <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="4.7.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.0.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
   </ItemGroup>
 
 </Project>
