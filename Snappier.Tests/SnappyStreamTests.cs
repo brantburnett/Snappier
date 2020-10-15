@@ -16,11 +16,22 @@ namespace Snappier.Tests
             _outputHelper = outputHelper;
         }
 
-        [Fact]
-        public void CompressAlice()
+        [Theory]
+        [InlineData("alice29.txt")]
+        [InlineData("asyoulik.txt")]
+        [InlineData("fireworks.jpeg")]
+        [InlineData("geo.protodata")]
+        [InlineData("html")]
+        [InlineData("html_x_4")]
+        [InlineData("kppkn.gtb")]
+        [InlineData("lcet10.txt")]
+        [InlineData("paper-100k.pdf")]
+        [InlineData("plrabn12.txt")]
+        [InlineData("urls.10K")]
+        public void CompressAndDecompress(string filename)
         {
             using var resource =
-                typeof(Basic).Assembly.GetManifestResourceStream("Snappier.Tests.TestData.alice29.txt");
+                typeof(SnappyStreamTests).Assembly.GetManifestResourceStream($"Snappier.Tests.TestData.{filename}");
             Assert.NotNull(resource);
 
             using var output = new MemoryStream();
@@ -39,7 +50,7 @@ namespace Snappier.Tests
 
             _outputHelper.WriteLine(decompressedText);
 
-            using var sourceResource = typeof(Basic).Assembly.GetManifestResourceStream("Snappier.Tests.TestData.alice29.txt");
+            using var sourceResource = typeof(SnappyStreamTests).Assembly.GetManifestResourceStream($"Snappier.Tests.TestData.{filename}");
             Assert.NotNull(sourceResource);
 
             using var streamReader2 = new StreamReader(sourceResource, Encoding.UTF8);
@@ -48,11 +59,22 @@ namespace Snappier.Tests
             Assert.Equal(sourceText, decompressedText);
         }
 
-        [Fact]
-        public async Task CompressAliceAsync()
+        [Theory]
+        [InlineData("alice29.txt")]
+        [InlineData("asyoulik.txt")]
+        [InlineData("fireworks.jpeg")]
+        [InlineData("geo.protodata")]
+        [InlineData("html")]
+        [InlineData("html_x_4")]
+        [InlineData("kppkn.gtb")]
+        [InlineData("lcet10.txt")]
+        [InlineData("paper-100k.pdf")]
+        [InlineData("plrabn12.txt")]
+        [InlineData("urls.10K")]
+        public async Task CompressAndDecompressAsync(string filename)
         {
             using var resource =
-                typeof(Basic).Assembly.GetManifestResourceStream("Snappier.Tests.TestData.alice29.txt");
+                typeof(SnappyStreamTests).Assembly.GetManifestResourceStream($"Snappier.Tests.TestData.{filename}");
             Assert.NotNull(resource);
 
             using var output = new MemoryStream();
@@ -71,7 +93,7 @@ namespace Snappier.Tests
 
             _outputHelper.WriteLine(decompressedText);
 
-            using var sourceResource = typeof(Basic).Assembly.GetManifestResourceStream("Snappier.Tests.TestData.alice29.txt");
+            using var sourceResource = typeof(SnappyStreamTests).Assembly.GetManifestResourceStream($"Snappier.Tests.TestData.{filename}");
             Assert.NotNull(sourceResource);
 
             using var streamReader2 = new StreamReader(sourceResource, Encoding.UTF8);
