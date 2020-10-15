@@ -23,7 +23,7 @@ namespace Snappier.Tests.Internal
         public void Write(string resourceName)
         {
             using var resource =
-                typeof(Basic).Assembly.GetManifestResourceStream("Snappier.Tests.TestData." + resourceName);
+                typeof(SnappyStreamCompressorTests).Assembly.GetManifestResourceStream("Snappier.Tests.TestData." + resourceName);
             Assert.NotNull(resource);
 
             using var memStream = new MemoryStream();
