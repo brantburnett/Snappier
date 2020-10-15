@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace Snappier.Internal
+﻿namespace Snappier.Internal
 {
     internal static class Constants
     {

@@ -15,7 +15,7 @@ namespace Snappier.Internal
     /// <summary>
     /// Emits the stream format used for Snappy streams.
     /// </summary>
-    public class SnappyStreamCompressor : IDisposable
+    internal class SnappyStreamCompressor : IDisposable
     {
         private static readonly byte[] SnappyHeader =
         {

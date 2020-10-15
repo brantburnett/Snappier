@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Buffers;
-using System.ComponentModel.Design;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
@@ -10,6 +9,10 @@ using Snappier.Internal;
 
 namespace Snappier
 {
+    /// <summary>
+    /// Stream which supports compressing or decompressing data using the Snappy compression algorithm.
+    /// To decompress data, supply a stream to be read. To compress data, provide a stream to be written to.
+    /// </summary>
     public sealed class SnappyStream : Stream
     {
         private const int DefaultBufferSize = 8192;
@@ -24,6 +27,33 @@ namespace Snappier
         private byte[]? _buffer = null;
         private bool _wroteBytes;
 
+        /// <summary>
+        /// Create a stream which supports compressing or decompressing data using the Snappy compression algorithm.
+        /// To decompress data, supply a stream to be read. To compress data, provide a stream to be written to.
+        /// </summary>
+        /// <param name="stream">Source or destination stream.</param>
+        /// <param name="mode">Compression or decompression mode.</param>
+        /// <exception cref="ArgumentNullException"><paramref name="stream"/> is null.</exception>
+        /// <exception cref="ArgumentException">Stream read/write capability doesn't match with <paramref name="mode"/>.</exception>
+        /// <exception cref="ArgumentOutOfRangeException">Invalid <paramref name="mode"/>.</exception>
+        /// <remarks>
+        /// The stream will be closed when the SnappyStream is closed.
+        /// </remarks>
+        public SnappyStream(Stream stream, CompressionMode mode)
+            : this(stream, mode, false)
+        {
+        }
+
+        /// <summary>
+        /// Create a stream which supports compressing or decompressing data using the Snappy compression algorithm.
+        /// To decompress data, supply a stream to be read. To compress data, provide a stream to be written to.
+        /// </summary>
+        /// <param name="stream">Source or destination stream.</param>
+        /// <param name="mode">Compression or decompression mode.</param>
+        /// <param name="leaveOpen">If true, close the stream when the SnappyStream is closed.</param>
+        /// <exception cref="ArgumentNullException"><paramref name="stream"/> is null.</exception>
+        /// <exception cref="ArgumentException">Stream read/write capability doesn't match with <paramref name="mode"/>.</exception>
+        /// <exception cref="ArgumentOutOfRangeException">Invalid <paramref name="mode"/>.</exception>
         public SnappyStream(Stream stream, CompressionMode mode, bool leaveOpen)
         {
             _stream = stream ?? throw new ArgumentNullException(nameof(stream));
@@ -45,7 +75,7 @@ namespace Snappier
                 case CompressionMode.Compress:
                     if (!stream.CanWrite)
                     {
-                        throw new NotSupportedException("Compression is not supported");
+                        throw new NotSupportedException("Unwritable stream");
                     }
 
                     _compressor = new SnappyStreamCompressor();
@@ -56,24 +86,33 @@ namespace Snappier
             }
         }
 
+        /// <summary>
+        /// The base stream being read from or written to.
+        /// </summary>
         public Stream BaseStream => _stream;
 
         #region overrides
 
+        /// <inheritdoc />
         public override bool CanRead => _mode == CompressionMode.Decompress && (_stream?.CanRead ?? false);
 
+        /// <inheritdoc />
         public override bool CanWrite => _mode == CompressionMode.Compress && (_stream?.CanWrite ?? false);
 
+        /// <inheritdoc />
         public override bool CanSeek => false;
 
+        /// <inheritdoc />
         public override long Length => throw new NotSupportedException();
 
+        /// <inheritdoc />
         public override long Position
         {
             get => throw new NotSupportedException();
             set => throw new NotSupportedException();
         }
 
+        /// <inheritdoc />
         public override void Flush()
         {
             EnsureNotDisposed();
@@ -85,6 +124,7 @@ namespace Snappier
             }
         }
 
+        /// <inheritdoc />
         public override Task FlushAsync(CancellationToken cancellationToken)
         {
             EnsureNoActiveAsyncOperation();
@@ -104,17 +144,21 @@ namespace Snappier
             return Task.CompletedTask;
         }
 
+        /// <inheritdoc />
         public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
 
+        /// <inheritdoc />
         public override void SetLength(long value) => throw new NotSupportedException();
 
+        /// <inheritdoc />
         public override int Read(byte[] buffer, int offset, int count) => ReadCore(buffer.AsSpan(offset, count));
 
         #if !NETSTANDARD2_0
+        /// <inheritdoc />
         public override int Read(Span<byte> buffer) => ReadCore(buffer);
         #endif
 
-        public int ReadCore(Span<byte> buffer)
+        private int ReadCore(Span<byte> buffer)
         {
             EnsureDecompressionMode();
             EnsureNotDisposed();
@@ -154,16 +198,18 @@ namespace Snappier
             return totalRead;
         }
 
+        /// <inheritdoc />
         public override Task<int> ReadAsync(byte[] buffer, int offset, int count,
             CancellationToken cancellationToken) =>
             ReadAsyncCore(buffer.AsMemory(offset, count), cancellationToken).AsTask();
 
         #if !NETSTANDARD2_0
+        /// <inheritdoc />
         public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = new CancellationToken()) =>
             ReadAsyncCore(buffer, cancellationToken);
         #endif
 
-        public ValueTask<int> ReadAsyncCore(Memory<byte> buffer, CancellationToken cancellationToken = new CancellationToken())
+        private ValueTask<int> ReadAsyncCore(Memory<byte> buffer, CancellationToken cancellationToken = new CancellationToken())
         {
             EnsureDecompressionMode();
             EnsureNoActiveAsyncOperation();
@@ -273,14 +319,16 @@ namespace Snappier
             }
         }
 
+        /// <inheritdoc />
         public override void Write(byte[] buffer, int offset, int count) =>
             WriteCore(buffer.AsSpan(offset, count));
 
         #if !NETSTANDARD2_0
+        /// <inheritdoc />
         public override void Write(ReadOnlySpan<byte> buffer) => WriteCore(buffer);
         #endif
 
-        public void WriteCore(ReadOnlySpan<byte> buffer)
+        private void WriteCore(ReadOnlySpan<byte> buffer)
         {
             EnsureCompressionMode();
             EnsureNotDisposed();
@@ -291,10 +339,12 @@ namespace Snappier
             _wroteBytes = true;
         }
 
+        /// <inheritdoc />
         public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
             WriteAsyncCore(buffer.AsMemory(offset, count), cancellationToken).AsTask();
 
 #if !NETSTANDARD2_0
+        /// <inheritdoc />
         public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer,
             CancellationToken cancellationToken = default) =>
             WriteAsyncCore(buffer, cancellationToken);
@@ -365,6 +415,7 @@ namespace Snappier
             return default;
         }
 
+        /// <inheritdoc />
         protected override void Dispose(bool disposing)
         {
             try
@@ -411,6 +462,7 @@ namespace Snappier
         }
 
         #if !NETSTANDARD2_0
+        /// <inheritdoc />
         public override async ValueTask DisposeAsync()
         {
             // Same logic as Dispose(true), except with async counterparts.

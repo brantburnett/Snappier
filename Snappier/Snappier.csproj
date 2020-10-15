@@ -7,6 +7,8 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+
     <NoWarn Condition=" '$(TargetFramework)' == 'netstandard2.0' ">$(NoWarn);CS8602</NoWarn>
   </PropertyGroup>
 
