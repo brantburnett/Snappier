@@ -23,7 +23,6 @@ namespace Snappier.Internal
         };
 
         private SnappyCompressor? _compressor = new SnappyCompressor();
-        private readonly Crc32CAlgorithm _crc = new Crc32CAlgorithm();
 
         private IMemoryOwner<byte>? _inputBufferOwner;
         private Memory<byte> _inputBuffer;
@@ -283,7 +282,7 @@ namespace Snappier.Internal
             BinaryPrimitives.WriteInt32LittleEndian(output.Slice(1), blockSize);
             output[0] = (byte) Constants.ChunkType.CompressedData;
 
-            var crc = _crc.ComputeHash(input);
+            var crc = Crc32CAlgorithm.Compute(input);
             crc = Crc32CAlgorithm.ApplyMask(crc);
             BinaryPrimitives.WriteUInt32LittleEndian(output.Slice(4), crc);
         }
