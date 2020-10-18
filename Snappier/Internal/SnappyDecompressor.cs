@@ -132,182 +132,82 @@ namespace Snappier.Internal
 
         private unsafe void DecompressAllTags()
         {
-            fixed (byte* inputStart = _input.Span)
+            unchecked
             {
-                var inputEnd = inputStart + _input.Length;
-                var input = inputStart;
-
-                // Track the point in the input before which input is guaranteed to have at least Constants.MaxTagLength bytes left
-                var inputLimitMinMaxTagLength = inputEnd - Math.Min(inputEnd - input, Constants.MaximumTagLength - 1);
-
-                fixed (byte* buffer = _lookbackBuffer.Span)
+                fixed (byte* inputStart = _input.Span)
                 {
-                    fixed (byte* scratchStart = _scratch)
+                    var inputEnd = inputStart + _input.Length;
+                    var input = inputStart;
+
+                    // Track the point in the input before which input is guaranteed to have at least Constants.MaxTagLength bytes left
+                    var inputLimitMinMaxTagLength = inputEnd - Math.Min(inputEnd - input, Constants.MaximumTagLength - 1);
+
+                    fixed (byte* buffer = _lookbackBuffer.Span)
                     {
-                        var scratch = scratchStart;
-
-                        if (_scratchLength > 0)
+                        fixed (byte* scratchStart = _scratch)
                         {
-                            // Have partial tag remaining from a previous decompress run
-                            // Get the combined tag in the scratch buffer, then run through
-                            // special case processing that gets the tag from the scratch buffer
-                            // and any literal data from the _input buffer
+                            var scratch = scratchStart;
 
-                            // scratch will be the scratch buffer with only the tag if true is returned
-                            if (!RefillTagFromScratch(ref input, inputEnd, scratch))
+                            if (_scratchLength > 0)
                             {
-                                return;
-                            }
+                                // Have partial tag remaining from a previous decompress run
+                                // Get the combined tag in the scratch buffer, then run through
+                                // special case processing that gets the tag from the scratch buffer
+                                // and any literal data from the _input buffer
 
-                            // No more scratch for next cycle, we have a full buffer we're about to use
-                            _scratchLength = 0;
-
-                            byte c = scratch[0];
-                            scratch++;
-
-                            if ((c & 0x03) == Constants.Literal)
-                            {
-                                long literalLength = (c >> 2) + 1;
-                                if (literalLength >= 61)
+                                // scratch will be the scratch buffer with only the tag if true is returned
+                                if (!RefillTagFromScratch(ref input, inputEnd, scratch))
                                 {
-                                    // Long literal.
-                                    long literalLengthLength = literalLength - 60;
-                                    var literalLengthTemp = Helpers.UnsafeReadInt32(scratch);
-
-                                    literalLength = (int) Helpers.ExtractLowBytes(unchecked((uint) literalLengthTemp),
-                                        unchecked((int)literalLengthLength)) + 1;
-                                }
-
-                                var inputRemaining = inputEnd - input;
-                                if (inputRemaining < literalLength)
-                                {
-                                    Append(buffer, input, inputRemaining);
-                                    _remainingLiteral = unchecked((int)(literalLength - inputRemaining));
-                                    _input = ReadOnlyMemory<byte>.Empty;
                                     return;
                                 }
-                                else
+
+                                // No more scratch for next cycle, we have a full buffer we're about to use
+                                _scratchLength = 0;
+
+                                byte c = scratch[0];
+                                scratch++;
+
+                                if ((c & 0x03) == Constants.Literal)
                                 {
-                                    Append(buffer, input, literalLength);
-                                    input += literalLength;
-                                }
-                            }
-                            else if ((c & 3) == Constants.Copy4ByteOffset)
-                            {
-                                int copyOffset = Helpers.UnsafeReadInt32(scratch);
-
-                                long length = (c >> 2) + 1;
-
-                                AppendFromSelf(buffer, copyOffset, length);
-                            }
-                            else
-                            {
-                                var entry = Constants.CharTable[c];
-                                int data = Helpers.UnsafeReadInt32(scratch);
-
-                                var trailer = (int) Helpers.ExtractLowBytes(unchecked((uint) data), c & 3);
-                                long length = entry & 0xff;
-
-                                // copy_offset/256 is encoded in bits 8..10.  By just fetching
-                                // those bits, we get copy_offset (since the bit-field starts at
-                                // bit 8).
-                                var copyOffset = (entry & 0x700) + trailer;
-
-                                AppendFromSelf(buffer, copyOffset, length);
-                            }
-
-                            //  Make sure scratch is reset
-                            scratch = scratchStart;
-                        }
-
-                        if (input >= inputLimitMinMaxTagLength)
-                        {
-                            if (!RefillTag(ref input, ref inputEnd, scratch))
-                            {
-                                goto exit;
-                            }
-                        }
-
-                        uint preload = unchecked((uint)Helpers.UnsafeReadInt32(input));
-
-                        while (true)
-                        {
-                            var c = (byte) preload;
-                            input++;
-
-                            if ((c & 0x03) == Constants.Literal)
-                            {
-                                long literalLength = (c >> 2) + 1;
-
-                                if (TryFastAppend(buffer, input, inputEnd - input, literalLength))
-                                {
-                                    Debug.Assert(literalLength < 61);
-                                    input += literalLength;
-                                    // NOTE: There is no RefillTag here, as TryFastAppend()
-                                    // will not return true unless there's already at least five spare
-                                    // bytes in addition to the literal.
-                                    preload = unchecked((uint)Helpers.UnsafeReadInt32(input));
-                                    continue;
-                                }
-
-                                if (literalLength >= 61)
-                                {
-                                    // Long literal.
-                                    long literalLengthLength = literalLength - 60;
-                                    var literalLengthTemp = Helpers.UnsafeReadInt32(input);
-
-                                    literalLength = Helpers.ExtractLowBytes((uint) literalLengthTemp,
-                                        unchecked((int)literalLengthLength)) + 1;
-
-                                    input += literalLengthLength;
-                                }
-
-                                var inputRemaining = inputEnd - input;
-                                if (inputRemaining < literalLength)
-                                {
-                                    Append(buffer, input, inputRemaining);
-                                    _remainingLiteral = unchecked((int)(literalLength - inputRemaining));
-                                    input = inputEnd;
-                                    goto exit;
-                                }
-                                else
-                                {
-                                    Append(buffer, input, literalLength);
-                                    input += literalLength;
-
-                                    if (input >= inputLimitMinMaxTagLength)
+                                    long literalLength = (c >> 2) + 1;
+                                    if (literalLength >= 61)
                                     {
-                                        if (!RefillTag(ref input, ref inputEnd, scratch))
-                                        {
-                                            goto exit;
-                                        }
+                                        // Long literal.
+                                        long literalLengthLength = literalLength - 60;
+                                        var literalLengthTemp = Helpers.UnsafeReadInt32(scratch);
 
-                                        inputLimitMinMaxTagLength = inputEnd - Math.Min(inputEnd - input, Constants.MaximumTagLength - 1);
+                                        literalLength = (int) Helpers.ExtractLowBytes((uint) literalLengthTemp,
+                                            (int) literalLengthLength) + 1;
                                     }
 
-                                    preload = unchecked((uint)Helpers.UnsafeReadInt32(input));
+                                    var inputRemaining = inputEnd - input;
+                                    if (inputRemaining < literalLength)
+                                    {
+                                        Append(buffer, input, inputRemaining);
+                                        _remainingLiteral = (int) (literalLength - inputRemaining);
+                                        _input = ReadOnlyMemory<byte>.Empty;
+                                        return;
+                                    }
+                                    else
+                                    {
+                                        Append(buffer, input, literalLength);
+                                        input += literalLength;
+                                    }
                                 }
-                            }
-                            else
-                            {
-                                if ((c & 3) == Constants.Copy4ByteOffset)
+                                else if ((c & 3) == Constants.Copy4ByteOffset)
                                 {
-                                    int copyOffset = Helpers.UnsafeReadInt32(input);
-                                    input += 4;
+                                    int copyOffset = Helpers.UnsafeReadInt32(scratch);
 
-                                    var length = (c >> 2) + 1;
+                                    long length = (c >> 2) + 1;
+
                                     AppendFromSelf(buffer, copyOffset, length);
                                 }
                                 else
                                 {
                                     var entry = Constants.CharTable[c];
+                                    int data = Helpers.UnsafeReadInt32(scratch);
 
-                                    // We don't use BitConverter to read because we might be reading past the end of the span
-                                    // But we know that's safe because we'll be doing it in _scratch with extra data on the end.
-                                    // This reduces this step by several operations
-                                    preload = unchecked((uint)Helpers.UnsafeReadInt32(input));
-
-                                    var trailer = unchecked((int) Helpers.ExtractLowBytes(preload, c & 3));
+                                    var trailer = (int) Helpers.ExtractLowBytes((uint) data, c & 3);
                                     long length = entry & 0xff;
 
                                     // copy_offset/256 is encoded in bits 8..10.  By just fetching
@@ -316,33 +216,138 @@ namespace Snappier.Internal
                                     var copyOffset = (entry & 0x700) + trailer;
 
                                     AppendFromSelf(buffer, copyOffset, length);
-
-                                    input += c & 3;
-
-                                    // By using the result of the previous load we reduce the critical
-                                    // dependency chain of ip to 4 cycles.
-                                    preload >>= (c & 3) * 8;
-                                    if (input < inputLimitMinMaxTagLength) continue;
                                 }
 
-                                if (input >= inputLimitMinMaxTagLength)
+                                //  Make sure scratch is reset
+                                scratch = scratchStart;
+                            }
+
+                            if (input >= inputLimitMinMaxTagLength)
+                            {
+                                if (!RefillTag(ref input, ref inputEnd, scratch))
                                 {
-                                    if (!RefillTag(ref input, ref inputEnd, scratch))
+                                    goto exit;
+                                }
+                            }
+
+                            uint preload = Helpers.UnsafeReadUInt32(input);
+
+                            while (true)
+                            {
+                                var c = (byte) preload;
+                                input++;
+
+                                if ((c & 0x03) == Constants.Literal)
+                                {
+                                    long literalLength = (c >> 2) + 1;
+
+                                    if (TryFastAppend(buffer, input, inputEnd - input, literalLength))
                                     {
-                                        goto exit;
+                                        Debug.Assert(literalLength < 61);
+                                        input += literalLength;
+                                        // NOTE: There is no RefillTag here, as TryFastAppend()
+                                        // will not return true unless there's already at least five spare
+                                        // bytes in addition to the literal.
+                                        preload = Helpers.UnsafeReadUInt32(input);
+                                        continue;
                                     }
 
-                                    inputLimitMinMaxTagLength = inputEnd - Math.Min(inputEnd - input, Constants.MaximumTagLength - 1);
+                                    if (literalLength >= 61)
+                                    {
+                                        // Long literal.
+                                        long literalLengthLength = literalLength - 60;
+                                        var literalLengthTemp = Helpers.UnsafeReadInt32(input);
+
+                                        literalLength = Helpers.ExtractLowBytes((uint) literalLengthTemp,
+                                            (int) literalLengthLength) + 1;
+
+                                        input += literalLengthLength;
+                                    }
+
+                                    var inputRemaining = inputEnd - input;
+                                    if (inputRemaining < literalLength)
+                                    {
+                                        Append(buffer, input, inputRemaining);
+                                        _remainingLiteral = (int) (literalLength - inputRemaining);
+                                        input = inputEnd;
+                                        goto exit;
+                                    }
+                                    else
+                                    {
+                                        Append(buffer, input, literalLength);
+                                        input += literalLength;
+
+                                        if (input >= inputLimitMinMaxTagLength)
+                                        {
+                                            if (!RefillTag(ref input, ref inputEnd, scratch))
+                                            {
+                                                goto exit;
+                                            }
+
+                                            inputLimitMinMaxTagLength = inputEnd - Math.Min(inputEnd - input,
+                                                Constants.MaximumTagLength - 1);
+                                        }
+
+                                        preload = Helpers.UnsafeReadUInt32(input);
+                                    }
                                 }
+                                else
+                                {
+                                    if ((c & 3) == Constants.Copy4ByteOffset)
+                                    {
+                                        int copyOffset = Helpers.UnsafeReadInt32(input);
+                                        input += 4;
 
-                                preload = unchecked((uint)Helpers.UnsafeReadInt32(input));
+                                        var length = (c >> 2) + 1;
+                                        AppendFromSelf(buffer, copyOffset, length);
+                                    }
+                                    else
+                                    {
+                                        var entry = Constants.CharTable[c];
+
+                                        // We don't use BitConverter to read because we might be reading past the end of the span
+                                        // But we know that's safe because we'll be doing it in _scratch with extra data on the end.
+                                        // This reduces this step by several operations
+                                        preload = Helpers.UnsafeReadUInt32(input);
+
+                                        var trailer = (int) Helpers.ExtractLowBytes(preload, c & 3);
+                                        long length = entry & 0xff;
+
+                                        // copy_offset/256 is encoded in bits 8..10.  By just fetching
+                                        // those bits, we get copy_offset (since the bit-field starts at
+                                        // bit 8).
+                                        var copyOffset = (entry & 0x700) + trailer;
+
+                                        AppendFromSelf(buffer, copyOffset, length);
+
+                                        input += c & 3;
+
+                                        // By using the result of the previous load we reduce the critical
+                                        // dependency chain of ip to 4 cycles.
+                                        preload >>= (c & 3) * 8;
+                                        if (input < inputLimitMinMaxTagLength) continue;
+                                    }
+
+                                    if (input >= inputLimitMinMaxTagLength)
+                                    {
+                                        if (!RefillTag(ref input, ref inputEnd, scratch))
+                                        {
+                                            goto exit;
+                                        }
+
+                                        inputLimitMinMaxTagLength = inputEnd - Math.Min(inputEnd - input,
+                                            Constants.MaximumTagLength - 1);
+                                    }
+
+                                    preload = Helpers.UnsafeReadUInt32(input);
+                                }
                             }
-                        }
 
-                        exit:
-                        _input = input < inputEnd
-                            ? _input.Slice(unchecked((int) (input - inputStart)))
-                            : ReadOnlyMemory<byte>.Empty;
+                            exit:
+                            _input = input < inputEnd
+                                ? _input.Slice((int) (input - inputStart))
+                                : ReadOnlyMemory<byte>.Empty;
+                        }
                     }
                 }
             }
