@@ -1,11 +1,13 @@
 ﻿using System;
-using System.Buffers.Binary;
 using System.Runtime.CompilerServices;
-using System.Security.Cryptography;
+using System.Runtime.InteropServices;
+#if NETCOREAPP3_0
+using System.Runtime.Intrinsics.X86;
+#endif
 
 namespace Snappier.Internal
 {
-    internal sealed class Crc32CAlgorithm
+    internal static class Crc32CAlgorithm
     {
         #region static
 
@@ -31,34 +33,54 @@ namespace Snappier.Internal
 
         #endregion
 
-        private uint _currentCrc;
-
-		/// <summary>
-		/// Initializes a new instance of the <see cref="Crc32CAlgorithm"/> class.
-		/// </summary>
-		public Crc32CAlgorithm()
-		{
-		}
-
-		public void Initialize()
-		{
-			_currentCrc = 0;
-		}
-
-        public uint ComputeHash(ReadOnlySpan<byte> source)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static uint Compute(ReadOnlySpan<byte> source)
         {
-            HashCore(source);
-            var result = HashFinal();
-
-            Initialize();
-
-            return result;
+            return Append(0, source);
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void HashCore(ReadOnlySpan<byte> source)
+        public static uint Append(uint crc, ReadOnlySpan<byte> source)
         {
-            uint crcLocal = uint.MaxValue ^ _currentCrc;
+            uint crcLocal = uint.MaxValue ^ crc;
+
+            #if NETCOREAPP3_0
+            // If available on the current CPU, use Intel CRC32C intrinsic operations.
+            // The Sse42 if statements are optimized out by the JIT compiler based on CPU support.
+            if (Sse42.IsSupported)
+            {
+                // Process in 8-byte chunks first if 64-bit
+                if (Sse42.X64.IsSupported)
+                {
+                    if (source.Length >= 8)
+                    {
+                        // work with a ulong local during the loop to reduce typecasts
+                        ulong crcLocalLong = crcLocal;
+
+                        do
+                        {
+                            crcLocalLong = Sse42.X64.Crc32(crcLocalLong, MemoryMarshal.Read<ulong>(source));
+                            source = source.Slice(8);
+                        } while (source.Length >= 8);
+
+                        crcLocal = (uint) crcLocalLong;
+                    }
+                }
+
+                // Process in 4-byte chunks
+                while (source.Length >= 4)
+                {
+                    crcLocal = Sse42.Crc32(crcLocal, MemoryMarshal.Read<uint>(source));
+                    source = source.Slice(4);
+                }
+
+                // Process the remainder
+                var j = 0;
+                while (j < source.Length)
+                    crcLocal = Sse42.Crc32(crcLocal, source[j++]);
+
+                return crcLocal ^ uint.MaxValue;
+            }
+            #endif
 
             uint[] table = Table;
             while (source.Length >= 16)
@@ -92,25 +114,10 @@ namespace Snappier.Internal
                 crcLocal = table[(byte) (crcLocal ^ source[offset])] ^ crcLocal >> 8;
             }
 
-            _currentCrc = crcLocal ^ uint.MaxValue;
+            return crcLocal ^ uint.MaxValue;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public uint HashFinal()
-        {
-            Span<byte> destination = stackalloc byte[4];
-
-            unchecked
-            {
-                destination[0] = (byte) _currentCrc;
-                destination[1] = (byte) (_currentCrc >> 8);
-                destination[2] = (byte) (_currentCrc >> 16);
-                destination[3] = (byte) (_currentCrc >> 24);
-            }
-
-            return BinaryPrimitives.ReadUInt32LittleEndian(destination);
-        }
-
         public static uint ApplyMask(uint x) =>
             unchecked(((x >> 15) | (x << 17)) + 0xa282ead8);
     }

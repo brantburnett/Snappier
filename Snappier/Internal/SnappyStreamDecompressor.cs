@@ -17,13 +17,13 @@ namespace Snappier.Internal
 
         private ReadOnlyMemory<byte> _input;
 
-        private readonly Crc32CAlgorithm _chunkCrc = new Crc32CAlgorithm();
         private readonly byte[] _scratch = new byte[ScratchBufferSize];
         private int _scratchLength;
         private Constants.ChunkType? _chunkType;
         private int _chunkSize;
         private int _chunkBytesProcessed;
         private uint _expectedChunkCrc;
+        private uint _chunkCrc;
 
         public unsafe int Decompress(Span<byte> buffer)
         {
@@ -64,7 +64,7 @@ namespace Snappier.Internal
                                 chunkSize = unchecked((int)(rawChunkHeader >> 8));
                                 chunkBytesProcessed = 0;
                                 _scratchLength = 0;
-                                _chunkCrc.Initialize();
+                                _chunkCrc = 0;
                                 break;
 
                             case Constants.ChunkType.CompressedData:
@@ -112,7 +112,7 @@ namespace Snappier.Internal
                                         _decompressor.Decompress(new Span<byte>(bufferPtr,
                                             unchecked((int) (bufferEnd - bufferPtr))));
 
-                                    _chunkCrc.HashCore(new ReadOnlySpan<byte>(bufferPtr, decompressedBytes));
+                                    _chunkCrc = Crc32CAlgorithm.Append(_chunkCrc, new ReadOnlySpan<byte>(bufferPtr, decompressedBytes));
 
                                     bufferPtr += decompressedBytes;
                                 }
@@ -122,7 +122,7 @@ namespace Snappier.Internal
                                     // Completed reading the chunk
                                     chunkType = null;
 
-                                    var crc = Crc32CAlgorithm.ApplyMask(_chunkCrc.HashFinal());
+                                    var crc = Crc32CAlgorithm.ApplyMask(_chunkCrc);
                                     if (_expectedChunkCrc != crc)
                                     {
                                         throw new InvalidDataException("Chunk CRC mismatch.");
@@ -154,7 +154,7 @@ namespace Snappier.Internal
 
                                 Unsafe.CopyBlockUnaligned(bufferPtr, inputPtr, unchecked((uint)chunkBytes));
 
-                                _chunkCrc.HashCore(new ReadOnlySpan<byte>(bufferPtr, chunkBytes));
+                                _chunkCrc = Crc32CAlgorithm.Append(_chunkCrc, new ReadOnlySpan<byte>(bufferPtr, chunkBytes));
 
                                 bufferPtr += chunkBytes;
                                 inputPtr += chunkBytes;
@@ -165,7 +165,7 @@ namespace Snappier.Internal
                                     // Completed reading the chunk
                                     chunkType = null;
 
-                                    var crc = Crc32CAlgorithm.ApplyMask(_chunkCrc.HashFinal());
+                                    var crc = Crc32CAlgorithm.ApplyMask(_chunkCrc);
                                     if (_expectedChunkCrc != crc)
                                     {
                                         throw new InvalidDataException("Chunk CRC mismatch.");

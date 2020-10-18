@@ -10,16 +10,18 @@ namespace Snappier.Tests.Internal
     {
         [Theory]
         [InlineData("123456789", 0xe3069283)]
+        [InlineData("1234567890123456", 0x9aa4287f)]
+        [InlineData("123456789012345612345678901234", 0xecc74934)]
+        [InlineData("12345678901234561234567890123456", 0xcd486b4b)]
         public void Compute(string asciiChars, uint expectedResult)
         {
             // Arrange
 
-            var crc = new Crc32CAlgorithm();
             var bytes = Encoding.ASCII.GetBytes(asciiChars);
 
             // Act
 
-            var result = crc.ComputeHash(bytes);
+            var result = Crc32CAlgorithm.Compute(bytes);
 
             // Assert
 
