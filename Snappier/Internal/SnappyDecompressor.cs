@@ -469,7 +469,7 @@ namespace Snappier.Internal
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public unsafe void Append(ReadOnlySpan<byte> input)
+        private unsafe void Append(ReadOnlySpan<byte> input)
         {
             fixed (byte* inputPtr = input)
             {
@@ -481,7 +481,7 @@ namespace Snappier.Internal
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public unsafe void Append(byte* buffer, byte* input, long length)
+        private unsafe void Append(byte* buffer, byte* input, long length)
         {
             if (length > _lookbackBuffer.Length - _lookbackPosition)
             {
@@ -504,15 +504,16 @@ namespace Snappier.Internal
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public unsafe bool TryFastAppend(byte* buffer, byte* input, long available, long length)
+        private unsafe bool TryFastAppend(byte* buffer, byte* input, long available, long length)
         {
-            if (length <= 16 && available >= 16 + Constants.MaximumTagLength &&
-                _lookbackBuffer.Length - _lookbackPosition >= 16)
-            {
-                // Fast path, used for the majority (about 95%) of invocations.
+            // Save to the local stack (which effectively saves to a register)
+            var lookbackPosition = _lookbackPosition;
 
-                CopyHelpers.UnalignedCopy128(input, buffer + _lookbackPosition);
-                _lookbackPosition += length;
+            if (length <= 16 && available >= 16 + Constants.MaximumTagLength &&
+                _lookbackBuffer.Length - lookbackPosition >= 16)
+            {
+                CopyHelpers.UnalignedCopy128(input, buffer + lookbackPosition);
+                _lookbackPosition = lookbackPosition + length;
                 return true;
             }
 
@@ -520,7 +521,7 @@ namespace Snappier.Internal
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public unsafe void AppendFromSelf(byte* buffer, int copyOffset, long length, sbyte* pshufbFillPatterns)
+        private unsafe void AppendFromSelf(byte* buffer, int copyOffset, long length, sbyte* pshufbFillPatterns)
         {
             Debug.Assert(copyOffset > 0);
             Debug.Assert(copyOffset <= _lookbackPosition);
