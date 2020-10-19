@@ -479,12 +479,22 @@ namespace Snappier.Internal
         {
             if (length > _lookbackBuffer.Length - _lookbackPosition)
             {
-                throw new InvalidDataException("Data too long");
+                ThrowInvalidDataException("Data too long");
             }
 
             Unsafe.CopyBlockUnaligned(buffer + _lookbackPosition, input, unchecked((uint) length));
 
             _lookbackPosition += length;
+        }
+
+        /// <summary>
+        /// Throws an <see cref="ThrowInvalidDataException"/>. This is in a separate subroutine to allow the
+        /// calling subroutine to be inlined.
+        /// </summary>
+        /// <param name="message">Exception message.</param>
+        private static void ThrowInvalidDataException(string message)
+        {
+            throw new InvalidDataException(message);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
