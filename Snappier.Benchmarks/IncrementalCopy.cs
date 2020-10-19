@@ -13,7 +13,10 @@ namespace Snappier.Benchmarks
         {
             fixed (byte* buffer = _buffer)
             {
-                CopyHelpers.IncrementalCopy(buffer, buffer + 2, buffer + 18, buffer + _buffer.Length);
+                fixed (sbyte* pshufbFillPatterns = CopyHelpers.PshufbFillPatterns)
+                {
+                    CopyHelpers.IncrementalCopy(buffer, buffer + 2, buffer + 18, buffer + _buffer.Length, pshufbFillPatterns);
+                }
             }
         }
 
