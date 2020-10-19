@@ -132,6 +132,9 @@ namespace Snappier.Internal
 
         private unsafe void DecompressAllTags()
         {
+            // Put Constants.CharTable on the stack to simplify lookups within the loops below
+            ReadOnlySpan<ushort> charTable = Constants.CharTable.AsSpan();
+
             unchecked
             {
                 fixed (byte* inputStart = _input.Span)
@@ -204,7 +207,7 @@ namespace Snappier.Internal
                                 }
                                 else
                                 {
-                                    var entry = Constants.CharTable[c];
+                                    var entry = charTable[c];
                                     int data = Helpers.UnsafeReadInt32(scratch);
 
                                     var trailer = (int) Helpers.ExtractLowBytes((uint) data, c & 3);
@@ -303,7 +306,7 @@ namespace Snappier.Internal
                                     }
                                     else
                                     {
-                                        var entry = Constants.CharTable[c];
+                                        var entry = charTable[c];
 
                                         // We don't use BitConverter to read because we might be reading past the end of the span
                                         // But we know that's safe because we'll be doing it in _scratch with extra data on the end.
