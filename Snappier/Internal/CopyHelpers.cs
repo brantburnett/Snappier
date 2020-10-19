@@ -17,14 +17,14 @@ namespace Snappier.Internal
         /// operand for PSHUFB to permute the contents of the destination XMM register
         /// into a repeating byte pattern.
         /// </summary>
-        private static readonly sbyte[][] PshufbFillPatterns = {
-            new sbyte[] {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-            new sbyte[] {0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1},
-            new sbyte[] {0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0},
-            new sbyte[] {0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3},
-            new sbyte[] {0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 0},
-            new sbyte[] {0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5, 0, 1, 2, 3},
-            new sbyte[] {0, 1, 2, 3, 4, 5, 6, 0, 1, 2, 3, 4, 5, 6, 0, 1},
+        public static readonly sbyte[,] PshufbFillPatterns = {
+            {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+            {0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1},
+            {0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0},
+            {0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3},
+            {0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 0},
+            {0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5, 0, 1, 2, 3},
+            {0, 1, 2, 3, 4, 5, 6, 0, 1, 2, 3, 4, 5, 6, 0, 1},
         };
 
         /// <summary>
@@ -41,8 +41,14 @@ namespace Snappier.Internal
         /// <param name="op">Pointer to the destination point in the buffer.</param>
         /// <param name="opEnd">Pointer to the end of the area to write in the buffer.</param>
         /// <param name="bufferEnd">Pointer past the end of the buffer.</param>
+        /// <param name="pshufbFillPatterns">Fixed pointer to <see cref="PshufbFillPatterns"/>.</param>
+        /// <remarks>
+        /// Fixing the PshufbFillPatterns array for use in the SSSE3 optimized route is expensive, so we
+        /// do that in the outer loop in <see cref="SnappyDecompressor.DecompressAllTags"/> and pass the pointer
+        /// to this method. This makes the logic a bit more confusing, but is a significant performance boost.
+        /// </remarks>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static unsafe void IncrementalCopy(byte* source, byte* op, byte* opEnd, byte* bufferEnd)
+        public static unsafe void IncrementalCopy(byte* source, byte* op, byte* opEnd, byte* bufferEnd, sbyte* pshufbFillPatterns)
         {
             Debug.Assert(source < op);
             Debug.Assert(op <= opEnd);
@@ -76,32 +82,29 @@ namespace Snappier.Internal
 
                     if (op <= bufferEnd - 16)
                     {
-                        fixed (sbyte* pshufbFillPatterns = PshufbFillPatterns[patternSize - 1])
+                        var shuffleMask = LoadVector128(pshufbFillPatterns + (patternSize - 1) * 16).As<sbyte, byte>();
+                        var srcPattern = LoadScalarVector128((long*) source).As<long, byte>();
+                        var pattern = Shuffle(srcPattern, shuffleMask);
+
+                        // Get the new pattern size now that we've repeated it
+                        patternSize = PatternSizeTable[patternSize];
+
+                        // If we're getting to the very end of the buffer, don't overrun
+                        var loopEnd = bufferEnd - 15;
+                        if (loopEnd > opEnd)
                         {
-                            var shuffleMask = LoadVector128(pshufbFillPatterns).As<sbyte, byte>();
-                            var srcPattern = LoadScalarVector128((long*) source).As<long, byte>();
-                            var pattern = Shuffle(srcPattern, shuffleMask);
+                            loopEnd = opEnd;
+                        }
 
-                            // Get the new pattern size now that we've repeated it
-                            patternSize = PatternSizeTable[patternSize];
+                        while (op < loopEnd)
+                        {
+                            Store(op, pattern);
+                            op += patternSize;
+                        }
 
-                            // If we're getting to the very end of the buffer, don't overrun
-                            var loopEnd = bufferEnd - 15;
-                            if (loopEnd > opEnd)
-                            {
-                                loopEnd = opEnd;
-                            }
-
-                            while (op < loopEnd)
-                            {
-                                Store(op, pattern);
-                                op += patternSize;
-                            }
-
-                            if (op >= opEnd)
-                            {
-                                return;
-                            }
+                        if (op >= opEnd)
+                        {
+                            return;
                         }
                     }
 
