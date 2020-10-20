@@ -8,8 +8,6 @@ namespace Snappier.Internal
 {
     internal sealed class SnappyDecompressor : IDisposable
     {
-        private ReadOnlyMemory<byte> _input;
-
         private readonly byte[] _scratch = new byte[Constants.MaximumTagLength];
         private int _scratchLength = 0;
 
@@ -18,13 +16,13 @@ namespace Snappier.Internal
         private int _uncompressedLengthShift;
         private int _uncompressedLength;
 
-        public bool NeedMoreData => !AllDataDecompressed && _input.Length == 0 && UnreadBytes == 0;
+        public bool NeedMoreData => !AllDataDecompressed && UnreadBytes == 0;
 
-        public int Decompress(Span<byte> destination)
+        public void Decompress(ReadOnlySpan<byte> input)
         {
             if (ExpectedLength == 0)
             {
-                var readLength = ReadUncompressedLength();
+                var readLength = ReadUncompressedLength(ref input);
                 if (readLength.HasValue)
                 {
                     ExpectedLength = readLength.GetValueOrDefault();
@@ -32,47 +30,32 @@ namespace Snappier.Internal
                 else
                 {
                     // Not enough data yet to process the length
-                    return 0;
+                    return;
                 }
-            }
-
-            if (destination.Length <= 0 || EndOfFile)
-            {
-                return 0;
             }
 
             // Process any input into the write buffer
 
-            if (_input.Length > 0)
+            if (input.Length > 0)
             {
                 if (_remainingLiteral > 0)
                 {
-                    var toWrite = Math.Min(_remainingLiteral, _input.Length);
+                    var toWrite = Math.Min(_remainingLiteral, input.Length);
 
-                    Append(_input.Span.Slice(0, toWrite));
-                    _input = _input.Slice(toWrite);
+                    Append(input.Slice(0, toWrite));
+                    input = input.Slice(toWrite);
                     _remainingLiteral -= toWrite;
                 }
 
-                if (!AllDataDecompressed && _input.Length > 0)
+                if (!AllDataDecompressed && input.Length > 0)
                 {
-                    DecompressAllTags();
+                    DecompressAllTags(input);
                 }
             }
-
-            // Read any output from the write buffer
-
-            return Read(destination);
-        }
-
-        public void SetInput(ReadOnlyMemory<byte> input)
-        {
-            _input = input;
         }
 
         public void Reset()
         {
-            _input = ReadOnlyMemory<byte>.Empty;
             _scratchLength = 0;
             _remainingLiteral = 0;
 
@@ -87,10 +70,14 @@ namespace Snappier.Internal
         /// <summary>
         /// Read the uncompressed length stored at the start of the compressed data.
         /// </summary>
-        /// <returns>The length of the compressed data.</returns>
-        private int? ReadUncompressedLength()
+        /// <param name="input">Input data, which should begin with the varint encoded uncompressed length.</param>
+        /// <returns>The length of the compressed data, or null if the length is not yet complete.</returns>
+        /// <remarks>
+        /// This variant is used when reading a stream, and will pause if there aren't enough bytes available
+        /// in the input. Subsequent calls with more data will resume processing.
+        /// </remarks>
+        private int? ReadUncompressedLength(ref ReadOnlySpan<byte> input)
         {
-            var input = _input.Span;
             int result = _uncompressedLength;
             int shift = _uncompressedLengthShift;
             bool foundEnd = false;
@@ -123,23 +110,70 @@ namespace Snappier.Internal
                 }
             }
 
-            _input = _input.Slice(i);
+            input = input.Slice(i);
             _uncompressedLength = result;
             _uncompressedLengthShift = shift;
 
             return foundEnd ? (int?)result : null;
         }
 
-        private unsafe void DecompressAllTags()
+        /// <summary>
+        /// Read the uncompressed length stored at the start of the compressed data.
+        /// </summary>
+        /// <param name="input">Input data, which should begin with the varint encoded uncompressed length.</param>
+        /// <returns>The length of the uncompressed data.</returns>
+        public static int ReadUncompressedLength(ReadOnlySpan<byte> input)
+        {
+            int result = 0;
+            int shift = 0;
+            bool foundEnd = false;
+
+            var i = 0;
+            while (input.Length > 0)
+            {
+                byte c = input[i];
+                i += 1;
+
+                int val = c & 0x7f;
+                if (Helpers.LeftShiftOverflows((byte) val, shift))
+                {
+                    throw new InvalidDataException("Invalid stream length");
+                }
+
+                result |= val << shift;
+
+                if (c < 128)
+                {
+                    foundEnd = true;
+                    break;
+                }
+
+                shift += 7;
+
+                if (shift >= 32)
+                {
+                    throw new InvalidDataException("Invalid stream length");
+                }
+            }
+
+            if (!foundEnd)
+            {
+                throw new InvalidDataException("Invalid stream length");
+            }
+
+            return result;
+        }
+
+        private unsafe void DecompressAllTags(ReadOnlySpan<byte> inputSpan)
         {
             // Put Constants.CharTable on the stack to simplify lookups within the loops below
             ReadOnlySpan<ushort> charTable = Constants.CharTable.AsSpan();
 
             unchecked
             {
-                fixed (byte* inputStart = _input.Span)
+                fixed (byte* inputStart = inputSpan)
                 {
-                    var inputEnd = inputStart + _input.Length;
+                    var inputEnd = inputStart + inputSpan.Length;
                     var input = inputStart;
 
                     // Track the point in the input before which input is guaranteed to have at least Constants.MaxTagLength bytes left
@@ -190,7 +224,6 @@ namespace Snappier.Internal
                                         {
                                             Append(buffer, input, inputRemaining);
                                             _remainingLiteral = (int) (literalLength - inputRemaining);
-                                            _input = ReadOnlyMemory<byte>.Empty;
                                             return;
                                         }
                                         else
@@ -348,10 +381,7 @@ namespace Snappier.Internal
                                     }
                                 }
 
-                                exit:
-                                _input = input < inputEnd
-                                    ? _input.Slice((int) (input - inputStart))
-                                    : ReadOnlyMemory<byte>.Empty;
+                                exit: ; // All input data is processed
                             }
                         }
                     }

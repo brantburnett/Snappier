@@ -7,13 +7,12 @@ namespace Snappier.Benchmarks
 {
     //[ShortRunJob(RuntimeMoniker.NetCoreApp21)]
     [ShortRunJob(RuntimeMoniker.NetCoreApp31)]
-    [MemoryDiagnoser]
     public class DecompressAlice
     {
         private MemoryStream _memoryStream;
         private byte[] _buffer;
 
-        [Params(1024, 16384, 131072)]
+        [Params(16384, 65536, 131072)]
         public int ReadSize;
 
         [GlobalSetup]
@@ -46,7 +45,7 @@ namespace Snappier.Benchmarks
         public void PInvoke()
         {
             _memoryStream.Position = 0;
-            using var stream = new Snappy.SnappyStream(_memoryStream, CompressionMode.Decompress, true);
+            using var stream = new global::Snappy.SnappyStream(_memoryStream, CompressionMode.Decompress, true);
 
             while (stream.Read(_buffer, 0, ReadSize) > 0)
             {
