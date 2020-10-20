@@ -101,15 +101,14 @@ namespace Snappier.Internal
                                             chunkSize - chunkBytesProcessed);
                                         Debug.Assert(availableChunkBytes > 0);
 
-                                        _decompressor.SetInput(_input.Slice(unchecked((int) (inputPtr - inputStart)),
-                                            availableChunkBytes));
+
+                                        _decompressor.Decompress(new ReadOnlySpan<byte>(inputPtr, availableChunkBytes));
 
                                         chunkBytesProcessed += availableChunkBytes;
                                         inputPtr += availableChunkBytes;
                                     }
 
-                                    var decompressedBytes =
-                                        _decompressor.Decompress(new Span<byte>(bufferPtr,
+                                    var decompressedBytes = _decompressor.Read(new Span<byte>(bufferPtr,
                                             unchecked((int) (bufferEnd - bufferPtr))));
 
                                     _chunkCrc = Crc32CAlgorithm.Append(_chunkCrc, new ReadOnlySpan<byte>(bufferPtr, decompressedBytes));

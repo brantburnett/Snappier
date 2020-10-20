@@ -7,7 +7,6 @@ namespace Snappier.Benchmarks
 {
     //[ShortRunJob(RuntimeMoniker.NetCoreApp21)]
     [ShortRunJob(RuntimeMoniker.NetCoreApp31)]
-    [MemoryDiagnoser]
     public class CompressAll
     {
         private MemoryStream _source;
@@ -46,7 +45,7 @@ namespace Snappier.Benchmarks
         {
             _source.Position = 0;
             _destination.Position = 0;
-            using var stream = new Snappy.SnappyStream(_destination, CompressionMode.Compress, true);
+            using var stream = new global::Snappy.SnappyStream(_destination, CompressionMode.Compress, true);
 
             _source.CopyTo(_destination, 65536);
         }

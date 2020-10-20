@@ -7,7 +7,6 @@ namespace Snappier.Benchmarks
 {
     //[ShortRunJob(RuntimeMoniker.NetCoreApp21)]
     [ShortRunJob(RuntimeMoniker.NetCoreApp31)]
-    [MemoryDiagnoser]
     public class DecompressAll
     {
         private MemoryStream _memoryStream;
@@ -50,7 +49,7 @@ namespace Snappier.Benchmarks
         public void PInvoke()
         {
             _memoryStream.Position = 0;
-            using var stream = new Snappy.SnappyStream(_memoryStream, CompressionMode.Decompress, true);
+            using var stream = new global::Snappy.SnappyStream(_memoryStream, CompressionMode.Decompress, true);
 
             while (stream.Read(_buffer, 0, _buffer.Length) > 0)
             {
