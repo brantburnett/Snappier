@@ -234,7 +234,7 @@ namespace Snappier.Internal
                                     }
                                     else if ((c & 3) == Constants.Copy4ByteOffset)
                                     {
-                                        int copyOffset = Helpers.UnsafeReadInt32(scratch);
+                                        uint copyOffset = Helpers.UnsafeReadUInt32(scratch);
 
                                         long length = (c >> 2) + 1;
 
@@ -245,13 +245,13 @@ namespace Snappier.Internal
                                         var entry = charTable[c];
                                         int data = Helpers.UnsafeReadInt32(scratch);
 
-                                        var trailer = (int) Helpers.ExtractLowBytes((uint) data, c & 3);
+                                        var trailer = Helpers.ExtractLowBytes((uint) data, c & 3);
                                         long length = entry & 0xff;
 
                                         // copy_offset/256 is encoded in bits 8..10.  By just fetching
                                         // those bits, we get copy_offset (since the bit-field starts at
                                         // bit 8).
-                                        var copyOffset = (entry & 0x700) + trailer;
+                                        var copyOffset = (uint)(entry & 0x700) + trailer;
 
                                         AppendFromSelf(buffer, copyOffset, length, pshufbFillPatterns);
                                     }
@@ -333,7 +333,7 @@ namespace Snappier.Internal
                                     {
                                         if ((c & 3) == Constants.Copy4ByteOffset)
                                         {
-                                            int copyOffset = Helpers.UnsafeReadInt32(input);
+                                            uint copyOffset = Helpers.UnsafeReadUInt32(input);
                                             input += 4;
 
                                             var length = (c >> 2) + 1;
@@ -348,13 +348,13 @@ namespace Snappier.Internal
                                             // This reduces this step by several operations
                                             preload = Helpers.UnsafeReadUInt32(input);
 
-                                            var trailer = (int) Helpers.ExtractLowBytes(preload, c & 3);
+                                            var trailer = Helpers.ExtractLowBytes(preload, c & 3);
                                             long length = entry & 0xff;
 
                                             // copy_offset/256 is encoded in bits 8..10.  By just fetching
                                             // those bits, we get copy_offset (since the bit-field starts at
                                             // bit 8).
-                                            var copyOffset = (entry & 0x700) + trailer;
+                                            var copyOffset = (uint)(entry & 0x700) + trailer;
 
                                             AppendFromSelf(buffer, copyOffset, length, pshufbFillPatterns);
 
@@ -458,7 +458,7 @@ namespace Snappier.Internal
 
         private IMemoryOwner<byte>? _lookbackBufferOwner;
         private Memory<byte> _lookbackBuffer;
-        private long _lookbackPosition = 0;
+        private uint _lookbackPosition = 0;
         private int _readPosition = 0;
 
         private int _expectedLength;
@@ -520,7 +520,7 @@ namespace Snappier.Internal
 
             Unsafe.CopyBlockUnaligned(buffer + _lookbackPosition, input, unchecked((uint) length));
 
-            _lookbackPosition += length;
+            _lookbackPosition += unchecked((uint) length);
         }
 
         /// <summary>
@@ -543,7 +543,7 @@ namespace Snappier.Internal
                 _lookbackBuffer.Length - lookbackPosition >= 16)
             {
                 CopyHelpers.UnalignedCopy128(input, buffer + lookbackPosition);
-                _lookbackPosition = lookbackPosition + length;
+                _lookbackPosition = lookbackPosition + unchecked((uint) length);
                 return true;
             }
 
@@ -551,15 +551,23 @@ namespace Snappier.Internal
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private unsafe void AppendFromSelf(byte* buffer, int copyOffset, long length, sbyte* pshufbFillPatterns)
+        private unsafe void AppendFromSelf(byte* buffer, uint copyOffset, long length, sbyte* pshufbFillPatterns)
         {
-            Debug.Assert(copyOffset > 0);
-            Debug.Assert(copyOffset <= _lookbackPosition);
+            // copyOffset - 1u will cause it to wrap around to a very large number if copyOffset == 0
+            // This allows us to combine two comparisons into one
+            if (unchecked(copyOffset - 1u) >= _lookbackPosition)
+            {
+                ThrowInvalidDataException("Invalid copy offset");
+            }
+            if (length > _lookbackBuffer.Length - _lookbackPosition)
+            {
+                ThrowInvalidDataException("Data too long");
+            }
 
             var op = buffer + _lookbackPosition;
             CopyHelpers.IncrementalCopy(op - copyOffset, op, op + length, buffer + _lookbackBuffer.Length, pshufbFillPatterns);
 
-            _lookbackPosition += length;
+            _lookbackPosition += unchecked((uint) length);
         }
 
         public int Read(Span<byte> destination)
