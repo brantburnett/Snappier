@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.IO;
 using Snappier.Internal;
 
@@ -74,6 +75,96 @@ namespace Snappier
             }
 
             return read;
+        }
+
+        /// <summary>
+        /// Decompress a block of Snappy to a new memory buffer. This must be an entire block.
+        /// </summary>
+        /// <param name="input">Data to decompress.</param>
+        /// <returns>An <see cref="IMemoryOwner{T}"/> with the decompressed data. The caller is responsible for disposing this object.</returns>
+        /// <remarks>
+        /// Failing to dispose of the returned <see cref="IMemoryOwner{T}"/> may result in memory leaks.
+        /// </remarks>
+        public static IMemoryOwner<byte> DecompressToMemory(ReadOnlySpan<byte> input)
+        {
+            var buffer = MemoryPool<byte>.Shared.Rent(GetUncompressedLength(input));
+
+            try
+            {
+                var length = Decompress(input, buffer.Memory.Span);
+
+                return new SlicedMemoryOwner(buffer, length);
+            }
+            catch
+            {
+                buffer.Dispose();
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Decompress a block of Snappy to a new byte array. This must be an entire block.
+        /// </summary>
+        /// <param name="input">Data to decompress.</param>
+        /// <returns>The decompressed data.</returns>
+        /// <remarks>
+        /// The resulting byte array is allocated on the heap. If possible, <see cref="DecompressToMemory"/> should
+        /// be used instead since it uses a shared buffer pool.
+        /// </remarks>
+        public static byte[] DecompressToArray(ReadOnlySpan<byte> input)
+        {
+            var length = GetUncompressedLength(input);
+
+            var result = new byte[length];
+
+            Decompress(input, result);
+
+            return result;
+        }
+
+        /// <summary>
+        /// Wraps an inner <see cref="IMemoryOwner{T}"/> to have a shorter length.
+        /// </summary>
+        private sealed class SlicedMemoryOwner : IMemoryOwner<byte>
+        {
+            private IMemoryOwner<byte>? _innerMemoryOwner;
+            private readonly int _length;
+
+            public Memory<byte> Memory
+            {
+                get
+                {
+                    if (_innerMemoryOwner == null)
+                    {
+                        throw new ObjectDisposedException(nameof(SlicedMemoryOwner));
+                    }
+
+                    return _innerMemoryOwner.Memory.Slice(0, _length);
+                }
+            }
+
+            public SlicedMemoryOwner(IMemoryOwner<byte> innerMemoryOwner, int length)
+            {
+                _innerMemoryOwner = innerMemoryOwner ?? throw new ArgumentNullException(nameof(innerMemoryOwner));
+
+                if (_length > _innerMemoryOwner.Memory.Length)
+                {
+                    throw new ArgumentException($"{nameof(length)} is greater than the inner length.", nameof(length));
+                }
+
+                _length = length;
+            }
+
+            public void Dispose()
+            {
+                // Cache to local to ensure order of operations for thread safety
+                var innerMemoryOwner = _innerMemoryOwner;
+                if (innerMemoryOwner != null)
+                {
+                    _innerMemoryOwner = null;
+                    innerMemoryOwner.Dispose();
+                }
+            }
         }
     }
 }
