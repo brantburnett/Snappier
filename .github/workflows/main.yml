@@ -26,7 +26,7 @@ jobs:
     - name: Build
       run: dotnet build --configuration Release --no-restore
     - name: Test
-      run: dotnet test --no-restore --verbosity normal --logger "junit;test-results/results.xml"
+      run: dotnet test --no-restore --verbosity normal --logger "junit;LogFilePath=test-results/results.xml"
     - name: Publish Unit Test Results
       uses: EnricoMi/publish-unit-test-result-action@v1.3
       if: always()
