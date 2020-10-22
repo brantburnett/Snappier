@@ -2,7 +2,6 @@ name: .NET Core
 
 on:
   push:
-    branches: [ main ]
   pull_request:
     branches: [ main ]
 
@@ -13,20 +12,26 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-    - name: Setup .NET Core
+    - name: Setup .NET Core 3.1
       uses: actions/setup-dotnet@v1
       with:
         dotnet-version: '3.1.x'
-    - name: Setup .NET Core
+    - name: Setup .NET Core 2.1
       uses: actions/setup-dotnet@v1
       with:
         dotnet-version: '2.1.x'
+
     - name: Install dependencies
       run: dotnet restore
+    - run: echo "::set-env name=VERSION::${GITHUB_REF/refs\/tags\/release\//}"
+      if: ${{ startsWith(github.ref, 'refs/tags/release/') }}
+    - run: echo "::set-env name=VERSION::0.1.0-local"
+      if: ${{ !startsWith(github.ref, 'refs/tags/release/') }}
     - name: Build
-      run: dotnet build --configuration Release --no-restore
+      run: dotnet build --configuration Release -p:Version=${{ env.VERSION }} --no-restore
+
     - name: Test
-      run: dotnet test --no-restore --verbosity normal --logger "junit;LogFilePath=test-results/results.xml"
+      run: dotnet test --configuration Release --no-build --verbosity normal --logger "junit;LogFilePath=test-results/results.xml"
     - name: Publish Unit Test Results
       uses: EnricoMi/publish-unit-test-result-action@v1.3
       if: always()
@@ -35,3 +40,13 @@ jobs:
         check_name: Unit Tests
         files: '**/test-results/**/*.xml'
         report_individual_runs: true
+
+    - name: Pack
+      if: ${{ startsWith(github.ref, 'refs/tags/release/') }}
+      working-directory: ./src
+      run: dotnet pack --configuration Release -p:Version=${{ env.VERSION }} --no-build
+    - name: Push to NuGet.org
+      if: ${{ startsWith(github.ref, 'refs/tags/release/') }}
+      working-directory: ./src
+      run: |
+        dotnet nuget push **/*.nupkg --api-key ${{ secrets.NUGET_API_KEY}} --source https://api.nuget.org/v3/index.json
