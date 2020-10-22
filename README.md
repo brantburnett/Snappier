@@ -10,17 +10,16 @@ Snappier is a pure C# port of Google's [Snappy](https://github.com/google/snappy
 
 The Snappier project aims to meet the following needs of the .NET community.
 
-- Cross-platform C# implementation for Linux and Windows, without P/Invoke
+- Cross-platform C# implementation for Linux and Windows, without P/Invoke or special OS installation requirements
 - Compatible with .NET 4.6.1 and later and .NET Core 2.0 and later
 - Use .NET paradigms, including asynchronous stream support
 - Full compatibility with both block and stream formats
 - Near C++ level performance
-  - Note: This is only possible on .NET Core 3.0 and later with the aid of [Span&lt;T&gt;](https://docs.microsoft.com/en-us/dotnet/api/system.span-1?view=netcore-3.1) and [https://fiigii.com/2019/03/03/Hardware-intrinsic-in-NET-Core-3-0-Introduction/](System.Runtime.Intrinsics).
-- Keep allocations and garbage-collection to a minimum using buffer pools
+  - Note: This is only possible on .NET Core 3.0 and later with the aid of [Span&lt;T&gt;](https://docs.microsoft.com/en-us/dotnet/api/system.span-1?view=netcore-3.1) and [System.Runtime.Intrinsics](https://fiigii.com/2019/03/03/Hardware-intrinsic-in-NET-Core-3-0-Introduction/).
+  - .NET Core 2.1 is almost as good, .NET 4.6.1 is the slowest
+- Keep allocations and garbage collection to a minimum using buffer pools
 
-## Using Snappier
-
-### Installing
+## Installing
 
 Simply add a NuGet package reference to the latest version of Snappier.
 
@@ -34,7 +33,7 @@ or
 dotnet add package Snappier
 ```
 
-### Block compression/decompression using a buffer you already own
+## Block compression/decompression using a buffer you already own
 
 ```cs
 using Snappier;
@@ -46,15 +45,15 @@ public class Program
     public static void Main()
     {
         // This option assumes that you are managing buffers yourself in an efficient way.
-        // In this example, we're just heap allocated byte arrays, however in most cases
-        // you would get getting these buffers from a buffer pool.
+        // In this example, we're using heap allocated byte arrays, however in most cases
+        // you would get these buffers from a buffer pool like ArrayPool<byte> or MemoryPool<byte>.
 
         // Compression
         byte[] buffer = new byte[Snappy.GetMaxCompressedLength(Data)];
         int compressedLength = Snappy.Compress(Data, buffer);
         Span<byte> compressed = buffer.AsSpan(0, compressedLength);
 
-        // Decompression Option 3: Decompress to a buffer you already own
+        // Decompression
         byte[] outputBuffer = new byte[Snappy.GetUncompressedLength(compressed)];
         int decompressedLength = Snappy.Decompress(compressed, outputBuffer);
 
@@ -66,7 +65,7 @@ public class Program
 }
 ```
 
-### Block compression/decompression using a memory pool buffer
+## Block compression/decompression using a memory pool buffer
 
 ```cs
 using Snappier;
@@ -94,7 +93,7 @@ public class Program
 }
 ```
 
-### Block compression/decompression using heap allocated byte[]
+## Block compression/decompression using heap allocated byte[]
 
 ```cs
 using Snappier;
@@ -117,11 +116,11 @@ public class Program
 }
 ```
 
-### Stream compression/decompression
+## Stream compression/decompression
 
 Compressing or decompressing a stream follows the same paradigm as other compression streams in .NET. `SnappyStream` wraps an inner stream. If decompressing you read from the `SnappyStream`, if compressing you write to the `SnappyStream`
 
-This approach reads or writes the [Snappy framing format](https://github.com/google/snappy/blob/master/framing_format.txt) designed for streaming. The input/output is not the same as the block method above. It includes additional headers and CRC checks.
+This approach reads or writes the [Snappy framing format](https://github.com/google/snappy/blob/master/framing_format.txt) designed for streaming. The input/output is not the same as the block method above. It includes additional headers and CRC32C checks.
 
 ```cs
 using System.IO;
@@ -130,15 +129,15 @@ using Snappier;
 
 public class Program
 {
-    private static byte[] Data = {0, 1, 2}; // Wherever you get the data from
-
-    public static void Main()
+    public static async Task Main()
     {
+        using var fileStream = File.OpenRead("somefile.txt");
+
         // First, compression
         using var compressed = new MemoryStream();
 
         using (var compressor = new SnappyStream(compressed, CompressionMode.Compress, false)) {
-            compressor.Write(Data, 0, Data.Length);
+            await fileStream.CopyToAsync(compressor);
 
             // Disposing the compressor also flushes the buffers to the inner stream
             // We pass false to the constructor above so that it doesn't dispose the inner stream
@@ -166,5 +165,5 @@ public class Program
 
 There are other projects available for C#/.NET which implement Snappy compression.
 
-- [Snappy.NET](https://snappy.machinezoo.com/) - Uses P/Invoke to C++ for great performance. However, it only works on Windows, and is a bit heap allocation heavy in some cases. It also hasn't been updated since 2014 (as of 10/2020).
+- [Snappy.NET](https://snappy.machinezoo.com/) - Uses P/Invoke to C++ for great performance. However, it only works on Windows, and is a bit heap allocation heavy in some cases. It also hasn't been updated since 2014 (as of 10/2020). This project may still be the best choice if your project is on the legacy .NET Framework on Windows, where Snappier is much less performant.
 - [IronSnappy](https://github.com/aloneguid/IronSnappy) - Another pure C# port, based on the Golang implemenation instead of the C++ implementation.
