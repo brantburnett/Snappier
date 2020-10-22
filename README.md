@@ -28,9 +28,13 @@ Simply add a NuGet package reference to the latest version of Snappier.
 <PackageReference Include="Snappier" Version="1.0.0" />
 ```
 
-### Block compression/decompression
+or
 
-Compressing or decompressing a block is done via static methods on the `Snappy` class.
+```sh
+dotnet add package Snappier
+```
+
+### Block compression/decompression using a buffer you already own
 
 ```cs
 using Snappier;
@@ -41,22 +45,74 @@ public class Program
 
     public static void Main()
     {
-        // First, compression
-        var buffer = new byte[Snappy.GetMaxCompressedLength(Data)];
-        var compressedLength = Snappy.Compress(Data, buffer);
-        var compressed = buffer.AsSpan(0, compressedLength);
+        // This option assumes that you are managing buffers yourself in an efficient way.
+        // In this example, we're just heap allocated byte arrays, however in most cases
+        // you would get getting these buffers from a buffer pool.
 
-        // Option 1: Decompress to a memory pool buffer
-        var outputMemory = Snappy.DecompressToMemory(compressed);
-        outputMemory.Dispose(); // Be SURE to dispose to avoid memory leaks
+        // Compression
+        byte[] buffer = new byte[Snappy.GetMaxCompressedLength(Data)];
+        int compressedLength = Snappy.Compress(Data, buffer);
+        Span<byte> compressed = buffer.AsSpan(0, compressedLength);
 
-        // Option 2: Decompress to a heap allocated byte[]
-        // This is a bit less efficient, but if you need a byte[]...
-        var outputBytes = Snappy.DecompressToArray(compressed);
+        // Decompression Option 3: Decompress to a buffer you already own
+        byte[] outputBuffer = new byte[Snappy.GetUncompressedLength(compressed)];
+        int decompressedLength = Snappy.Decompress(compressed, outputBuffer);
 
-        // Option 3: Decompress to a buffer you already own
-        var outputBuffer = new byte[Snappy.GetUncompressedLength(compressed)];
-        var decompressedLength = Snappy.Decompress(compressed, outputBuffer);
+        for (var i = 0; i < decompressedLength; i++)
+        {
+            // Do something with the data
+        }
+    }
+}
+```
+
+### Block compression/decompression using a memory pool buffer
+
+```cs
+using Snappier;
+
+public class Program
+{
+    private static byte[] Data = {0, 1, 2}; // Wherever you get the data from
+
+    public static void Main()
+    {
+        // This option uses `MemoryPool<byte>.Shared`. However, if you fail to
+        // dispose of the returned buffers correctly it can result in memory leaks.
+        // It is imperative to either call .Dispose() or use a using statement.
+
+        // Compression
+        using (IMemoryOwner<byte> compressed = Snappy.CompressToMemory(Data))
+        {
+            // Decompression
+            using (IMemoryOwner<byte> decompressed = Snappy.DecompressToMemory(compressed.Memory.Span))
+            {
+                // Do something with the data
+            }
+        }
+    }
+}
+```
+
+### Block compression/decompression using heap allocated byte[]
+
+```cs
+using Snappier;
+
+public class Program
+{
+    private static byte[] Data = {0, 1, 2}; // Wherever you get the data from
+
+    public static void Main()
+    {
+        // This is generally the least efficient option,
+        // but in some cases may be the simplest to implement.
+
+        // Compression
+        byte[] compressed = Snappy.CompressToArray(Data);
+
+        // Decompression
+        byte[] decompressed = Snappy.DecompressToArray(compressed);
     }
 }
 ```
@@ -83,7 +139,7 @@ public class Program
 
         using (var compressor = new SnappyStream(compressed, CompressionMode.Compress, false)) {
             compressor.Write(Data, 0, Data.Length);
-            
+
             // Disposing the compressor also flushes the buffers to the inner stream
             // We pass false to the constructor above so that it doesn't dispose the inner stream
             // Alternatively, we could call compressor.Flush()
@@ -95,9 +151,12 @@ public class Program
         using var decompressor = new SnappyStream(compressed, CompressionMode.Decompress);
 
         var buffer = new byte[65536];
-        while (decompressor.Read(buffer, 0, 65536) > 0)
+        var bytesRead = decompressor.Read(buffer, 0, buffer.Length);
+        while (bytesRead > 0)
         {
             // Do something with the data
+
+            bytesRead = decompressor.Read(buffer, 0, buffer.Length)
         }
     }
 }

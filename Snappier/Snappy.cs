@@ -29,13 +29,56 @@ namespace Snappier
         /// <param name="output">Buffer to receive the compressed data.</param>
         /// <returns>Number of bytes written to <paramref name="output"/>.</returns>
         /// <remarks>
-        /// The output buffer must be large enough to
+        /// The output buffer must be large enough to contain the compressed output.
         /// </remarks>
         public static int Compress(ReadOnlySpan<byte> input, Span<byte> output)
         {
             var compressor = new SnappyCompressor();
 
             return compressor.Compress(input, output);
+        }
+
+        /// <summary>
+        /// Compress a block of Snappy data.
+        /// </summary>
+        /// <param name="input">Data to compress.</param>
+        /// <returns>An <see cref="IMemoryOwner{T}"/> with the decompressed data. The caller is responsible for disposing this object.</returns>
+        /// <remarks>
+        /// Failing to dispose of the returned <see cref="IMemoryOwner{T}"/> may result in memory leaks.
+        /// </remarks>
+        public static IMemoryOwner<byte> CompressToMemory(ReadOnlySpan<byte> input)
+        {
+            var buffer = MemoryPool<byte>.Shared.Rent(GetMaxCompressedLength(input.Length));
+
+            try
+            {
+                var length = Compress(input, buffer.Memory.Span);
+
+                return new SlicedMemoryOwner(buffer, length);
+            }
+            catch
+            {
+                buffer.Dispose();
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Compress a block of Snappy data.
+        /// </summary>
+        /// <param name="input">Data to compress.</param>
+        /// <remarks>
+        /// The resulting byte array is allocated on the heap. If possible, <see cref="CompressToMemory"/> should
+        /// be used instead since it uses a shared buffer pool.
+        /// </remarks>
+        public static byte[] CompressToArray(ReadOnlySpan<byte> input)
+        {
+            using var buffer = CompressToMemory(input);
+            var bufferSpan = buffer.Memory.Span;
+
+            var result = new byte[bufferSpan.Length];
+            bufferSpan.CopyTo(result);
+            return result;
         }
 
         /// <summary>
