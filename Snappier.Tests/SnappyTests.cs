@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using Xunit;
@@ -19,7 +20,7 @@ namespace Snappier.Tests
         [InlineData("paper-100k.pdf")]
         [InlineData("plrabn12.txt")]
         [InlineData("urls.10K")]
-        public void CompressAndDecompress(string filename)
+        public void CompressAndDecompressFile(string filename)
         {
             using var resource =
                 typeof(SnappyTests).Assembly.GetManifestResourceStream($"Snappier.Tests.TestData.{filename}");
@@ -37,6 +38,33 @@ namespace Snappier.Tests
             var outputLength = Snappy.Decompress(compressedSpan, output);
 
             Assert.Equal(input.Length, outputLength);
+            Assert.Equal(input, output);
+        }
+
+        public static IEnumerable<object[]> CompressAndDecompressStringCases()
+        {
+            yield return new object[] {""};
+            yield return new object[] {"a"};
+            yield return new object[] {"ab"};
+            yield return new object[] {"abc"};
+
+            yield return new object[] {"aaaaaaa" + new string('b', 16) + "aaaaaabc"};
+            yield return new object[] {"aaaaaaa" + new string('b', 256) + "aaaaaabc"};
+            yield return new object[] {"aaaaaaa" + new string('b', 2047) + "aaaaaabc"};
+            yield return new object[] {"aaaaaaa" + new string('b', 65536) + "aaaaaabc"};
+            yield return new object[] {"abcaaaaaaa" + new string('b', 65536) + "aaaaaabc"};
+        }
+
+        [Theory]
+        [MemberData(nameof(CompressAndDecompressStringCases))]
+        public void CompressAndDecompressString(string str)
+        {
+            var input = Encoding.UTF8.GetBytes(str);
+
+            var compressed = Snappy.CompressToArray(input);
+            var output = Snappy.DecompressToArray(compressed);
+
+            Assert.Equal(input.Length, output.Length);
             Assert.Equal(input, output);
         }
 
@@ -76,26 +104,6 @@ namespace Snappier.Tests
 
                 var output = new byte[length];
                 Snappy.Decompress(compressed.AsSpan(0, compressedLength), output);
-            });
-        }
-
-        [Fact]
-        public void BadData_ShortLength_ThrowsInvalidDataException()
-        {
-            var input = new byte[100000];
-            Array.Fill(input, (byte) 'A');
-
-            var compressed = new byte[Snappy.GetMaxCompressedLength(input.Length)];
-            var compressedLength = Snappy.Compress(input, compressed);
-            var compressedSpan = compressed.AsSpan(0, compressedLength);
-
-            // Set the length header to 0
-            compressedSpan[0] = compressedSpan[1] = compressedSpan[2] = compressedSpan[3] = 0;
-
-            Assert.Throws<InvalidDataException>(() =>
-            {
-                var output = new byte[100000];
-                Snappy.Decompress(compressed, output);
             });
         }
 

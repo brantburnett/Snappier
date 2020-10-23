@@ -99,6 +99,8 @@ namespace Snappier
         /// <param name="input">Data to decompress.</param>
         /// <param name="output">Buffer to receive the decompressed data.</param>
         /// <returns>Number of bytes written to <paramref name="output"/>.</returns>
+        /// <exception cref="InvalidDataException">Invalid Snappy block.</exception>
+        /// <exception cref="ArgumentException">Output buffer is too small.</exception>
         public static int Decompress(ReadOnlySpan<byte> input, Span<byte> output)
         {
             var decompressor = new SnappyDecompressor();
@@ -107,14 +109,14 @@ namespace Snappier
 
             if (!decompressor.AllDataDecompressed)
             {
-                throw new InvalidDataException("Incomplete Snappy block");
+                throw new InvalidDataException("Incomplete Snappy block.");
             }
 
             var read = decompressor.Read(output);
 
             if (!decompressor.EndOfFile)
             {
-                throw new ArgumentException("Output buffer is too small", nameof(output));
+                throw new ArgumentException("Output buffer is too small.", nameof(output));
             }
 
             return read;
