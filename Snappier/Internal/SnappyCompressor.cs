@@ -11,10 +11,6 @@ namespace Snappier.Internal
 
         public int Compress(ReadOnlySpan<byte> input, Span<byte> output)
         {
-            if (input.Length == 0)
-            {
-                throw new ArgumentException("Empty input", nameof(input));
-            }
             if (output.Length < Helpers.MaxCompressedLength(input.Length))
             {
                 throw new ArgumentException("Insufficient output buffer", nameof(output));

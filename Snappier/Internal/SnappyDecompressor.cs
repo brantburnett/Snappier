@@ -18,9 +18,20 @@ namespace Snappier.Internal
 
         public bool NeedMoreData => !AllDataDecompressed && UnreadBytes == 0;
 
+        /// <summary>
+        /// Decompress a portion of the input.
+        /// </summary>
+        /// <param name="input">Input to process.</param>
+        /// <returns>Number of bytes processed from the input.</returns>
+        /// <remarks>
+        /// The first call to this method after construction or after a call to <see cref="Reset"/> start at the
+        /// beginning of a new Snappy block, leading with the encoded block size. It may be called multiple times
+        /// as more data becomes available. <see cref="AllDataDecompressed"/> will be true once the entire block
+        /// has been processed.
+        /// </remarks>
         public void Decompress(ReadOnlySpan<byte> input)
         {
-            if (ExpectedLength == 0)
+            if (!ExpectedLength.HasValue)
             {
                 var readLength = ReadUncompressedLength(ref input);
                 if (readLength.HasValue)
@@ -64,7 +75,7 @@ namespace Snappier.Internal
 
             _lookbackPosition = 0;
             _readPosition = 0;
-            ExpectedLength = 0;
+            ExpectedLength = null;
         }
 
         /// <summary>
@@ -122,6 +133,7 @@ namespace Snappier.Internal
         /// </summary>
         /// <param name="input">Input data, which should begin with the varint encoded uncompressed length.</param>
         /// <returns>The length of the uncompressed data.</returns>
+        /// <exception cref="InvalidDataException">Invalid stream length</exception>
         public static int ReadUncompressedLength(ReadOnlySpan<byte> input)
         {
             int result = 0;
@@ -461,24 +473,22 @@ namespace Snappier.Internal
         private uint _lookbackPosition = 0;
         private int _readPosition = 0;
 
-        private int _expectedLength;
-        public int ExpectedLength
+        private int? _expectedLength;
+        private int? ExpectedLength
         {
             get => _expectedLength;
             set
             {
                 _expectedLength = value;
 
-                if (_lookbackBuffer.Length < _expectedLength)
+                if (_expectedLength.HasValue && _lookbackBuffer.Length < _expectedLength.GetValueOrDefault())
                 {
                     _lookbackBufferOwner?.Dispose();
-                    _lookbackBufferOwner = MemoryPool<byte>.Shared.Rent(_expectedLength);
+                    _lookbackBufferOwner = MemoryPool<byte>.Shared.Rent(_expectedLength.GetValueOrDefault());
                     _lookbackBuffer = _lookbackBufferOwner.Memory;
                 }
             }
         }
-
-        public int WrittenLength => (int)_lookbackPosition;
 
         public int UnreadBytes
         {
@@ -489,13 +499,13 @@ namespace Snappier.Internal
         public bool EndOfFile
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => ExpectedLength > 0 && _readPosition >= ExpectedLength;
+            get => ExpectedLength.HasValue && _readPosition >= ExpectedLength.GetValueOrDefault();
         }
 
         public bool AllDataDecompressed
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => ExpectedLength > 0 && _lookbackPosition >= ExpectedLength;
+            get => ExpectedLength.HasValue && _lookbackPosition >= ExpectedLength.GetValueOrDefault();
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
