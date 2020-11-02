@@ -94,7 +94,7 @@ namespace Snappier.Internal
             bool foundEnd = false;
 
             var i = 0;
-            while (input.Length > 0)
+            while (input.Length > i)
             {
                 byte c = input[i];
                 i += 1;
