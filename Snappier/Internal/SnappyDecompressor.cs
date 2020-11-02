@@ -8,7 +8,7 @@ namespace Snappier.Internal
 {
     internal sealed class SnappyDecompressor : IDisposable
     {
-        private readonly byte[] _scratch = new byte[Constants.MaximumTagLength];
+        private byte[] _scratch = new byte[Constants.MaximumTagLength];
         private int _scratchLength = 0;
 
         private int _remainingLiteral;
@@ -176,7 +176,7 @@ namespace Snappier.Internal
             return result;
         }
 
-        private unsafe void DecompressAllTags(ReadOnlySpan<byte> inputSpan)
+        internal unsafe void DecompressAllTags(ReadOnlySpan<byte> inputSpan)
         {
             // Put Constants.CharTable on the stack to simplify lookups within the loops below
             ReadOnlySpan<ushort> charTable = Constants.CharTable.AsSpan();
@@ -278,6 +278,9 @@ namespace Snappier.Internal
                                     {
                                         goto exit;
                                     }
+
+                                    inputLimitMinMaxTagLength = inputEnd - Math.Min(inputEnd - input,
+                                       Constants.MaximumTagLength - 1);
                                 }
 
                                 uint preload = Helpers.UnsafeReadUInt32(input);
@@ -600,6 +603,36 @@ namespace Snappier.Internal
                 _readPosition += unreadBytes;
                 return unreadBytes;
             }
+        }
+
+        #endregion
+
+        #region Test Helpers
+
+        /// <summary>
+        /// Load some data into the output buffer, only used for testing.
+        /// </summary>
+        /// <param name="toWrite"></param>
+        internal void WriteToBufferForTest(ReadOnlySpan<byte> toWrite)
+        {
+            Append(toWrite);
+        }
+
+        /// <summary>
+        /// Load a byte array into _scratch, only used for testing.
+        /// </summary>
+        internal void LoadScratchForTest(byte[] newScratch, int newScratchLength)
+        {
+            _scratch = newScratch ?? throw new ArgumentNullException(nameof(newScratch));
+            _scratchLength = newScratchLength;
+        }
+
+        /// <summary>
+        /// Only used for testing.
+        /// </summary>
+        internal void SetExpectedLengthForTest(int expectedLength)
+        {
+            ExpectedLength = expectedLength;
         }
 
         #endregion
