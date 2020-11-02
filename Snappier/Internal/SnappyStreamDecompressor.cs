@@ -220,7 +220,7 @@ namespace Snappier.Internal
                 var bytesToCopyToScratch = 4 - _scratchLength;
                 fixed (byte* scratch = _scratch)
                 {
-                    Buffer.MemoryCopy(buffer, scratch, ScratchBufferSize, bytesToCopyToScratch);
+                    Buffer.MemoryCopy(buffer, scratch + _scratchLength, ScratchBufferSize, bytesToCopyToScratch);
 
                     buffer += bytesToCopyToScratch;
                     _scratchLength += bytesToCopyToScratch;
@@ -280,15 +280,17 @@ namespace Snappier.Internal
             }
 
             // Copy to scratch
-            new ReadOnlySpan<byte>(inputPtr, bytesAvailable)
+            int crcBytesAvailable = Math.Min(bytesAvailable, 4 - chunkBytesProcessed);
+            new ReadOnlySpan<byte>(inputPtr, crcBytesAvailable)
                 .CopyTo(_scratch.AsSpan(_scratchLength));
-            _scratchLength += bytesAvailable;
-            inputPtr += bytesAvailable;
-            chunkBytesProcessed += bytesAvailable;
+            _scratchLength += crcBytesAvailable;
+            inputPtr += crcBytesAvailable;
+            chunkBytesProcessed += crcBytesAvailable;
 
             if (_scratchLength >= 4)
             {
                 _expectedChunkCrc = BinaryPrimitives.ReadUInt32LittleEndian(_scratch);
+                _scratchLength = 0;
                 return true;
             }
 
