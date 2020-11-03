@@ -33,14 +33,17 @@ jobs:
     - name: Test
       run: dotnet test --configuration Release --no-build --verbosity normal --logger "junit;LogFilePath=test-results/results.xml"
     - name: Publish Unit Test Results
-      uses: EnricoMi/publish-unit-test-result-action@v1.3
-      if: always()
+      uses: EnricoMi/publish-unit-test-result-action@f8a3fca6035d817e664cd0bf57d7fefc407847ee # pre-1.4, adds comment_on_pr option
+      if: >
+        github.event_name == 'push' ||
+        github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         check_name: Unit Tests
         files: '**/test-results/**/*.xml'
         report_individual_runs: true
-
+        comment_on_pr: false
+        
     - name: Pack
       if: ${{ startsWith(github.ref, 'refs/tags/release/') }}
       run: dotnet pack --configuration Release -p:Version=${{ env.VERSION }} --no-build
