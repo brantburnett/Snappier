@@ -6,6 +6,8 @@
     <LangVersion>8</LangVersion>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>..\Snappier.snk</AssemblyOriginatorKeyFile>
 
     <Authors>btburnett3</Authors>
     <PackageTags>snappy;compression;fast;io</PackageTags>
