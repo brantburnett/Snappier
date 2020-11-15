@@ -1,12 +1,10 @@
 ﻿using System.IO;
 using System.IO.Compression;
 using BenchmarkDotNet.Attributes;
-using BenchmarkDotNet.Jobs;
 
 namespace Snappier.Benchmarks
 {
-    //[ShortRunJob(RuntimeMoniker.NetCoreApp21)]
-    [ShortRunJob(RuntimeMoniker.NetCoreApp31)]
+    [Config(typeof(StandardConfig))]
     public class DecompressAlice
     {
         private MemoryStream _memoryStream;
