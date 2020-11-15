@@ -14,7 +14,6 @@ namespace Snappier.Benchmarks
 
             AddExporter(DefaultExporters.CsvMeasurements);
             AddExporter(DefaultExporters.Csv);
-            AddExporter(DefaultExporters.RPlot);
             AddExporter(DefaultExporters.Markdown);
             AddExporter(DefaultExporters.Html);
 

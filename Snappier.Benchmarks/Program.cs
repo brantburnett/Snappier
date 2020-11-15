@@ -1,10 +1,5 @@
-﻿using System;
+﻿using System.Reflection;
 using BenchmarkDotNet.Running;
+using Snappier.Benchmarks;
 
-namespace Snappier.Benchmarks
-{
-    class Program
-    {
-        static void Main(string[] args) => BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args, new StandardConfig());
-    }
-}
+BenchmarkSwitcher.FromAssembly(Assembly.GetExecutingAssembly()).Run(args, new StandardConfig());
