@@ -150,5 +150,26 @@ namespace Snappier.Tests
                 Snappy.Decompress(input, output);
             });
         }
+
+        [Fact]
+        public void DecompressToMemory()
+        {
+            using var resource =
+                typeof(SnappyTests).Assembly.GetManifestResourceStream($"Snappier.Tests.TestData.alice29.txt");
+            Assert.NotNull(resource);
+
+            var input = new byte[resource.Length];
+            resource.Read(input);
+
+            var compressed = new byte[Snappy.GetMaxCompressedLength(input.Length)];
+            var compressedLength = Snappy.Compress(input, compressed);
+
+            var compressedSpan = compressed.AsSpan(0, compressedLength);
+
+            using var output = Snappy.DecompressToMemory(compressedSpan);
+
+            Assert.Equal(input.Length, output.Memory.Length);
+            Assert.Equal(input, output.Memory.Span.ToArray());
+        }
     }
 }

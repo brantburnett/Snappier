@@ -608,6 +608,40 @@ namespace Snappier.Internal
             }
         }
 
+        /// <summary>
+        /// Extracts the data from from the block, returning a block of memory and resetting the block.
+        /// </summary>
+        /// <returns>An block of memory. Caller is responsible for disposing.</returns>
+        /// <remarks>
+        /// This provides a more efficient way to decompress an entire block in scenarios where the caller
+        /// wants an owned block of memory and isn't going to reuse the SnappyDecompressor. It avoids the
+        /// need to copy a block of memory calling <see cref="Read"/>.
+        /// </remarks>
+        public IMemoryOwner<byte> ExtractData()
+        {
+            var data = _lookbackBufferOwner;
+            if (!ExpectedLength.HasValue || _lookbackBufferOwner is null)
+            {
+                throw new InvalidOperationException("No data present.");
+            }
+
+            if (!AllDataDecompressed)
+            {
+                throw new InvalidOperationException("Block is not fully decompressed.");
+            }
+
+            if (data.Memory.Length > ExpectedLength.Value)
+            {
+                data = new SlicedMemoryOwner(data, ExpectedLength.Value);
+            }
+
+            // Clear owner so we don't dispose it in Reset
+            _lookbackBufferOwner = null;
+            Reset();
+
+            return data;
+        }
+
         #endregion
 
         #region Test Helpers

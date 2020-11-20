@@ -33,7 +33,7 @@ namespace Snappier
         /// </remarks>
         public static int Compress(ReadOnlySpan<byte> input, Span<byte> output)
         {
-            var compressor = new SnappyCompressor();
+            using var compressor = new SnappyCompressor();
 
             return compressor.Compress(input, output);
         }
@@ -103,7 +103,7 @@ namespace Snappier
         /// <exception cref="ArgumentException">Output buffer is too small.</exception>
         public static int Decompress(ReadOnlySpan<byte> input, Span<byte> output)
         {
-            var decompressor = new SnappyDecompressor();
+            using var decompressor = new SnappyDecompressor();
 
             decompressor.Decompress(input);
 
@@ -132,19 +132,16 @@ namespace Snappier
         /// </remarks>
         public static IMemoryOwner<byte> DecompressToMemory(ReadOnlySpan<byte> input)
         {
-            var buffer = MemoryPool<byte>.Shared.Rent(GetUncompressedLength(input));
+            using var decompressor = new SnappyDecompressor();
 
-            try
-            {
-                var length = Decompress(input, buffer.Memory.Span);
+            decompressor.Decompress(input);
 
-                return new SlicedMemoryOwner(buffer, length);
-            }
-            catch
+            if (!decompressor.AllDataDecompressed)
             {
-                buffer.Dispose();
-                throw;
+                throw new InvalidDataException("Incomplete Snappy block.");
             }
+
+            return decompressor.ExtractData();
         }
 
         /// <summary>
@@ -165,51 +162,6 @@ namespace Snappier
             Decompress(input, result);
 
             return result;
-        }
-
-        /// <summary>
-        /// Wraps an inner <see cref="IMemoryOwner{T}"/> to have a shorter length.
-        /// </summary>
-        private sealed class SlicedMemoryOwner : IMemoryOwner<byte>
-        {
-            private IMemoryOwner<byte>? _innerMemoryOwner;
-            private readonly int _length;
-
-            public Memory<byte> Memory
-            {
-                get
-                {
-                    if (_innerMemoryOwner == null)
-                    {
-                        throw new ObjectDisposedException(nameof(SlicedMemoryOwner));
-                    }
-
-                    return _innerMemoryOwner.Memory.Slice(0, _length);
-                }
-            }
-
-            public SlicedMemoryOwner(IMemoryOwner<byte> innerMemoryOwner, int length)
-            {
-                _innerMemoryOwner = innerMemoryOwner ?? throw new ArgumentNullException(nameof(innerMemoryOwner));
-
-                if (_length > _innerMemoryOwner.Memory.Length)
-                {
-                    throw new ArgumentException($"{nameof(length)} is greater than the inner length.", nameof(length));
-                }
-
-                _length = length;
-            }
-
-            public void Dispose()
-            {
-                // Cache to local to ensure order of operations for thread safety
-                var innerMemoryOwner = _innerMemoryOwner;
-                if (innerMemoryOwner != null)
-                {
-                    _innerMemoryOwner = null;
-                    innerMemoryOwner.Dispose();
-                }
-            }
         }
     }
 }
