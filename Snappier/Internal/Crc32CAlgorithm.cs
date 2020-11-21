@@ -1,7 +1,10 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-#if NETCOREAPP3_0
+#if NET5_0
+using System.Runtime.Intrinsics.Arm;
+#endif
+#if NETCOREAPP3_0 || NET5_0
 using System.Runtime.Intrinsics.X86;
 #endif
 
@@ -43,7 +46,39 @@ namespace Snappier.Internal
         {
             uint crcLocal = uint.MaxValue ^ crc;
 
-            #if NETCOREAPP3_0
+            #if NET5_0
+            // If available on the current CPU, use ARM CRC32C intrinsic operations.
+            // The if Crc32 statements are optimized out by the JIT compiler based on CPU support.
+            if (Crc32.IsSupported)
+            {
+                if (Crc32.Arm64.IsSupported)
+                {
+                    while (source.Length >= 8)
+                    {
+                        crcLocal = Crc32.Arm64.ComputeCrc32C(crcLocal, MemoryMarshal.Read<ulong>(source));
+                        source = source.Slice(8);
+                    }
+                }
+
+                // Process in 4-byte chunks
+                while (source.Length >= 4)
+                {
+                    crcLocal = Crc32.ComputeCrc32C(crcLocal, MemoryMarshal.Read<uint>(source));
+                    source = source.Slice(4);
+                }
+
+                // Process the remainder
+                int j = 0;
+                while (j < source.Length)
+                {
+                    crcLocal = Crc32.ComputeCrc32C(crcLocal, source[j++]);
+                }
+
+                return crcLocal ^ uint.MaxValue;
+            }
+            #endif
+
+            #if NETCOREAPP3_0 || NET5_0
             // If available on the current CPU, use Intel CRC32C intrinsic operations.
             // The Sse42 if statements are optimized out by the JIT compiler based on CPU support.
             if (Sse42.IsSupported)
@@ -56,11 +91,11 @@ namespace Snappier.Internal
                         // work with a ulong local during the loop to reduce typecasts
                         ulong crcLocalLong = crcLocal;
 
-                        do
+                        while (source.Length >= 8)
                         {
                             crcLocalLong = Sse42.X64.Crc32(crcLocalLong, MemoryMarshal.Read<ulong>(source));
                             source = source.Slice(8);
-                        } while (source.Length >= 8);
+                        }
 
                         crcLocal = (uint) crcLocalLong;
                     }
@@ -74,9 +109,11 @@ namespace Snappier.Internal
                 }
 
                 // Process the remainder
-                var j = 0;
+                int j = 0;
                 while (j < source.Length)
+                {
                     crcLocal = Sse42.Crc32(crcLocal, source[j++]);
+                }
 
                 return crcLocal ^ uint.MaxValue;
             }

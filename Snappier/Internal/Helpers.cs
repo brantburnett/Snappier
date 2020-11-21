@@ -2,7 +2,7 @@
 using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-#if NETCOREAPP3_0
+#if NETCOREAPP3_0 || NET5_0
 using System.Numerics;
 using System.Runtime.Intrinsics.X86;
 #endif
@@ -67,7 +67,7 @@ namespace Snappier.Internal
             Debug.Assert(numBytes >= 0);
             Debug.Assert(numBytes <= 4);
 
-            #if NETCOREAPP3_0
+            #if NETCOREAPP3_0 || NET5_0
             if (Bmi2.IsSupported)
             {
                 return Bmi2.ZeroHighBits(value, (uint)(numBytes * 8));
@@ -144,7 +144,7 @@ namespace Snappier.Internal
         {
             Debug.Assert(n != 0);
 
-#if NETCOREAPP3_0
+#if NETCOREAPP3_0 || NET5_0
             return BitOperations.Log2(n);
 #else
             return (int) Math.Floor(Math.Log(n, 2));
@@ -159,7 +159,7 @@ namespace Snappier.Internal
         {
             Debug.Assert(n != 0);
 
-#if NETCOREAPP3_0
+#if NETCOREAPP3_0 || NET5_0
             return BitOperations.TrailingZeroCount(n);
 #else
             int rc = 31;
