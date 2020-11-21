@@ -171,5 +171,52 @@ namespace Snappier.Tests
             Assert.Equal(input.Length, output.Memory.Length);
             Assert.Equal(input, output.Memory.Span.ToArray());
         }
+
+        [Fact]
+        public void RandomData()
+        {
+            var rng = new Random(301);
+
+            for (int i = 0; i < 20000; i++)
+            {
+                int length = rng.Next(0, 4095);
+                if (i < 100)
+                {
+                    length = 65536 + rng.Next(0, 65535);
+                }
+
+                byte[] buffer = new byte[length];
+                int size = 0;
+                while (size < length)
+                {
+                    int runLength = 1;
+                    if (rng.Next(0, 9) == 0)
+                    {
+                        int skewedBits = rng.Next(0, 8);
+
+                        runLength = rng.Next(0, (1 << skewedBits) - 1);
+                    }
+
+                    byte c = (byte) rng.Next(0, 255);
+
+                    if (i >= 100)
+                    {
+                        int skewedBits = rng.Next(0, 3);
+
+                        c = (byte)rng.Next(0, (1 << skewedBits) - 1);
+                    }
+
+                    Array.Fill(buffer, c, size, Math.Min(runLength, length - size));
+                    size += runLength;
+                }
+
+                using var compressed = Snappy.CompressToMemory(buffer);
+
+                using var decompressed = Snappy.DecompressToMemory(compressed.Memory.Span);
+
+                Assert.Equal(buffer.Length, decompressed.Memory.Length);
+                Assert.Equal(buffer, decompressed.Memory.ToArray());
+            }
+        }
     }
 }

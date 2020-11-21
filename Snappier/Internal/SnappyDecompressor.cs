@@ -620,9 +620,14 @@ namespace Snappier.Internal
         public IMemoryOwner<byte> ExtractData()
         {
             var data = _lookbackBufferOwner;
-            if (!ExpectedLength.HasValue || _lookbackBufferOwner is null)
+            if (!ExpectedLength.HasValue)
             {
                 throw new InvalidOperationException("No data present.");
+            }
+            else if (_lookbackBufferOwner == null)
+            {
+                // Length was 0, so we've allocated nothing
+                return new EmptyMemoryOwner();
             }
 
             if (!AllDataDecompressed)
@@ -635,8 +640,10 @@ namespace Snappier.Internal
                 data = new SlicedMemoryOwner(data, ExpectedLength.Value);
             }
 
-            // Clear owner so we don't dispose it in Reset
+            // Clear owner so we don't dispose it
             _lookbackBufferOwner = null;
+            _lookbackBuffer = Memory<byte>.Empty;
+
             Reset();
 
             return data;
