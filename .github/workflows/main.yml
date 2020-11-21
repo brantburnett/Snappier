@@ -6,9 +6,22 @@ on:
     branches: [ main ]
 
 jobs:
-  build:
+
+  test:
 
     runs-on: ubuntu-latest
+    needs: build
+    strategy:
+      matrix:
+        framework: ["net5.0", "netcoreapp3.0", "netcoreapp2.1"]
+        disable: ["EnableHWIntrinsics", "EnableSSSE3", "EnableBMI2", "Noop"]
+        exclude:
+          - framework: "netcoreapp2.1"
+            disable: "EnableHWIntrinsics"
+          - framework: "netcoreapp2.1"
+            disable: "EnableSSSE3"
+          - framework: "netcoreapp2.1"
+            disable: "EnableBMI2"
 
     steps:
     - uses: actions/checkout@v2
@@ -17,25 +30,23 @@ jobs:
       with:
         dotnet-version: '5.0.x'
     - name: Setup .NET Core 3.1
+      if: matrix.framework == 'netcoreapp3.0'
       uses: actions/setup-dotnet@v1
       with:
         dotnet-version: '3.1.x'
     - name: Setup .NET Core 2.1
+      if: matrix.framework == 'netcoreapp2.1'
       uses: actions/setup-dotnet@v1
       with:
         dotnet-version: '2.1.x'
 
     - name: Install dependencies
       run: dotnet restore
-    - run: echo "VERSION=${GITHUB_REF/refs\/tags\/release\//}" >> $GITHUB_ENV
-      if: ${{ startsWith(github.ref, 'refs/tags/release/') }}
-    - run: echo "VERSION=0.1.0-local" >> $GITHUB_ENV
-      if: ${{ !startsWith(github.ref, 'refs/tags/release/') }}
-    - name: Build
-      run: dotnet build --configuration Release -p:Version=${{ env.VERSION }} --no-restore
-
     - name: Test
-      run: dotnet test --configuration Release --no-build --verbosity normal --logger "junit;LogFilePath=test-results/results.xml"
+      run: |
+        COMPlus_{{ matrix.disable }}=0 && \
+        dotnet test -f {{ matrix.framework }} --configuration Release --verbosity normal --logger "junit;LogFilePath=test-results/results.xml"
+
     - name: Publish Unit Test Results
       uses: EnricoMi/publish-unit-test-result-action@f8a3fca6035d817e664cd0bf57d7fefc407847ee # pre-1.4, adds comment_on_pr option
       if: >
@@ -43,15 +54,30 @@ jobs:
         github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
-        check_name: Unit Tests
+        check_name: Unit Tests {{ matrix.framework }} {{ matrix.disable }}=0
         files: '**/test-results/**/*.xml'
         report_individual_runs: true
         comment_on_pr: false
 
+
+  publish:
+
+    runs-on: ubuntu-latest
+    needs: test
+    if: ${{ startsWith(github.ref, 'refs/tags/release/') }}
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Setup .NET 5.0
+      uses: actions/setup-dotnet@v1
+      with:
+        dotnet-version: '5.0.x'
+
+    - name: Install dependencies
+      run: dotnet restore
+    - run: echo "VERSION=${GITHUB_REF/refs\/tags\/release\//}" >> $GITHUB_ENV
     - name: Pack
-      if: ${{ startsWith(github.ref, 'refs/tags/release/') }}
-      run: dotnet pack --configuration Release -p:Version=${{ env.VERSION }} --no-build
+      run: dotnet pack --configuration Release -p:Version=${{ env.VERSION }}
     - name: Push to NuGet.org
-      if: ${{ startsWith(github.ref, 'refs/tags/release/') }}
       run: |
         dotnet nuget push **/*.nupkg --api-key ${{ secrets.NUGET_API_KEY}} --source https://api.nuget.org/v3/index.json
