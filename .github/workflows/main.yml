@@ -43,7 +43,7 @@ jobs:
       run: dotnet restore
     - name: Test
       run: |
-        COMPlus_{{ matrix.disable }}=0 && \
+        export COMPlus_{{ matrix.disable }}=0 && \
         dotnet test -f {{ matrix.framework }} --configuration Release --verbosity normal --logger "junit;LogFilePath=test-results/results.xml"
 
     - name: Publish Unit Test Results
