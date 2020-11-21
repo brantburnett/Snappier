@@ -10,7 +10,6 @@ jobs:
   test:
 
     runs-on: ubuntu-latest
-    needs: build
     strategy:
       matrix:
         framework: ["net5.0", "netcoreapp3.0", "netcoreapp2.1"]
