@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        framework: ["net5.0", "netcoreapp3.0", "netcoreapp2.1"]
+        framework: ["net5.0", "netcoreapp3.1", "netcoreapp2.1"]
         disable: ["EnableHWIntrinsics", "EnableSSSE3", "EnableBMI2", "Noop"]
         exclude:
           - framework: "netcoreapp2.1"
@@ -29,7 +29,7 @@ jobs:
       with:
         dotnet-version: '5.0.x'
     - name: Setup .NET Core 3.1
-      if: matrix.framework == 'netcoreapp3.0'
+      if: matrix.framework == 'netcoreapp3.1'
       uses: actions/setup-dotnet@v1
       with:
         dotnet-version: '3.1.x'
@@ -43,8 +43,8 @@ jobs:
       run: dotnet restore
     - name: Test
       run: |
-        export COMPlus_{{ matrix.disable }}=0 && \
-        dotnet test -f {{ matrix.framework }} --configuration Release --verbosity normal --logger "junit;LogFilePath=test-results/results.xml"
+        export COMPlus_${{ matrix.disable }}=0 && \
+        dotnet test -f ${{ matrix.framework }} --configuration Release --verbosity normal --logger "junit;LogFilePath=test-results/results.xml"
 
     - name: Publish Unit Test Results
       uses: EnricoMi/publish-unit-test-result-action@f8a3fca6035d817e664cd0bf57d7fefc407847ee # pre-1.4, adds comment_on_pr option
@@ -53,7 +53,7 @@ jobs:
         github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
-        check_name: Unit Tests {{ matrix.framework }} {{ matrix.disable }}=0
+        check_name: Unit Tests ${{ matrix.framework }} ${{ matrix.disable }}=0
         files: '**/test-results/**/*.xml'
         report_individual_runs: true
         comment_on_pr: false
