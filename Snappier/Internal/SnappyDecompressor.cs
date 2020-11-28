@@ -178,8 +178,10 @@ namespace Snappier.Internal
 
         internal unsafe void DecompressAllTags(ReadOnlySpan<byte> inputSpan)
         {
-            // Put Constants.CharTable on the stack to simplify lookups within the loops below
-            ReadOnlySpan<ushort> charTable = Constants.CharTable.AsSpan();
+            // Put Constants.CharTable on the stack to simplify lookups within the loops below.
+            // Slicing with length 256 here allows the JIT compiler to recognize the size is greater than
+            // the size of the byte we're indexing with and optimize out range checks.
+            ReadOnlySpan<ushort> charTable = Constants.CharTable.AsSpan(0, 256);
 
             unchecked
             {
