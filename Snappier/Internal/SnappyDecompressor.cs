@@ -195,6 +195,9 @@ namespace Snappier.Internal
 
                     fixed (byte* buffer = _lookbackBuffer.Span)
                     {
+                        byte* bufferEnd = buffer + _lookbackBufferLength;
+                        byte* op = buffer + _lookbackPosition;
+
                         fixed (byte* scratchStart = _scratch)
                         {
                             fixed (sbyte* pshufbFillPatterns = CopyHelpers.PshufbFillPatterns)
@@ -236,13 +239,14 @@ namespace Snappier.Internal
                                         nuint inputRemaining = (nuint)(inputEnd - input);
                                         if (inputRemaining < literalLength)
                                         {
-                                            Append(buffer, input, inputRemaining);
+                                            Append(ref op, bufferEnd, input, inputRemaining);
                                             _remainingLiteral = (int) (literalLength - inputRemaining);
+                                            _lookbackPosition = (nuint)(op - buffer);
                                             return;
                                         }
                                         else
                                         {
-                                            Append(buffer, input, literalLength);
+                                            Append(ref op, bufferEnd, input, literalLength);
                                             input += literalLength;
                                         }
                                     }
@@ -252,7 +256,7 @@ namespace Snappier.Internal
 
                                         nuint length = (nuint)((c >> 2) + 1);
 
-                                        AppendFromSelf(buffer, copyOffset, length, pshufbFillPatterns);
+                                        AppendFromSelf(ref op, buffer, bufferEnd, copyOffset, length, pshufbFillPatterns);
                                     }
                                     else
                                     {
@@ -265,9 +269,9 @@ namespace Snappier.Internal
                                         // copy_offset/256 is encoded in bits 8..10.  By just fetching
                                         // those bits, we get copy_offset (since the bit-field starts at
                                         // bit 8).
-                                        uint copyOffset = (uint)(entry & 0x700) + trailer;
+                                        uint copyOffset = (entry & 0x700u) + trailer;
 
-                                        AppendFromSelf(buffer, copyOffset, length, pshufbFillPatterns);
+                                        AppendFromSelf(ref op, buffer, bufferEnd, copyOffset, length, pshufbFillPatterns);
                                     }
 
                                     //  Make sure scratch is reset
@@ -296,7 +300,7 @@ namespace Snappier.Internal
                                     {
                                         nuint literalLength = unchecked((nuint)((c >> 2) + 1));
 
-                                        if (TryFastAppend(buffer, input, (nuint)(inputEnd - input), literalLength))
+                                        if (TryFastAppend(ref op, bufferEnd, input, (nuint)(inputEnd - input), literalLength))
                                         {
                                             Debug.Assert(literalLength < 61);
                                             input += literalLength;
@@ -322,13 +326,13 @@ namespace Snappier.Internal
                                         nuint inputRemaining = (nuint)(inputEnd - input);
                                         if (inputRemaining < literalLength)
                                         {
-                                            Append(buffer, input, inputRemaining);
+                                            Append(ref op, bufferEnd, input, inputRemaining);
                                             _remainingLiteral = (int) (literalLength - inputRemaining);
                                             goto exit;
                                         }
                                         else
                                         {
-                                            Append(buffer, input, literalLength);
+                                            Append(ref op, bufferEnd, input, literalLength);
                                             input += literalLength;
 
                                             if (input >= inputLimitMinMaxTagLength)
@@ -353,7 +357,7 @@ namespace Snappier.Internal
                                             input += 4;
 
                                             nuint length = unchecked((nuint)(c >> 2) + 1);
-                                            AppendFromSelf(buffer, copyOffset, length, pshufbFillPatterns);
+                                            AppendFromSelf(ref op, buffer, bufferEnd,  copyOffset, length, pshufbFillPatterns);
                                         }
                                         else
                                         {
@@ -370,9 +374,9 @@ namespace Snappier.Internal
                                             // copy_offset/256 is encoded in bits 8..10.  By just fetching
                                             // those bits, we get copy_offset (since the bit-field starts at
                                             // bit 8).
-                                            uint copyOffset = (uint)(entry & 0x700) + trailer;
+                                            uint copyOffset = (entry & 0x700u) + trailer;
 
-                                            AppendFromSelf(buffer, copyOffset, length, pshufbFillPatterns);
+                                            AppendFromSelf(ref op, buffer, bufferEnd, copyOffset, length, pshufbFillPatterns);
 
                                             input += c & 3;
 
@@ -398,6 +402,7 @@ namespace Snappier.Internal
                                 }
 
                                 exit: ; // All input data is processed
+                                _lookbackPosition = (nuint)(op - buffer);
                             }
                         }
                     }
@@ -521,22 +526,24 @@ namespace Snappier.Internal
             {
                 fixed (byte* buffer = _lookbackBuffer.Span)
                 {
-                    Append(buffer, inputPtr, unchecked((nuint) input.Length));
+                    byte* op = buffer + _lookbackPosition;
+                    Append(ref op, buffer + _lookbackBufferLength, inputPtr, unchecked((nuint) input.Length));
+                    _lookbackPosition = (nuint)(op - buffer);
                 }
             }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private unsafe void Append(byte* buffer, byte* input, nuint length)
+        private unsafe void Append(ref byte* op, byte* bufferEnd, byte* input, nuint length)
         {
-            if (length > unchecked((nuint) _lookbackBuffer.Length) - _lookbackPosition)
+            if (length > (nuint)(bufferEnd - op))
             {
                 ThrowInvalidDataException("Data too long");
             }
 
-            Unsafe.CopyBlockUnaligned(buffer + _lookbackPosition, input, unchecked((uint) length));
+            Unsafe.CopyBlockUnaligned(op, input, unchecked((uint) length));
 
-            _lookbackPosition += unchecked((uint) length);
+            op += length;
         }
 
         /// <summary>
@@ -550,16 +557,13 @@ namespace Snappier.Internal
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private unsafe bool TryFastAppend(byte* buffer, byte* input, nuint available, nuint length)
+        private unsafe bool TryFastAppend(ref byte* op, byte* bufferEnd, byte* input, nuint available, nuint length)
         {
-            // Save to the local stack (which effectively saves to a register)
-            nuint lookbackPosition = _lookbackPosition;
-
             if (length <= 16 && available >= 16 + Constants.MaximumTagLength &&
-                _lookbackBufferLength - lookbackPosition >= 16)
+                bufferEnd - op >= 16)
             {
-                CopyHelpers.UnalignedCopy128(input, buffer + lookbackPosition);
-                _lookbackPosition = lookbackPosition + length;
+                CopyHelpers.UnalignedCopy128(input, op);
+                op += length;
                 return true;
             }
 
@@ -567,25 +571,22 @@ namespace Snappier.Internal
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private unsafe void AppendFromSelf(byte* buffer, uint copyOffset, nuint length, sbyte* pshufbFillPatterns)
+        private unsafe void AppendFromSelf(ref byte* op, byte* buffer, byte* bufferEnd, uint copyOffset, nuint length, sbyte* pshufbFillPatterns)
         {
-            nuint lookbackPosition = _lookbackPosition;
-
             // copyOffset - 1u will cause it to wrap around to a very large number if copyOffset == 0
             // This allows us to combine two comparisons into one
-            if (unchecked(copyOffset - 1u) >= _lookbackPosition)
+            if (unchecked(copyOffset - 1u) >= op - buffer)
             {
                 ThrowInvalidDataException("Invalid copy offset");
             }
-            if (length > _lookbackBufferLength - lookbackPosition)
+            if (length > (nuint)(bufferEnd - op))
             {
                 ThrowInvalidDataException("Data too long");
             }
 
-            byte* op = buffer + lookbackPosition;
-            CopyHelpers.IncrementalCopy(op - copyOffset, op, op + length, buffer + _lookbackBufferLength, pshufbFillPatterns);
+            CopyHelpers.IncrementalCopy(op - copyOffset, op, op + length, bufferEnd, pshufbFillPatterns);
 
-            _lookbackPosition = lookbackPosition + length;
+            op += length;
         }
 
         public int Read(Span<byte> destination)
