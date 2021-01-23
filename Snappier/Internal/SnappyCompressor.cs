@@ -172,37 +172,83 @@ namespace Snappier.Internal
                                     byte* candidate;
                                     if (ipLimit - ip >= 16)
                                     {
-                                        var delta = ip - inputStart;
-                                        for (int j = 0; j < 4; ++j)
+                                        long delta = ip - inputStart;
+                                        for (int j = 0; j < 16; j += 4)
                                         {
-                                            for (int k = 0; k < 4; ++k)
+                                            // Manually unroll this loop into chunks of 4
+
+                                            uint dword = j == 0 ? preload : (uint) data;
+                                            Debug.Assert(dword == Helpers.UnsafeReadUInt32(ip + j));
+                                            long hash = Helpers.HashBytes(dword, shift);
+                                            candidate = inputStart + table[hash];
+                                            Debug.Assert(candidate >= inputStart);
+                                            Debug.Assert(candidate < ip + j);
+                                            table[hash] = (ushort) (delta + j);
+
+                                            if (Helpers.UnsafeReadUInt32(candidate) == dword)
                                             {
-                                                int i = 4 * j + k;
-                                                // These for-loops are meant to be unrolled. So we can freely
-                                                // special case the first iteration to use the value already
-                                                // loaded in preload.
-
-                                                uint dword = i == 0 ? preload : (uint) data;
-                                                Debug.Assert(dword == Helpers.UnsafeReadUInt32(ip + i));
-                                                long hash = Helpers.HashBytes(dword, shift);
-                                                candidate = inputStart + table[hash];
-                                                Debug.Assert(candidate >= inputStart);
-                                                Debug.Assert(candidate < ip + i);
-                                                table[hash] = (ushort) (delta + i);
-
-                                                if (Helpers.UnsafeReadUInt32(candidate) == dword)
-                                                {
-                                                    *op = (byte) (Constants.Literal | (i << 2));
-                                                    CopyHelpers.UnalignedCopy128(nextEmit, op + 1);
-                                                    ip += i;
-                                                    op = op + i + 2;
-                                                    goto emit_match;
-                                                }
-
-                                                data >>= 8;
+                                                *op = (byte) (Constants.Literal | (j << 2));
+                                                CopyHelpers.UnalignedCopy128(nextEmit, op + 1);
+                                                ip += j;
+                                                op = op + j + 2;
+                                                goto emit_match;
                                             }
 
-                                            data = Helpers.UnsafeReadUInt64(ip + 4 * j + 4);
+                                            int i1 = j + 1;
+                                            dword = (uint)(data >> 8);
+                                            Debug.Assert(dword == Helpers.UnsafeReadUInt32(ip + i1));
+                                            hash = Helpers.HashBytes(dword, shift);
+                                            candidate = inputStart + table[hash];
+                                            Debug.Assert(candidate >= inputStart);
+                                            Debug.Assert(candidate < ip + i1);
+                                            table[hash] = (ushort) (delta + i1);
+
+                                            if (Helpers.UnsafeReadUInt32(candidate) == dword)
+                                            {
+                                                *op = (byte) (Constants.Literal | (i1 << 2));
+                                                CopyHelpers.UnalignedCopy128(nextEmit, op + 1);
+                                                ip += i1;
+                                                op = op + i1 + 2;
+                                                goto emit_match;
+                                            }
+
+                                            int i2 = j + 2;
+                                            dword = (uint)(data >> 16);
+                                            Debug.Assert(dword == Helpers.UnsafeReadUInt32(ip + i2));
+                                            hash = Helpers.HashBytes(dword, shift);
+                                            candidate = inputStart + table[hash];
+                                            Debug.Assert(candidate >= inputStart);
+                                            Debug.Assert(candidate < ip + i2);
+                                            table[hash] = (ushort) (delta + i2);
+
+                                            if (Helpers.UnsafeReadUInt32(candidate) == dword)
+                                            {
+                                                *op = (byte) (Constants.Literal | (i2 << 2));
+                                                CopyHelpers.UnalignedCopy128(nextEmit, op + 1);
+                                                ip += i2;
+                                                op = op + i2 + 2;
+                                                goto emit_match;
+                                            }
+
+                                            int i3 = j + 3;
+                                            dword = (uint)(data >> 24);
+                                            Debug.Assert(dword == Helpers.UnsafeReadUInt32(ip + i3));
+                                            hash = Helpers.HashBytes(dword, shift);
+                                            candidate = inputStart + table[hash];
+                                            Debug.Assert(candidate >= inputStart);
+                                            Debug.Assert(candidate < ip + i3);
+                                            table[hash] = (ushort) (delta + i3);
+
+                                            if (Helpers.UnsafeReadUInt32(candidate) == dword)
+                                            {
+                                                *op = (byte) (Constants.Literal | (i3 << 2));
+                                                CopyHelpers.UnalignedCopy128(nextEmit, op + 1);
+                                                ip += i3;
+                                                op = op + i3 + 2;
+                                                goto emit_match;
+                                            }
+
+                                            data = Helpers.UnsafeReadUInt64(ip + j + 4);
                                         }
 
                                         ip += 16;
