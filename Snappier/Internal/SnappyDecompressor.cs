@@ -622,7 +622,7 @@ namespace Snappier.Internal
         /// </remarks>
         public IMemoryOwner<byte> ExtractData()
         {
-            var data = _lookbackBufferOwner;
+            var data = _lookbackBufferOwner!;
             if (!ExpectedLength.HasValue)
             {
                 throw new InvalidOperationException("No data present.");

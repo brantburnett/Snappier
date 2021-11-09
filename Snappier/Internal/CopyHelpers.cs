@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-#if NETCOREAPP3_0 || NET5_0
+#if NETCOREAPP3_0_OR_GREATER
 using System.Runtime.Intrinsics;
 using System.Runtime.Intrinsics.X86;
 using static System.Runtime.Intrinsics.X86.Sse2;
@@ -64,7 +64,7 @@ namespace Snappier.Internal
 
             if (patternSize < 8)
             {
-#if NETCOREAPP3_0 || NET5_0
+#if NETCOREAPP3_0_OR_GREATER
                 if (Ssse3.IsSupported) // SSSE3
                 {
                     // Load the first eight bytes into an 128-bit XMM register, then use PSHUFB
@@ -141,7 +141,7 @@ namespace Snappier.Internal
                         IncrementalCopySlow(source, op, opEnd);
                         return;
                     }
-#if NETCOREAPP3_0 || NET5_0
+#if NETCOREAPP3_0_OR_GREATER
                 }
 #endif
             }
