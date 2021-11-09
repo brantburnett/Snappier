@@ -53,20 +53,15 @@ jobs:
     - name: Test
       run: |
         export COMPlus_Enable${{ matrix.disable }}=0 && \
-        dotnet test --no-build -f ${{ matrix.framework }} --configuration Release --verbosity normal --logger "junit;LogFilePath=test-results/results.xml"
+        dotnet test --no-build -f ${{ matrix.framework }} --configuration Release --verbosity normal --logger "trx;LogFileName=results.trx"
 
-    - name: Publish Unit Test Results
-      uses: EnricoMi/publish-unit-test-result-action@f8a3fca6035d817e664cd0bf57d7fefc407847ee # pre-1.4, adds comment_on_pr option
-      if: >
-        github.event_name == 'push' ||
-        github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    - name: Test Report
+      uses: dorny/test-reporter@v1
+      if: success() || failure() # run this step even if previous step failed
       with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        check_name: Unit Tests ${{ matrix.framework }} Enable${{ matrix.disable }}=0
-        files: '**/test-results/**/*.xml'
-        report_individual_runs: true
-        comment_on_pr: false
-
+        name: Unit Tests
+        path: "**/results.trx"
+        reporter: dotnet-trx
 
   publish:
 
