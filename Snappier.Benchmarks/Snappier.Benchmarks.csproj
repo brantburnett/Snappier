@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFrameworks>netcoreapp2.1;netcoreapp3.1;net5.0</TargetFrameworks>
+    <TargetFrameworks>netcoreapp2.1;netcoreapp3.1;net5.0;net6.0</TargetFrameworks>
     <PlatformTarget>AnyCPU</PlatformTarget>
 
     <IsPackable>false</IsPackable>
@@ -20,8 +20,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="BenchmarkDotNet" Version="0.12.1" />
-    <PackageReference Include="BenchmarkDotNet.Diagnostics.Windows" Version="0.12.1" />
+    <PackageReference Include="BenchmarkDotNet" Version="0.13.1" />
+    <PackageReference Include="BenchmarkDotNet.Diagnostics.Windows" Version="0.13.1" />
     <PackageReference Include="Snappy.NET" Version="1.1.1.8" />
   </ItemGroup>
 

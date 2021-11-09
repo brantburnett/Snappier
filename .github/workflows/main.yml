@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        framework: ["net5.0", "netcoreapp3.1", "netcoreapp2.1"]
+        framework: ["net6.0", "netcoreapp3.1", "netcoreapp2.1"]
         disable: ["HWIntrinsics", "SSSE3", "BMI2", "Noop"]
         exclude:
           - framework: "netcoreapp2.1"
@@ -24,10 +24,10 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-    - name: Setup .NET 5.0
+    - name: Setup .NET 6.0
       uses: actions/setup-dotnet@v1
       with:
-        dotnet-version: '5.0.x'
+        dotnet-version: '6.0.x'
     - name: Setup .NET Core 3.1
       if: matrix.framework == 'netcoreapp3.1'
       uses: actions/setup-dotnet@v1
@@ -38,6 +38,13 @@ jobs:
       uses: actions/setup-dotnet@v1
       with:
         dotnet-version: '2.1.x'
+    # Cache packages for faster subsequent runs
+    - uses: actions/cache@v2
+      with:
+        path: ~/.nuget/packages
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
 
     - name: Install dependencies
       run: dotnet restore
@@ -67,10 +74,10 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-    - name: Setup .NET 5.0
+    - name: Setup .NET 6.0
       uses: actions/setup-dotnet@v1
       with:
-        dotnet-version: '5.0.x'
+        dotnet-version: '6.0.x'
 
     - name: Install dependencies
       run: dotnet restore

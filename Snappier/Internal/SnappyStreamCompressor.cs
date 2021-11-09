@@ -150,7 +150,7 @@ namespace Snappier.Internal
 
             ReadOnlyMemory<byte> output = _outputBuffer.Slice(0, _outputBufferSize);
 
-#if NETCOREAPP3_0 || NET5_0 || NETSTANDARD2_1
+#if NETCOREAPP3_0_OR_GREATER || NETSTANDARD2_1
             stream.Write(output.Span);
 #else
             if (MemoryMarshal.TryGetArray(output, out var arraySegment))
@@ -184,7 +184,7 @@ namespace Snappier.Internal
 
             ReadOnlyMemory<byte> output = _outputBuffer.Slice(0, _outputBufferSize);
 
-#if NETCOREAPP3_0  || NET5_0 || NETSTANDARD2_1
+#if NETCOREAPP3_0_OR_GREATER || NETSTANDARD2_1
             await stream.WriteAsync(output, cancellationToken).ConfigureAwait(false);
 #else
             if (MemoryMarshal.TryGetArray(output, out var arraySegment))

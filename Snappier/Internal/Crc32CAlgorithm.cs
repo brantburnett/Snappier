@@ -1,10 +1,10 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-#if NET5_0
+#if NET5_0_OR_GREATER
 using System.Runtime.Intrinsics.Arm;
 #endif
-#if NETCOREAPP3_0 || NET5_0
+#if NETCOREAPP3_0_OR_GREATER
 using System.Runtime.Intrinsics.X86;
 #endif
 
@@ -46,7 +46,7 @@ namespace Snappier.Internal
         {
             uint crcLocal = uint.MaxValue ^ crc;
 
-            #if NET5_0
+            #if NET5_0_OR_GREATER
             // If available on the current CPU, use ARM CRC32C intrinsic operations.
             // The if Crc32 statements are optimized out by the JIT compiler based on CPU support.
             if (Crc32.IsSupported)
@@ -78,7 +78,7 @@ namespace Snappier.Internal
             }
             #endif
 
-            #if NETCOREAPP3_0 || NET5_0
+            #if NETCOREAPP3_0_OR_GREATER
             // If available on the current CPU, use Intel CRC32C intrinsic operations.
             // The Sse42 if statements are optimized out by the JIT compiler based on CPU support.
             if (Sse42.IsSupported)
