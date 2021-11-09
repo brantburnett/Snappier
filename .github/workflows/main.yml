@@ -28,10 +28,6 @@ jobs:
       uses: actions/setup-dotnet@v1
       with:
         dotnet-version: '6.0.x'
-    - name: Setup .NET 5.0
-      uses: actions/setup-dotnet@v1
-      with:
-        dotnet-version: '5.0.x'
     - name: Setup .NET Core 3.1
       if: matrix.framework == 'netcoreapp3.1'
       uses: actions/setup-dotnet@v1
@@ -52,10 +48,12 @@ jobs:
 
     - name: Install dependencies
       run: dotnet restore
+    - name: Build dependencies
+      run: dotnet build --no-restore -f ${{ matrix.framework }}  --configuration Release --verbosity normal
     - name: Test
       run: |
         export COMPlus_Enable${{ matrix.disable }}=0 && \
-        dotnet test -f ${{ matrix.framework }} --configuration Release --verbosity normal --logger "junit;LogFilePath=test-results/results.xml"
+        dotnet test --no-build -f ${{ matrix.framework }} --configuration Release --verbosity normal --logger "junit;LogFilePath=test-results/results.xml"
 
     - name: Publish Unit Test Results
       uses: EnricoMi/publish-unit-test-result-action@f8a3fca6035d817e664cd0bf57d7fefc407847ee # pre-1.4, adds comment_on_pr option
