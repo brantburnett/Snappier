@@ -48,8 +48,8 @@ jobs:
 
     - name: Install dependencies
       run: dotnet restore
-    - name: Build dependencies
-      run: dotnet build --no-restore -f ${{ matrix.framework }}  --configuration Release --verbosity normal
+    - name: Build
+      run: dotnet build --configuration Release --verbosity normal
     - name: Test
       run: |
         export COMPlus_Enable${{ matrix.disable }}=0 && \
