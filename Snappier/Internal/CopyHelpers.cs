@@ -12,20 +12,24 @@ namespace Snappier.Internal
 {
     internal class CopyHelpers
     {
+        #if NET6_0_OR_GREATER
+
         /// <summary>
         /// This is a table of shuffle control masks that can be used as the source
         /// operand for PSHUFB to permute the contents of the destination XMM register
         /// into a repeating byte pattern.
         /// </summary>
-        public static readonly sbyte[,] PshufbFillPatterns = {
-            {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-            {0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1},
-            {0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0},
-            {0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3},
-            {0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 0},
-            {0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5, 0, 1, 2, 3},
-            {0, 1, 2, 3, 4, 5, 6, 0, 1, 2, 3, 4, 5, 6, 0, 1},
+        private static readonly Vector128<byte>[] PshufbFillPatterns = {
+            Vector128.Create((byte) 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+            Vector128.Create((byte) 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1),
+            Vector128.Create((byte) 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0),
+            Vector128.Create((byte) 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3),
+            Vector128.Create((byte) 0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 0),
+            Vector128.Create((byte) 0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5, 0, 1, 2, 3),
+            Vector128.Create((byte) 0, 1, 2, 3, 4, 5, 6, 0, 1, 2, 3, 4, 5, 6, 0, 1)
         };
+
+        #endif
 
         /// <summary>
         /// j * (16 / j) for all j from 0 to 7. 0 is not actually used.
@@ -41,14 +45,13 @@ namespace Snappier.Internal
         /// <param name="op">Pointer to the destination point in the buffer.</param>
         /// <param name="opEnd">Pointer to the end of the area to write in the buffer.</param>
         /// <param name="bufferEnd">Pointer past the end of the buffer.</param>
-        /// <param name="pshufbFillPatterns">Fixed pointer to <see cref="PshufbFillPatterns"/>.</param>
         /// <remarks>
         /// Fixing the PshufbFillPatterns array for use in the SSSE3 optimized route is expensive, so we
         /// do that in the outer loop in <see cref="SnappyDecompressor.DecompressAllTags"/> and pass the pointer
         /// to this method. This makes the logic a bit more confusing, but is a significant performance boost.
         /// </remarks>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static unsafe void IncrementalCopy(byte* source, byte* op, byte* opEnd, byte* bufferEnd, sbyte* pshufbFillPatterns)
+        public static unsafe void IncrementalCopy(byte* source, byte* op, byte* opEnd, byte* bufferEnd)
         {
             Debug.Assert(source < op);
             Debug.Assert(op <= opEnd);
@@ -82,7 +85,7 @@ namespace Snappier.Internal
 
                     if (op <= bufferEnd - 16)
                     {
-                        var shuffleMask = LoadVector128(pshufbFillPatterns + (patternSize - 1) * 16).As<sbyte, byte>();
+                        var shuffleMask = PshufbFillPatterns[patternSize - 1];
                         var srcPattern = LoadScalarVector128((long*) source).As<long, byte>();
                         var pattern = Shuffle(srcPattern, shuffleMask);
 
