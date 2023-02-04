@@ -8,14 +8,14 @@ namespace Snappier.Benchmarks
         public FrameworkCompareConfig()
         {
             AddJob(Job.MediumRun
-                .WithRuntime(CoreRuntime.Core21)
-                .WithId(".NET Core 2.1"));
+                .WithRuntime(ClrRuntime.Net48)
+                .WithId(".NET 4.8"));
             AddJob(Job.MediumRun
-                .WithRuntime(CoreRuntime.Core31)
-                .WithId(".NET Core 3.1"));
+                .WithRuntime(CoreRuntime.Core60)
+                .WithId(".NET 6.0"));
             AddJob(Job.MediumRun
-                .WithRuntime(CoreRuntime.Core50)
-                .WithId(".NET 5.0"));
+                .WithRuntime(CoreRuntime.Core70)
+                .WithId(".NET 7.0"));
         }
     }
 }

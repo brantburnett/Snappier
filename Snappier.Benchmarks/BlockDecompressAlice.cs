@@ -5,8 +5,10 @@ using Snappier.Internal;
 
 namespace Snappier.Benchmarks
 {
-    [MediumRunJob(RuntimeMoniker.NetCoreApp21)]
-    [MediumRunJob(RuntimeMoniker.NetCoreApp31)]
+    [MediumRunJob(RuntimeMoniker.Net48)]
+    [MediumRunJob(RuntimeMoniker.Net60)]
+    [MediumRunJob(RuntimeMoniker.Net70)]
+    [DisassemblyDiagnoser]
     public class BlockDecompressAlice
     {
         private ReadOnlyMemory<byte> _input;
@@ -19,7 +21,7 @@ namespace Snappier.Benchmarks
 
             var input = new byte[65536]; // Just test the first 64KB
             // ReSharper disable once PossibleNullReferenceException
-            resource.Read(input);
+            resource.Read(input, 0, input.Length);
 
             var compressed = new byte[Snappy.GetMaxCompressedLength(input.Length)];
             var compressedLength = Snappy.Compress(input, compressed);
