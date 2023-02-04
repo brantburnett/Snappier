@@ -19,7 +19,7 @@ namespace Snappier.Benchmarks
 
             var input = new byte[65536]; // Just test the first 64KB
             // ReSharper disable once PossibleNullReferenceException
-            resource.Read(input);
+            resource.Read(input, 0, input.Length);
 
             var compressed = new byte[Snappy.GetMaxCompressedLength(input.Length)];
             var compressedLength = Snappy.Compress(input, compressed);
