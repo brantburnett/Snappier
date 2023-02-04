@@ -5,8 +5,10 @@ using Snappier.Internal;
 
 namespace Snappier.Benchmarks
 {
-    [MediumRunJob(RuntimeMoniker.NetCoreApp21)]
-    [MediumRunJob(RuntimeMoniker.NetCoreApp31)]
+    [MediumRunJob(RuntimeMoniker.Net48)]
+    [MediumRunJob(RuntimeMoniker.Net60)]
+    [MediumRunJob(RuntimeMoniker.Net70)]
+    [DisassemblyDiagnoser]
     public class BlockDecompressAlice
     {
         private ReadOnlyMemory<byte> _input;

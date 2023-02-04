@@ -5,8 +5,8 @@ using BenchmarkDotNet.Jobs;
 
 namespace Snappier.Benchmarks
 {
-    //[ShortRunJob(RuntimeMoniker.NetCoreApp21)]
-    [ShortRunJob(RuntimeMoniker.NetCoreApp31)]
+    //[ShortRunJob(RuntimeMoniker.Net60)]
+    [ShortRunJob(RuntimeMoniker.Net70)]
     public class CompressAlice
     {
         private MemoryStream _source;

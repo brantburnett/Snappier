@@ -47,7 +47,7 @@ jobs:
       uses: dorny/test-reporter@v1
       if: success() || failure() # run this step even if previous step failed
       with:
-        name: Unit Tests
+        name: Unit Tests ${{ matrix.framework }} ${{ matrix.disable }}
         path: "**/results.trx"
         reporter: dotnet-trx
 
