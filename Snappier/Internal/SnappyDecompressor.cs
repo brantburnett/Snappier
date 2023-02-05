@@ -195,7 +195,7 @@ namespace Snappier.Internal
 
                     fixed (byte* buffer = _lookbackBuffer.Span)
                     {
-                        byte* bufferEnd = buffer + _lookbackBufferLength;
+                        byte* bufferEnd = buffer + _lookbackBuffer.Length;
                         byte* op = buffer + _lookbackPosition;
 
                         fixed (byte* scratchStart = _scratch)
@@ -223,28 +223,30 @@ namespace Snappier.Internal
 
                                 if ((c & 0x03) == Constants.Literal)
                                 {
-                                    nuint literalLength = (nuint)((c >> 2) + 1);
+                                    nint literalLength = (c >> 2) + 1;
                                     if (literalLength >= 61)
                                     {
                                         // Long literal.
-                                        nuint literalLengthLength = literalLength - 60;
+                                        nint literalLengthLength = literalLength - 60;
                                         uint literalLengthTemp = Helpers.UnsafeReadUInt32(scratch);
 
-                                        literalLength = (nuint) Helpers.ExtractLowBytes(literalLengthTemp,
+                                        literalLength = (nint) Helpers.ExtractLowBytes(literalLengthTemp,
                                             (int) literalLengthLength) + 1;
                                     }
 
-                                    nuint inputRemaining = (nuint)(inputEnd - input);
+                                    nint inputRemaining = (nint)(inputEnd - input);
                                     if (inputRemaining < literalLength)
                                     {
-                                        Append(ref op, bufferEnd, input, inputRemaining);
+                                        Append(ref Unsafe.AsRef<byte>(op), ref Unsafe.AsRef<byte>(bufferEnd), in Unsafe.AsRef<byte>(input), inputRemaining);
+                                        op += inputRemaining;
                                         _remainingLiteral = (int) (literalLength - inputRemaining);
-                                        _lookbackPosition = (nuint)(op - buffer);
+                                        _lookbackPosition = (int)(op - buffer);
                                         return;
                                     }
                                     else
                                     {
-                                        Append(ref op, bufferEnd, input, literalLength);
+                                        Append(ref Unsafe.AsRef<byte>(op), ref Unsafe.AsRef<byte>(bufferEnd), in Unsafe.AsRef<byte>(input), literalLength);
+                                        op += literalLength;
                                         input += literalLength;
                                     }
                                 }
@@ -252,9 +254,10 @@ namespace Snappier.Internal
                                 {
                                     uint copyOffset = Helpers.UnsafeReadUInt32(scratch);
 
-                                    nuint length = (nuint)((c >> 2) + 1);
+                                    nint length = (c >> 2) + 1;
 
-                                    AppendFromSelf(ref op, buffer, bufferEnd, copyOffset, length);
+                                    AppendFromSelf(ref Unsafe.AsRef<byte>(op), ref Unsafe.AsRef<byte>(buffer), ref Unsafe.AsRef<byte>(bufferEnd), copyOffset, length);
+                                    op += length;
                                 }
                                 else
                                 {
@@ -262,14 +265,15 @@ namespace Snappier.Internal
                                     uint data = Helpers.UnsafeReadUInt32(scratch);
 
                                     uint trailer = Helpers.ExtractLowBytes(data, c & 3);
-                                    nuint length = (nuint)(entry & 0xff);
+                                    nint length = entry & 0xff;
 
                                     // copy_offset/256 is encoded in bits 8..10.  By just fetching
                                     // those bits, we get copy_offset (since the bit-field starts at
                                     // bit 8).
                                     uint copyOffset = (entry & 0x700u) + trailer;
 
-                                    AppendFromSelf(ref op, buffer, bufferEnd, copyOffset, length);
+                                    AppendFromSelf(ref Unsafe.AsRef<byte>(op), ref Unsafe.AsRef<byte>(buffer), ref Unsafe.AsRef<byte>(bufferEnd), copyOffset, length);
+                                    op += length;
                                 }
 
                                 //  Make sure scratch is reset
@@ -296,11 +300,12 @@ namespace Snappier.Internal
 
                                 if ((c & 0x03) == Constants.Literal)
                                 {
-                                    nuint literalLength = unchecked((nuint)((c >> 2) + 1));
+                                    nint literalLength = unchecked((c >> 2) + 1);
 
-                                    if (TryFastAppend(ref op, bufferEnd, input, (nuint)(inputEnd - input), literalLength))
+                                    if (TryFastAppend(ref Unsafe.AsRef<byte>(op), ref Unsafe.AsRef<byte>(bufferEnd), in Unsafe.AsRef<byte>(input), (nint)(inputEnd - input), literalLength))
                                     {
                                         Debug.Assert(literalLength < 61);
+                                        op += literalLength;
                                         input += literalLength;
                                         // NOTE: There is no RefillTag here, as TryFastAppend()
                                         // will not return true unless there's already at least five spare
@@ -312,25 +317,27 @@ namespace Snappier.Internal
                                     if (literalLength >= 61)
                                     {
                                         // Long literal.
-                                        nuint literalLengthLength = literalLength - 60;
+                                        nint literalLengthLength = literalLength - 60;
                                         uint literalLengthTemp = Helpers.UnsafeReadUInt32(input);
 
-                                        literalLength = Helpers.ExtractLowBytes(literalLengthTemp,
+                                        literalLength = (nint) Helpers.ExtractLowBytes(literalLengthTemp,
                                             (int) literalLengthLength) + 1;
 
                                         input += literalLengthLength;
                                     }
 
-                                    nuint inputRemaining = (nuint)(inputEnd - input);
+                                    nint inputRemaining = (nint)(inputEnd - input);
                                     if (inputRemaining < literalLength)
                                     {
-                                        Append(ref op, bufferEnd, input, inputRemaining);
+                                        Append(ref Unsafe.AsRef<byte>(op), ref Unsafe.AsRef<byte>(bufferEnd), in Unsafe.AsRef<byte>(input), inputRemaining);
+                                        op += inputRemaining;
                                         _remainingLiteral = (int) (literalLength - inputRemaining);
                                         goto exit;
                                     }
                                     else
                                     {
-                                        Append(ref op, bufferEnd, input, literalLength);
+                                        Append(ref Unsafe.AsRef<byte>(op), ref Unsafe.AsRef<byte>(bufferEnd), in Unsafe.AsRef<byte>(input), literalLength);
+                                        op += literalLength;
                                         input += literalLength;
 
                                         if (input >= inputLimitMinMaxTagLength)
@@ -354,8 +361,9 @@ namespace Snappier.Internal
                                         uint copyOffset = Helpers.UnsafeReadUInt32(input);
                                         input += 4;
 
-                                        nuint length = unchecked((nuint)(c >> 2) + 1);
-                                        AppendFromSelf(ref op, buffer, bufferEnd,  copyOffset, length);
+                                        nint length = (c >> 2) + 1;
+                                        AppendFromSelf(ref Unsafe.AsRef<byte>(op), ref Unsafe.AsRef<byte>(buffer), ref Unsafe.AsRef<byte>(bufferEnd), copyOffset, length);
+                                        op += length;
                                     }
                                     else
                                     {
@@ -367,14 +375,15 @@ namespace Snappier.Internal
                                         preload = Helpers.UnsafeReadUInt32(input);
 
                                         uint trailer = Helpers.ExtractLowBytes(preload, c & 3);
-                                        nuint length = unchecked((nuint)(entry & 0xff));
+                                        nint length = entry & 0xff;
 
                                         // copy_offset/256 is encoded in bits 8..10.  By just fetching
                                         // those bits, we get copy_offset (since the bit-field starts at
                                         // bit 8).
                                         uint copyOffset = (entry & 0x700u) + trailer;
 
-                                        AppendFromSelf(ref op, buffer, bufferEnd, copyOffset, length);
+                                        AppendFromSelf(ref Unsafe.AsRef<byte>(op), ref Unsafe.AsRef<byte>(buffer), ref Unsafe.AsRef<byte>(bufferEnd), copyOffset, length);
+                                        op += length;
 
                                         input += c & 3;
 
@@ -400,7 +409,7 @@ namespace Snappier.Internal
                             }
 
                             exit: ; // All input data is processed
-                            _lookbackPosition = (nuint)(op - buffer);
+                            _lookbackPosition = (int)(op - buffer);
                         }
                     }
                 }
@@ -476,8 +485,7 @@ namespace Snappier.Internal
 
         private IMemoryOwner<byte>? _lookbackBufferOwner;
         private Memory<byte> _lookbackBuffer;
-        private nuint _lookbackBufferLength;
-        private nuint _lookbackPosition = 0;
+        private int _lookbackPosition = 0;
         private int _readPosition = 0;
 
         private int? _expectedLength;
@@ -497,7 +505,6 @@ namespace Snappier.Internal
                     // the "ref byte" points within the array and adjust it if the array is moved.
                     _lookbackBufferOwner = MemoryPool<byte>.Shared.Rent(_expectedLength.GetValueOrDefault() + 1);
                     _lookbackBuffer = _lookbackBufferOwner.Memory.Slice(0, _lookbackBufferOwner.Memory.Length - 1);
-                    _lookbackBufferLength = (nuint) _lookbackBuffer.Length;
                 }
             }
         }
@@ -517,34 +524,30 @@ namespace Snappier.Internal
         public bool AllDataDecompressed
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => ExpectedLength.HasValue && _lookbackPosition >= (nuint) ExpectedLength.GetValueOrDefault();
+            get => ExpectedLength.HasValue && _lookbackPosition >= ExpectedLength.GetValueOrDefault();
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private unsafe void Append(ReadOnlySpan<byte> input)
+        private void Append(ReadOnlySpan<byte> input)
         {
-            fixed (byte* inputPtr = input)
-            {
-                fixed (byte* buffer = _lookbackBuffer.Span)
-                {
-                    byte* op = buffer + _lookbackPosition;
-                    Append(ref op, buffer + _lookbackBufferLength, inputPtr, unchecked((nuint) input.Length));
-                    _lookbackPosition = (nuint)(op - buffer);
-                }
-            }
+            ref readonly byte inputPtr = ref input[0];
+
+            var lookbackSpan = _lookbackBuffer.Span;
+            ref byte op = ref lookbackSpan[_lookbackPosition];
+
+            Append(ref op, ref Unsafe.Add(ref lookbackSpan[0], lookbackSpan.Length), in inputPtr, input.Length);
+            _lookbackPosition += input.Length;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private unsafe void Append(ref byte* op, byte* bufferEnd, byte* input, nuint length)
+        private void Append(ref byte op, ref byte bufferEnd, in byte input, nint length)
         {
-            if (length > (nuint)(bufferEnd - op))
+            if (length > Unsafe.ByteOffset(ref op, ref bufferEnd))
             {
                 ThrowInvalidDataException("Data too long");
             }
 
-            Unsafe.CopyBlockUnaligned(op, input, unchecked((uint) length));
-
-            op += length;
+            Unsafe.CopyBlockUnaligned(ref op, ref Unsafe.AsRef(in input), (uint) length);
         }
 
         /// <summary>
@@ -558,13 +561,12 @@ namespace Snappier.Internal
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private unsafe bool TryFastAppend(ref byte* op, byte* bufferEnd, byte* input, nuint available, nuint length)
+        private bool TryFastAppend(ref byte op, ref byte bufferEnd, in byte input, nint available, nint length)
         {
             if (length <= 16 && available >= 16 + Constants.MaximumTagLength &&
-                bufferEnd - op >= 16)
+                Unsafe.ByteOffset(ref op, ref bufferEnd) >= (nint) 16)
             {
-                CopyHelpers.UnalignedCopy128(ref Unsafe.AsRef<byte>(input), ref Unsafe.AsRef<byte>(op));
-                op += length;
+                CopyHelpers.UnalignedCopy128(in input, ref op);
                 return true;
             }
 
@@ -572,23 +574,21 @@ namespace Snappier.Internal
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private unsafe void AppendFromSelf(ref byte* op, byte* buffer, byte* bufferEnd, uint copyOffset, nuint length)
+        private void AppendFromSelf(ref byte op, ref byte buffer, ref byte bufferEnd, uint copyOffset, nint length)
         {
-            // copyOffset - 1u will cause it to wrap around to a very large number if copyOffset == 0
-            // This allows us to combine two comparisons into one
-            if (unchecked(copyOffset - 1u) >= op - buffer)
+            ref byte source = ref Unsafe.Subtract(ref op, copyOffset);
+            if (!Unsafe.IsAddressLessThan(ref source, ref op) || Unsafe.IsAddressLessThan(ref source, ref buffer))
             {
                 ThrowInvalidDataException("Invalid copy offset");
             }
-            if (length > (nuint)(bufferEnd - op))
+
+            if (length > Unsafe.ByteOffset(ref op, ref bufferEnd))
             {
                 ThrowInvalidDataException("Data too long");
             }
 
-            CopyHelpers.IncrementalCopy(ref Unsafe.AsRef<byte>(op - copyOffset), ref Unsafe.AsRef<byte>(op),
-                ref Unsafe.AsRef<byte>(op + length), ref Unsafe.AsRef<byte>(bufferEnd));
-
-            op += length;
+            CopyHelpers.IncrementalCopy(ref source, ref op,
+                ref Unsafe.Add(ref op, length), ref bufferEnd);
         }
 
         public int Read(Span<byte> destination)

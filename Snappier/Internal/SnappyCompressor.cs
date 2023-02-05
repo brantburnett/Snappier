@@ -188,7 +188,7 @@ namespace Snappier.Internal
                                             if (Helpers.UnsafeReadUInt32(candidate) == dword)
                                             {
                                                 *op = (byte) (Constants.Literal | (j << 2));
-                                                CopyHelpers.UnalignedCopy128(ref Unsafe.AsRef<byte>(nextEmit), ref Unsafe.AsRef<byte>(op + 1));
+                                                CopyHelpers.UnalignedCopy128(in Unsafe.AsRef<byte>(nextEmit), ref Unsafe.AsRef<byte>(op + 1));
                                                 ip += j;
                                                 op = op + j + 2;
                                                 goto emit_match;
@@ -206,7 +206,7 @@ namespace Snappier.Internal
                                             if (Helpers.UnsafeReadUInt32(candidate) == dword)
                                             {
                                                 *op = (byte) (Constants.Literal | (i1 << 2));
-                                                CopyHelpers.UnalignedCopy128(ref Unsafe.AsRef<byte>(nextEmit), ref Unsafe.AsRef<byte>(op + 1));
+                                                CopyHelpers.UnalignedCopy128(in Unsafe.AsRef<byte>(nextEmit), ref Unsafe.AsRef<byte>(op + 1));
                                                 ip += i1;
                                                 op = op + i1 + 2;
                                                 goto emit_match;
@@ -224,7 +224,7 @@ namespace Snappier.Internal
                                             if (Helpers.UnsafeReadUInt32(candidate) == dword)
                                             {
                                                 *op = (byte) (Constants.Literal | (i2 << 2));
-                                                CopyHelpers.UnalignedCopy128(ref Unsafe.AsRef<byte>(nextEmit), ref Unsafe.AsRef<byte>(op + 1));
+                                                CopyHelpers.UnalignedCopy128(in Unsafe.AsRef<byte>(nextEmit), ref Unsafe.AsRef<byte>(op + 1));
                                                 ip += i2;
                                                 op = op + i2 + 2;
                                                 goto emit_match;
@@ -242,7 +242,7 @@ namespace Snappier.Internal
                                             if (Helpers.UnsafeReadUInt32(candidate) == dword)
                                             {
                                                 *op = (byte) (Constants.Literal | (i3 << 2));
-                                                CopyHelpers.UnalignedCopy128(ref Unsafe.AsRef<byte>(nextEmit), ref Unsafe.AsRef<byte>(op + 1));
+                                                CopyHelpers.UnalignedCopy128(in Unsafe.AsRef<byte>(nextEmit), ref Unsafe.AsRef<byte>(op + 1));
                                                 ip += i3;
                                                 op = op + i3 + 2;
                                                 goto emit_match;
@@ -370,7 +370,7 @@ namespace Snappier.Internal
                 uint n = length - 1;
                 *op++ = unchecked((byte)(Constants.Literal | (n << 2)));
 
-                CopyHelpers.UnalignedCopy128(ref Unsafe.AsRef<byte>(literal), ref Unsafe.AsRef<byte>(op));
+                CopyHelpers.UnalignedCopy128(in Unsafe.AsRef<byte>(literal), ref Unsafe.AsRef<byte>(op));
                 return op + length;
             }
 

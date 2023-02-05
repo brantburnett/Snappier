@@ -141,7 +141,7 @@ namespace Snappier.Internal
                     {
                         while (patternSize < 8)
                         {
-                            UnalignedCopy64(ref source, ref op);
+                            UnalignedCopy64(in source, ref op);
                             op = ref Unsafe.Add(ref op, patternSize);
                             patternSize *= 2;
                         }
@@ -173,20 +173,20 @@ namespace Snappier.Internal
             // based on that.
             if (!Unsafe.IsAddressGreaterThan(ref opEnd, ref Unsafe.Subtract(ref bufferEnd, 16)))
             {
-                UnalignedCopy64(ref source, ref op);
-                UnalignedCopy64(ref Unsafe.Add(ref  source, 8), ref Unsafe.Add(ref op, 8));
+                UnalignedCopy64(in source, ref op);
+                UnalignedCopy64(in Unsafe.Add(ref  source, 8), ref Unsafe.Add(ref op, 8));
 
                 if (Unsafe.IsAddressLessThan(ref op, ref Unsafe.Subtract(ref opEnd, 16))) {
-                    UnalignedCopy64(ref Unsafe.Add(ref source, 16), ref Unsafe.Add(ref op, 16));
-                    UnalignedCopy64(ref Unsafe.Add(ref source, 24), ref Unsafe.Add(ref op, 24));
+                    UnalignedCopy64(in Unsafe.Add(ref source, 16), ref Unsafe.Add(ref op, 16));
+                    UnalignedCopy64(in Unsafe.Add(ref source, 24), ref Unsafe.Add(ref op, 24));
                 }
                 if (Unsafe.IsAddressLessThan(ref op, ref Unsafe.Subtract(ref opEnd, 32))) {
-                    UnalignedCopy64(ref Unsafe.Add(ref source, 32), ref Unsafe.Add(ref op, 32));
-                    UnalignedCopy64(ref Unsafe.Add(ref source, 40), ref Unsafe.Add(ref op, 40));
+                    UnalignedCopy64(in Unsafe.Add(ref source, 32), ref Unsafe.Add(ref op, 32));
+                    UnalignedCopy64(in Unsafe.Add(ref source, 40), ref Unsafe.Add(ref op, 40));
                 }
                 if (Unsafe.IsAddressLessThan(ref op, ref Unsafe.Subtract(ref opEnd, 48))) {
-                    UnalignedCopy64(ref Unsafe.Add(ref source, 48), ref Unsafe.Add(ref op, 48));
-                    UnalignedCopy64(ref Unsafe.Add(ref source, 56), ref Unsafe.Add(ref op, 56));
+                    UnalignedCopy64(in Unsafe.Add(ref source, 48), ref Unsafe.Add(ref op, 48));
+                    UnalignedCopy64(in Unsafe.Add(ref source, 56), ref Unsafe.Add(ref op, 56));
                 }
 
                 return;
@@ -199,8 +199,8 @@ namespace Snappier.Internal
                  Unsafe.IsAddressLessThan(ref op, ref loopEnd);
                  op = ref Unsafe.Add(ref op, 16), source = ref Unsafe.Add(ref source, 16))
             {
-                UnalignedCopy64(ref source, ref op);
-                UnalignedCopy64(ref Unsafe.Add(ref source, 8), ref Unsafe.Add(ref op, 8));
+                UnalignedCopy64(in source, ref op);
+                UnalignedCopy64(in Unsafe.Add(ref source, 8), ref Unsafe.Add(ref op, 8));
             }
 
             if (!Unsafe.IsAddressLessThan(ref op, ref opEnd))
@@ -212,7 +212,7 @@ namespace Snappier.Internal
             // single 8 byte copy.
             if (!Unsafe.IsAddressGreaterThan(ref op, ref Unsafe.Subtract(ref bufferEnd, 8)))
             {
-                UnalignedCopy64(ref source, ref op);
+                UnalignedCopy64(in source, ref op);
                 source = ref Unsafe.Add(ref source, 8);
                 op = ref Unsafe.Add(ref op, 8);
             }
@@ -232,16 +232,16 @@ namespace Snappier.Internal
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void UnalignedCopy64(ref byte source, ref byte destination)
+        public static void UnalignedCopy64(in byte source, ref byte destination)
         {
-            long tempStackVar = Unsafe.As<byte, long>(ref source);
+            long tempStackVar = Unsafe.As<byte, long>(ref Unsafe.AsRef(source));
             Unsafe.As<byte, long>(ref destination) = tempStackVar;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void UnalignedCopy128(ref byte source, ref byte destination)
+        public static void UnalignedCopy128(in byte source, ref byte destination)
         {
-            Guid tempStackVar = Unsafe.As<byte, Guid>(ref source);
+            Guid tempStackVar = Unsafe.As<byte, Guid>(ref Unsafe.AsRef(source));
             Unsafe.As<byte, Guid>(ref destination) = tempStackVar;
         }
     }
