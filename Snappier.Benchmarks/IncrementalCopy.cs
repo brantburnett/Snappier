@@ -1,4 +1,5 @@
-﻿using BenchmarkDotNet.Attributes;
+﻿using System.Runtime.CompilerServices;
+using BenchmarkDotNet.Attributes;
 using Snappier.Internal;
 
 namespace Snappier.Benchmarks
@@ -9,21 +10,18 @@ namespace Snappier.Benchmarks
         private readonly byte[] _buffer = new byte[128];
 
         [Benchmark]
-        public unsafe void Fast()
+        public void Fast()
         {
-            fixed (byte* buffer = _buffer)
-            {
-                CopyHelpers.IncrementalCopy(buffer, buffer + 2, buffer + 18, buffer + _buffer.Length);
-            }
+            ref byte buffer = ref _buffer[0];
+            CopyHelpers.IncrementalCopy(ref buffer, ref Unsafe.Add(ref buffer, 2), ref Unsafe.Add(ref buffer, 18),
+                ref Unsafe.Add(ref buffer, _buffer.Length - 1));
         }
 
         [Benchmark(Baseline = true)]
-        public unsafe void SlowCopyMemory()
+        public void SlowCopyMemory()
         {
-            fixed (byte* buffer = _buffer)
-            {
-                CopyHelpers.IncrementalCopySlow(buffer, buffer + 2, buffer + 18);
-            }
+            ref byte buffer = ref _buffer[0];
+            CopyHelpers.IncrementalCopySlow(ref buffer, ref Unsafe.Add(ref buffer, 2), ref Unsafe.Add(ref buffer, 18));
         }
     }
 }

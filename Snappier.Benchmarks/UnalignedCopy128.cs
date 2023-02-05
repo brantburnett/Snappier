@@ -1,4 +1,5 @@
-﻿using BenchmarkDotNet.Attributes;
+﻿using System.Runtime.CompilerServices;
+using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Diagnostics.Windows.Configs;
 using Snappier.Internal;
 
@@ -13,10 +14,8 @@ namespace Snappier.Benchmarks
         [Benchmark]
         public unsafe void Default()
         {
-            fixed (byte* ptr = _buffer)
-            {
-                CopyHelpers.UnalignedCopy64(ptr, ptr + 8);
-            }
+            ref byte ptr = ref _buffer[0];
+            CopyHelpers.UnalignedCopy64(ref ptr, ref Unsafe.Add(ref ptr, 8));
         }
     }
 }
