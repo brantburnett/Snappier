@@ -16,7 +16,7 @@ namespace Snappier.Benchmarks
         public void Default()
         {
             ref byte ptr = ref _buffer[0];
-            CopyHelpers.UnalignedCopy128(ref ptr, ref Unsafe.Add(ref ptr,16));
+            CopyHelpers.UnalignedCopy128(in ptr, ref Unsafe.Add(ref ptr,16));
         }
     }
 }
