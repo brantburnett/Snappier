@@ -29,12 +29,24 @@ namespace Snappier.Internal
             Vector128.Create((byte) 0, 1, 2, 3, 4, 5, 6, 0, 1, 2, 3, 4, 5, 6, 0, 1)
         };
 
-        #endif
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Vector128<byte> LoadVector128Unsafe(ref byte source)
+        {
+#if NET7_0_OR_GREATER
+            // Use the intrinsic for .NET 7
+            return Vector128.LoadUnsafe(ref source);
+#else
+            // Fallback for .NET 6
+            return Unsafe.ReadUnaligned<Vector128<byte>>(ref source);
+#endif
+        }
 
         /// <summary>
         /// j * (16 / j) for all j from 0 to 7. 0 is not actually used.
         /// </summary>
         private static readonly byte[] PatternSizeTable = {0, 16, 16, 15, 16, 15, 12, 14};
+
+#endif
 
         /// <summary>
         /// Copy [src, src+(opEnd-op)) to [op, (opEnd-op)) but faster than
@@ -51,19 +63,19 @@ namespace Snappier.Internal
         /// to this method. This makes the logic a bit more confusing, but is a significant performance boost.
         /// </remarks>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static unsafe void IncrementalCopy(byte* source, byte* op, byte* opEnd, byte* bufferEnd)
+        public static void IncrementalCopy(ref byte source, ref byte op, ref byte opEnd, ref byte bufferEnd)
         {
-            Debug.Assert(source < op);
-            Debug.Assert(op <= opEnd);
-            Debug.Assert(opEnd <= bufferEnd);
+            Debug.Assert(Unsafe.IsAddressLessThan(ref source, ref op));
+            Debug.Assert(!Unsafe.IsAddressGreaterThan(ref op, ref opEnd));
+            Debug.Assert(!Unsafe.IsAddressGreaterThan(ref opEnd, ref bufferEnd));
             // NOTE: The copy tags use 3 or 6 bits to store the copy length, so len <= 64.
-            Debug.Assert(opEnd - op <= 64);
+            Debug.Assert(Unsafe.ByteOffset(ref op, ref opEnd) <= (nint) 64);
             // NOTE: In practice the compressor always emits len >= 4, so it is ok to
             // assume that to optimize this function, but this is not guaranteed by the
             // compression format, so we have to also handle len < 4 in case the input
             // does not satisfy these conditions.
 
-            var patternSize = op - source;
+            int patternSize = (int) Unsafe.ByteOffset(ref source, ref op);
 
             if (patternSize < 8)
             {
@@ -83,35 +95,35 @@ namespace Snappier.Internal
                     // because its loads and stores partly overlap. By expanding the pattern
                     // in-place, we avoid the penalty.
 
-                    if (op <= bufferEnd - 16)
+                    if (!Unsafe.IsAddressGreaterThan(ref op, ref Unsafe.Subtract(ref bufferEnd, 16)))
                     {
                         var shuffleMask = PshufbFillPatterns[patternSize - 1];
-                        var srcPattern = LoadScalarVector128((long*) source).As<long, byte>();
+                        var srcPattern = LoadVector128Unsafe(ref source);
                         var pattern = Shuffle(srcPattern, shuffleMask);
 
                         // Get the new pattern size now that we've repeated it
                         patternSize = PatternSizeTable[patternSize];
 
                         // If we're getting to the very end of the buffer, don't overrun
-                        var loopEnd = bufferEnd - 15;
-                        if (loopEnd > opEnd)
+                        ref byte loopEnd = ref Unsafe.Subtract(ref bufferEnd, 15);
+                        if (Unsafe.IsAddressGreaterThan(ref loopEnd, ref opEnd))
                         {
-                            loopEnd = opEnd;
+                            loopEnd = ref opEnd;
                         }
 
-                        while (op < loopEnd)
+                        while (Unsafe.IsAddressLessThan(ref op, ref loopEnd))
                         {
-                            Store(op, pattern);
-                            op += patternSize;
+                            Store((byte*) Unsafe.AsPointer(ref op), pattern);
+                            op = ref Unsafe.Add(ref op, patternSize);
                         }
 
-                        if (op >= opEnd)
+                        if (!Unsafe.IsAddressLessThan(ref op, ref opEnd))
                         {
                             return;
                         }
                     }
 
-                    IncrementalCopySlow(source, op, opEnd);
+                    IncrementalCopySlow(ref source, ref op, ref opEnd);
                     return;
                 }
                 else
@@ -125,23 +137,23 @@ namespace Snappier.Internal
                     // bytes if pattern_size is 2.  Precisely encoding that is probably not
                     // worthwhile; instead, invoke the slow path if we cannot write 11 bytes
                     // (because 11 are required in the worst case).
-                    if (op <= bufferEnd - 11)
+                    if (!Unsafe.IsAddressGreaterThan(ref op, ref Unsafe.Subtract(ref bufferEnd, 11)))
                     {
                         while (patternSize < 8)
                         {
-                            UnalignedCopy64(source, op);
-                            op += patternSize;
+                            UnalignedCopy64(ref source, ref op);
+                            op = ref Unsafe.Add(ref op, patternSize);
                             patternSize *= 2;
                         }
 
-                        if (op >= opEnd)
+                        if (!Unsafe.IsAddressLessThan(ref op, ref opEnd))
                         {
                             return;
                         }
                     }
                     else
                     {
-                        IncrementalCopySlow(source, op, opEnd);
+                        IncrementalCopySlow(ref source, ref op, ref opEnd);
                         return;
                     }
 #if NET6_0_OR_GREATER
@@ -159,22 +171,22 @@ namespace Snappier.Internal
             //
             // Typically, the op_limit is the gating factor so try to simplify the loop
             // based on that.
-            if (opEnd <= bufferEnd - 16)
+            if (!Unsafe.IsAddressGreaterThan(ref opEnd, ref Unsafe.Subtract(ref bufferEnd, 16)))
             {
-                UnalignedCopy64(source, op);
-                UnalignedCopy64(source + 8, op + 8);
+                UnalignedCopy64(ref source, ref op);
+                UnalignedCopy64(ref Unsafe.Add(ref  source, 8), ref Unsafe.Add(ref op, 8));
 
-                if (op + 16 < opEnd) {
-                    UnalignedCopy64(source + 16, op + 16);
-                    UnalignedCopy64(source + 24, op + 24);
+                if (Unsafe.IsAddressLessThan(ref op, ref Unsafe.Subtract(ref opEnd, 16))) {
+                    UnalignedCopy64(ref Unsafe.Add(ref source, 16), ref Unsafe.Add(ref op, 16));
+                    UnalignedCopy64(ref Unsafe.Add(ref source, 24), ref Unsafe.Add(ref op, 24));
                 }
-                if (op + 32 < opEnd) {
-                    UnalignedCopy64(source + 32, op + 32);
-                    UnalignedCopy64(source + 40, op + 40);
+                if (Unsafe.IsAddressLessThan(ref op, ref Unsafe.Subtract(ref opEnd, 32))) {
+                    UnalignedCopy64(ref Unsafe.Add(ref source, 32), ref Unsafe.Add(ref op, 32));
+                    UnalignedCopy64(ref Unsafe.Add(ref source, 40), ref Unsafe.Add(ref op, 40));
                 }
-                if (op + 48 < opEnd) {
-                    UnalignedCopy64(source + 48, op + 48);
-                    UnalignedCopy64(source + 56, op + 56);
+                if (Unsafe.IsAddressLessThan(ref op, ref Unsafe.Subtract(ref opEnd, 48))) {
+                    UnalignedCopy64(ref Unsafe.Add(ref source, 48), ref Unsafe.Add(ref op, 48));
+                    UnalignedCopy64(ref Unsafe.Add(ref source, 56), ref Unsafe.Add(ref op, 56));
                 }
 
                 return;
@@ -183,51 +195,62 @@ namespace Snappier.Internal
             // Fall back to doing as much as we can with the available slop in the
             // buffer.
 
-            for (byte* loopEnd = bufferEnd - 16; op < loopEnd; op += 16, source += 16) {
-                UnalignedCopy64(source, op);
-                UnalignedCopy64(source + 8, op + 8);
+            for (ref byte loopEnd = ref Unsafe.Subtract(ref bufferEnd, 16);
+                 Unsafe.IsAddressLessThan(ref op, ref loopEnd);
+                 op = ref Unsafe.Add(ref op, 16), source = ref Unsafe.Add(ref source, 16))
+            {
+                UnalignedCopy64(ref source, ref op);
+                UnalignedCopy64(ref Unsafe.Add(ref source, 8), ref Unsafe.Add(ref op, 8));
             }
 
-            if (op >= opEnd)
+            if (!Unsafe.IsAddressLessThan(ref op, ref opEnd))
             {
                 return;
             }
 
             // We only take this branch if we didn't have enough slop and we can do a
             // single 8 byte copy.
-            if (op <= bufferEnd - 8)
+            if (!Unsafe.IsAddressGreaterThan(ref op, ref Unsafe.Subtract(ref bufferEnd, 8)))
             {
-                UnalignedCopy64(source, op);
-                source += 8;
-                op += 8;
+                UnalignedCopy64(ref source, ref op);
+                source = ref Unsafe.Add(ref source, 8);
+                op = ref Unsafe.Add(ref op, 8);
             }
 
-            IncrementalCopySlow(source, op, opEnd);
+            IncrementalCopySlow(ref source, ref op, ref opEnd);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static unsafe void IncrementalCopySlow(byte* source, byte* op, byte* opEnd)
+        public static unsafe void IncrementalCopySlow(ref byte source, ref byte op, ref byte opEnd)
         {
-            while (op < opEnd)
+            while (Unsafe.IsAddressLessThan(ref op, ref opEnd))
             {
-                *op++ = *source++;
+                op = source;
+                op = ref Unsafe.Add(ref op, 1);
+                source = ref Unsafe.Add(ref source, 1);
             }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static unsafe void UnalignedCopy64(byte* source, byte* destination)
+        public static void UnalignedCopy64(ref byte source, ref byte destination)
         {
-            var temp = stackalloc byte[8];
-            Unsafe.CopyBlockUnaligned(temp, source, 8);
-            Unsafe.CopyBlockUnaligned(destination, temp, 8);
+            // Stackalloc may prevent inlining, so use an 8-byte long for the buffer
+            Unsafe.SkipInit(out long tempStackVar);
+            ref byte temp = ref Unsafe.As<long, byte>(ref tempStackVar);
+
+            Unsafe.CopyBlockUnaligned(ref temp, ref source, 8);
+            Unsafe.CopyBlockUnaligned(ref destination, ref temp, 8);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static unsafe void UnalignedCopy128(byte* source, byte* destination)
+        public static void UnalignedCopy128(ref byte source, ref byte destination)
         {
-            var temp = stackalloc byte[16];
-            Unsafe.CopyBlockUnaligned(temp, source, 16);
-            Unsafe.CopyBlockUnaligned(destination, temp, 16);
+            // Stackalloc may prevent inlining, so use a 16-byte Guid for the buffer
+            Unsafe.SkipInit(out Guid tempStackVar);
+            ref byte temp = ref Unsafe.As<Guid, byte>(ref tempStackVar);
+
+            Unsafe.CopyBlockUnaligned(ref temp, ref source, 16);
+            Unsafe.CopyBlockUnaligned(ref destination, ref temp, 16);
         }
     }
 }

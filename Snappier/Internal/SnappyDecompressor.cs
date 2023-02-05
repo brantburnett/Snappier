@@ -491,8 +491,12 @@ namespace Snappier.Internal
                 if (_expectedLength.HasValue && _lookbackBuffer.Length < _expectedLength.GetValueOrDefault())
                 {
                     _lookbackBufferOwner?.Dispose();
-                    _lookbackBufferOwner = MemoryPool<byte>.Shared.Rent(_expectedLength.GetValueOrDefault());
-                    _lookbackBuffer = _lookbackBufferOwner.Memory;
+
+                    // Always pad the lookback buffer with an extra byte that we don't use. This allows a "ref byte" reference past
+                    // the end of the perceived buffer that still points within the array. This is a requirement so that GC can recognize
+                    // the "ref byte" points within the array and adjust it if the array is moved.
+                    _lookbackBufferOwner = MemoryPool<byte>.Shared.Rent(_expectedLength.GetValueOrDefault() + 1);
+                    _lookbackBuffer = _lookbackBufferOwner.Memory.Slice(0, _lookbackBufferOwner.Memory.Length - 1);
                     _lookbackBufferLength = (nuint) _lookbackBuffer.Length;
                 }
             }
@@ -559,7 +563,7 @@ namespace Snappier.Internal
             if (length <= 16 && available >= 16 + Constants.MaximumTagLength &&
                 bufferEnd - op >= 16)
             {
-                CopyHelpers.UnalignedCopy128(input, op);
+                CopyHelpers.UnalignedCopy128(ref Unsafe.AsRef<byte>(input), ref Unsafe.AsRef<byte>(op));
                 op += length;
                 return true;
             }
@@ -581,7 +585,8 @@ namespace Snappier.Internal
                 ThrowInvalidDataException("Data too long");
             }
 
-            CopyHelpers.IncrementalCopy(op - copyOffset, op, op + length, bufferEnd);
+            CopyHelpers.IncrementalCopy(ref Unsafe.AsRef<byte>(op - copyOffset), ref Unsafe.AsRef<byte>(op),
+                ref Unsafe.AsRef<byte>(op + length), ref Unsafe.AsRef<byte>(bufferEnd));
 
             op += length;
         }
