@@ -133,9 +133,9 @@ namespace Snappier.Tests
                 byte[] buffer = new byte[100];
                 var requestedSize = rand.Next(1, buffer.Length);
                 int n;
-                while ((n = inputStream.Read(buffer.AsSpan(0, requestedSize))) != 0)
+                while ((n = inputStream.Read(buffer, 0, requestedSize)) != 0)
                 {
-                    compressor.Write(buffer.AsSpan(0, n));
+                    compressor.Write(buffer, 0, n);
                     // Flush after every write so we get lots of small chunks in the compressed output.
                     compressor.Flush();
                 }
