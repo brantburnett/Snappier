@@ -63,7 +63,7 @@ namespace Snappier.Internal
         /// to this method. This makes the logic a bit more confusing, but is a significant performance boost.
         /// </remarks>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void IncrementalCopy(ref byte source, ref byte op, ref byte opEnd, ref byte bufferEnd)
+        public static unsafe void IncrementalCopy(ref byte source, ref byte op, ref byte opEnd, ref byte bufferEnd)
         {
             Debug.Assert(Unsafe.IsAddressLessThan(ref source, ref op));
             Debug.Assert(!Unsafe.IsAddressGreaterThan(ref op, ref opEnd));
