@@ -27,7 +27,7 @@ namespace Snappier.Tests
             Assert.NotNull(resource);
 
             var input = new byte[resource.Length];
-            resource.Read(input);
+            resource.Read(input, 0, input.Length);
 
             var compressed = new byte[Snappy.GetMaxCompressedLength(input.Length)];
             var compressedLength = Snappy.Compress(input, compressed);
@@ -72,7 +72,7 @@ namespace Snappier.Tests
         public void BadData_InsufficentOutputBuffer_ThrowsArgumentException()
         {
             var input = new byte[100000];
-            Array.Fill(input, (byte) 'A');
+            ArrayFill(input, (byte) 'A');
 
             var compressed = new byte[Snappy.GetMaxCompressedLength(input.Length)];
             var compressedLength = Snappy.Compress(input, compressed);
@@ -111,7 +111,7 @@ namespace Snappier.Tests
         public void BadData_LongLength_ThrowsInvalidDataException()
         {
             var input = new byte[1000];
-            Array.Fill(input, (byte) 'A');
+            ArrayFill(input, (byte) 'A');
 
             var compressed = new byte[Snappy.GetMaxCompressedLength(input.Length)];
             var compressedLength = Snappy.Compress(input, compressed);
@@ -139,7 +139,7 @@ namespace Snappier.Tests
             Assert.NotNull(resource);
 
             var input = new byte[resource.Length];
-            resource.Read(input);
+            resource.Read(input, 0, input.Length);
 
             Assert.Throws<InvalidDataException>(() =>
             {
@@ -159,7 +159,7 @@ namespace Snappier.Tests
             Assert.NotNull(resource);
 
             var input = new byte[resource.Length];
-            resource.Read(input);
+            resource.Read(input, 0, input.Length);
 
             var compressed = new byte[Snappy.GetMaxCompressedLength(input.Length)];
             var compressedLength = Snappy.Compress(input, compressed);
@@ -206,7 +206,7 @@ namespace Snappier.Tests
                         c = (byte)rng.Next(0, (1 << skewedBits) - 1);
                     }
 
-                    Array.Fill(buffer, c, size, Math.Min(runLength, length - size));
+                    ArrayFill(buffer, c, size, Math.Min(runLength, length - size));
                     size += runLength;
                 }
 
@@ -217,6 +217,27 @@ namespace Snappier.Tests
                 Assert.Equal(buffer.Length, decompressed.Memory.Length);
                 Assert.Equal(buffer, decompressed.Memory.ToArray());
             }
+        }
+
+        private static void ArrayFill(byte[] array, byte value)
+        {
+#if NET48
+            ArrayFill(array, value, 0, array.Length);
+#else
+            Array.Fill(array, value);
+#endif
+        }
+
+        private static void ArrayFill(byte[] array, byte value, int startIndex, int count)
+        {
+#if NET48
+            for (int i = startIndex; i < startIndex + count; i++)
+            {
+                array[i] = value;
+            }
+#else
+            Array.Fill(array, value, startIndex, count);
+#endif
         }
     }
 }
