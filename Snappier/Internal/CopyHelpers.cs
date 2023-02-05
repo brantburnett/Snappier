@@ -234,23 +234,15 @@ namespace Snappier.Internal
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void UnalignedCopy64(ref byte source, ref byte destination)
         {
-            // Stackalloc may prevent inlining, so use an 8-byte long for the buffer
-            Unsafe.SkipInit(out long tempStackVar);
-            ref byte temp = ref Unsafe.As<long, byte>(ref tempStackVar);
-
-            Unsafe.CopyBlockUnaligned(ref temp, ref source, 8);
-            Unsafe.CopyBlockUnaligned(ref destination, ref temp, 8);
+            long tempStackVar = Unsafe.As<byte, long>(ref source);
+            Unsafe.As<byte, long>(ref destination) = tempStackVar;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void UnalignedCopy128(ref byte source, ref byte destination)
         {
-            // Stackalloc may prevent inlining, so use a 16-byte Guid for the buffer
-            Unsafe.SkipInit(out Guid tempStackVar);
-            ref byte temp = ref Unsafe.As<Guid, byte>(ref tempStackVar);
-
-            Unsafe.CopyBlockUnaligned(ref temp, ref source, 16);
-            Unsafe.CopyBlockUnaligned(ref destination, ref temp, 16);
+            Guid tempStackVar = Unsafe.As<byte, Guid>(ref source);
+            Unsafe.As<byte, Guid>(ref destination) = tempStackVar;
         }
     }
 }
