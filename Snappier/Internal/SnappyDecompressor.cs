@@ -210,7 +210,10 @@ namespace Snappier.Internal
                                 // and any literal data from the _input buffer
 
                                 // scratch will be the scratch buffer with only the tag if true is returned
-                                if (!RefillTagFromScratch(ref input, inputEnd, scratch))
+                                (bool sufficientData, uint inputUsed) = RefillTagFromScratch(ref Unsafe.AsRef<byte>(input),
+                                    ref Unsafe.AsRef<byte>(inputEnd), ref Unsafe.AsRef<byte>(scratch));
+                                input += inputUsed;
+                                if (!sufficientData)
                                 {
                                     return;
                                 }
@@ -416,33 +419,31 @@ namespace Snappier.Internal
             }
         }
 
-        private unsafe bool RefillTagFromScratch(ref byte* input, byte* inputEnd, byte* scratch)
+        private (bool sufficientData, uint inputUsed) RefillTagFromScratch(ref byte input, ref byte inputEnd, ref byte scratch)
         {
             Debug.Assert(_scratchLength > 0);
 
-            if (input >= inputEnd)
+            if (!Unsafe.IsAddressLessThan(ref input, ref inputEnd))
             {
-                return false;
+                return (false, 0);
             }
 
             // Read the tag character
-            byte c = *scratch;
-            uint entry = Constants.CharTable[c];
+            uint entry = Constants.CharTable[scratch];
             uint needed = (entry >> 11) + 1; // +1 byte for 'c'
 
-            uint toCopy = Math.Min(unchecked((uint)(inputEnd - input)), needed - _scratchLength);
-            Unsafe.CopyBlockUnaligned(scratch + _scratchLength, input, toCopy);
+            uint toCopy = Math.Min((uint)Unsafe.ByteOffset(ref input, ref inputEnd), needed - _scratchLength);
+            Unsafe.CopyBlockUnaligned(ref Unsafe.Add(ref scratch, _scratchLength), ref input, toCopy);
 
             _scratchLength += toCopy;
-            input += toCopy;
 
             if (_scratchLength < needed)
             {
                 // Still insufficient
-                return false;
+                return (false, toCopy);
             }
 
-            return true;
+            return (true, toCopy);
         }
 
         private unsafe bool RefillTag(ref byte* input, ref byte* inputEnd, byte* scratch)
