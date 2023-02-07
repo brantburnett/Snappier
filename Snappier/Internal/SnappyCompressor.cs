@@ -127,234 +127,232 @@ namespace Snappier.Internal
 
                     fixed (byte* outputStart = output)
                     {
-                        fixed (ushort* table = tableSpan)
+                        ref ushort table = ref tableSpan[0];
+                        var op = outputStart;
+
+                        if (input.Length >= Constants.InputMarginBytes)
                         {
-                            var op = outputStart;
+                            var ipLimit = inputEnd - Constants.InputMarginBytes;
 
-                            if (input.Length >= Constants.InputMarginBytes)
+                            for (var preload = Helpers.UnsafeReadUInt32(ip + 1);;)
                             {
-                                var ipLimit = inputEnd - Constants.InputMarginBytes;
+                                // Bytes in [nextEmit, ip) will be emitted as literal bytes.  Or
+                                // [nextEmit, ipEnd) after the main loop.
+                                byte* nextEmit = ip++;
+                                var data = Helpers.UnsafeReadUInt64(ip);
 
-                                for (var preload = Helpers.UnsafeReadUInt32(ip + 1);;)
+                                // The body of this loop calls EmitLiteral once and then EmitCopy one or
+                                // more times.  (The exception is that when we're close to exhausting
+                                // the input we goto emit_remainder.)
+                                //
+                                // In the first iteration of this loop we're just starting, so
+                                // there's nothing to copy, so calling EmitLiteral once is
+                                // necessary.  And we only start a new iteration when the
+                                // current iteration has determined that a call to EmitLiteral will
+                                // precede the next call to EmitCopy (if any).
+                                //
+                                // Step 1: Scan forward in the input looking for a 4-byte-long match.
+                                // If we get close to exhausting the input then goto emit_remainder.
+                                //
+                                // Heuristic match skipping: If 32 bytes are scanned with no matches
+                                // found, start looking only at every other byte. If 32 more bytes are
+                                // scanned (or skipped), look at every third byte, etc.. When a match is
+                                // found, immediately go back to looking at every byte. This is a small
+                                // loss (~5% performance, ~0.1% density) for compressible data due to more
+                                // bookkeeping, but for non-compressible data (such as JPEG) it's a huge
+                                // win since the compressor quickly "realizes" the data is incompressible
+                                // and doesn't bother looking for matches everywhere.
+                                //
+                                // The "skip" variable keeps track of how many bytes there are since the
+                                // last match; dividing it by 32 (ie. right-shifting by five) gives the
+                                // number of bytes to move ahead for each iteration.
+                                uint skip = 32;
+
+                                byte* candidate;
+                                if (ipLimit - ip >= 16)
                                 {
-                                    // Bytes in [nextEmit, ip) will be emitted as literal bytes.  Or
-                                    // [nextEmit, ipEnd) after the main loop.
-                                    byte* nextEmit = ip++;
-                                    var data = Helpers.UnsafeReadUInt64(ip);
-
-                                    // The body of this loop calls EmitLiteral once and then EmitCopy one or
-                                    // more times.  (The exception is that when we're close to exhausting
-                                    // the input we goto emit_remainder.)
-                                    //
-                                    // In the first iteration of this loop we're just starting, so
-                                    // there's nothing to copy, so calling EmitLiteral once is
-                                    // necessary.  And we only start a new iteration when the
-                                    // current iteration has determined that a call to EmitLiteral will
-                                    // precede the next call to EmitCopy (if any).
-                                    //
-                                    // Step 1: Scan forward in the input looking for a 4-byte-long match.
-                                    // If we get close to exhausting the input then goto emit_remainder.
-                                    //
-                                    // Heuristic match skipping: If 32 bytes are scanned with no matches
-                                    // found, start looking only at every other byte. If 32 more bytes are
-                                    // scanned (or skipped), look at every third byte, etc.. When a match is
-                                    // found, immediately go back to looking at every byte. This is a small
-                                    // loss (~5% performance, ~0.1% density) for compressible data due to more
-                                    // bookkeeping, but for non-compressible data (such as JPEG) it's a huge
-                                    // win since the compressor quickly "realizes" the data is incompressible
-                                    // and doesn't bother looking for matches everywhere.
-                                    //
-                                    // The "skip" variable keeps track of how many bytes there are since the
-                                    // last match; dividing it by 32 (ie. right-shifting by five) gives the
-                                    // number of bytes to move ahead for each iteration.
-                                    uint skip = 32;
-
-                                    byte* candidate;
-                                    if (ipLimit - ip >= 16)
+                                    long delta = ip - inputStart;
+                                    for (int j = 0; j < 16; j += 4)
                                     {
-                                        long delta = ip - inputStart;
-                                        for (int j = 0; j < 16; j += 4)
-                                        {
-                                            // Manually unroll this loop into chunks of 4
+                                        // Manually unroll this loop into chunks of 4
 
-                                            uint dword = j == 0 ? preload : (uint) data;
-                                            Debug.Assert(dword == Helpers.UnsafeReadUInt32(ip + j));
-                                            long hash = Helpers.HashBytes(dword, shift);
-                                            candidate = inputStart + table[hash];
-                                            Debug.Assert(candidate >= inputStart);
-                                            Debug.Assert(candidate < ip + j);
-                                            table[hash] = (ushort) (delta + j);
-
-                                            if (Helpers.UnsafeReadUInt32(candidate) == dword)
-                                            {
-                                                *op = (byte) (Constants.Literal | (j << 2));
-                                                CopyHelpers.UnalignedCopy128(in Unsafe.AsRef<byte>(nextEmit), ref Unsafe.AsRef<byte>(op + 1));
-                                                ip += j;
-                                                op = op + j + 2;
-                                                goto emit_match;
-                                            }
-
-                                            int i1 = j + 1;
-                                            dword = (uint)(data >> 8);
-                                            Debug.Assert(dword == Helpers.UnsafeReadUInt32(ip + i1));
-                                            hash = Helpers.HashBytes(dword, shift);
-                                            candidate = inputStart + table[hash];
-                                            Debug.Assert(candidate >= inputStart);
-                                            Debug.Assert(candidate < ip + i1);
-                                            table[hash] = (ushort) (delta + i1);
-
-                                            if (Helpers.UnsafeReadUInt32(candidate) == dword)
-                                            {
-                                                *op = (byte) (Constants.Literal | (i1 << 2));
-                                                CopyHelpers.UnalignedCopy128(in Unsafe.AsRef<byte>(nextEmit), ref Unsafe.AsRef<byte>(op + 1));
-                                                ip += i1;
-                                                op = op + i1 + 2;
-                                                goto emit_match;
-                                            }
-
-                                            int i2 = j + 2;
-                                            dword = (uint)(data >> 16);
-                                            Debug.Assert(dword == Helpers.UnsafeReadUInt32(ip + i2));
-                                            hash = Helpers.HashBytes(dword, shift);
-                                            candidate = inputStart + table[hash];
-                                            Debug.Assert(candidate >= inputStart);
-                                            Debug.Assert(candidate < ip + i2);
-                                            table[hash] = (ushort) (delta + i2);
-
-                                            if (Helpers.UnsafeReadUInt32(candidate) == dword)
-                                            {
-                                                *op = (byte) (Constants.Literal | (i2 << 2));
-                                                CopyHelpers.UnalignedCopy128(in Unsafe.AsRef<byte>(nextEmit), ref Unsafe.AsRef<byte>(op + 1));
-                                                ip += i2;
-                                                op = op + i2 + 2;
-                                                goto emit_match;
-                                            }
-
-                                            int i3 = j + 3;
-                                            dword = (uint)(data >> 24);
-                                            Debug.Assert(dword == Helpers.UnsafeReadUInt32(ip + i3));
-                                            hash = Helpers.HashBytes(dword, shift);
-                                            candidate = inputStart + table[hash];
-                                            Debug.Assert(candidate >= inputStart);
-                                            Debug.Assert(candidate < ip + i3);
-                                            table[hash] = (ushort) (delta + i3);
-
-                                            if (Helpers.UnsafeReadUInt32(candidate) == dword)
-                                            {
-                                                *op = (byte) (Constants.Literal | (i3 << 2));
-                                                CopyHelpers.UnalignedCopy128(in Unsafe.AsRef<byte>(nextEmit), ref Unsafe.AsRef<byte>(op + 1));
-                                                ip += i3;
-                                                op = op + i3 + 2;
-                                                goto emit_match;
-                                            }
-
-                                            data = Helpers.UnsafeReadUInt64(ip + j + 4);
-                                        }
-
-                                        ip += 16;
-                                        skip += 16;
-                                    }
-
-                                    while (true)
-                                    {
-                                        Debug.Assert((uint) data == Helpers.UnsafeReadUInt32(ip));
-                                        long hash = Helpers.HashBytes((uint) data, shift);
-                                        uint bytesBetweenHashLookups = skip >> 5;
-                                        skip += bytesBetweenHashLookups;
-
-                                        byte* nextIp = ip + bytesBetweenHashLookups;
-                                        if (nextIp > ipLimit)
-                                        {
-                                            ip = nextEmit;
-                                            goto emit_remainder;
-                                        }
-
-                                        candidate = inputStart + table[hash];
+                                        uint dword = j == 0 ? preload : (uint) data;
+                                        Debug.Assert(dword == Helpers.UnsafeReadUInt32(ip + j));
+                                        int hash = Helpers.HashBytes(dword, shift);
+                                        candidate = inputStart + Unsafe.Add(ref table, hash);
                                         Debug.Assert(candidate >= inputStart);
-                                        Debug.Assert(candidate < ip);
+                                        Debug.Assert(candidate < ip + j);
+                                        Unsafe.Add(ref table, hash) = (ushort) (delta + j);
 
-                                        table[hash] = (ushort) (ip - inputStart);
-                                        if ((uint) data == Helpers.UnsafeReadUInt32(candidate))
+                                        if (Helpers.UnsafeReadUInt32(candidate) == dword)
                                         {
-                                            break;
+                                            *op = (byte) (Constants.Literal | (j << 2));
+                                            CopyHelpers.UnalignedCopy128(in Unsafe.AsRef<byte>(nextEmit), ref Unsafe.AsRef<byte>(op + 1));
+                                            ip += j;
+                                            op = op + j + 2;
+                                            goto emit_match;
                                         }
 
-                                        data = Helpers.UnsafeReadUInt32(nextIp);
-                                        ip = nextIp;
+                                        int i1 = j + 1;
+                                        dword = (uint)(data >> 8);
+                                        Debug.Assert(dword == Helpers.UnsafeReadUInt32(ip + i1));
+                                        hash = Helpers.HashBytes(dword, shift);
+                                        candidate = inputStart + Unsafe.Add(ref table, hash);
+                                        Debug.Assert(candidate >= inputStart);
+                                        Debug.Assert(candidate < ip + i1);
+                                        Unsafe.Add(ref table, hash) = (ushort) (delta + i1);
+
+                                        if (Helpers.UnsafeReadUInt32(candidate) == dword)
+                                        {
+                                            *op = (byte) (Constants.Literal | (i1 << 2));
+                                            CopyHelpers.UnalignedCopy128(in Unsafe.AsRef<byte>(nextEmit), ref Unsafe.AsRef<byte>(op + 1));
+                                            ip += i1;
+                                            op = op + i1 + 2;
+                                            goto emit_match;
+                                        }
+
+                                        int i2 = j + 2;
+                                        dword = (uint)(data >> 16);
+                                        Debug.Assert(dword == Helpers.UnsafeReadUInt32(ip + i2));
+                                        hash = Helpers.HashBytes(dword, shift);
+                                        candidate = inputStart + Unsafe.Add(ref table, hash);
+                                        Debug.Assert(candidate >= inputStart);
+                                        Debug.Assert(candidate < ip + i2);
+                                        Unsafe.Add(ref table, hash) = (ushort) (delta + i2);
+
+                                        if (Helpers.UnsafeReadUInt32(candidate) == dword)
+                                        {
+                                            *op = (byte) (Constants.Literal | (i2 << 2));
+                                            CopyHelpers.UnalignedCopy128(in Unsafe.AsRef<byte>(nextEmit), ref Unsafe.AsRef<byte>(op + 1));
+                                            ip += i2;
+                                            op = op + i2 + 2;
+                                            goto emit_match;
+                                        }
+
+                                        int i3 = j + 3;
+                                        dword = (uint)(data >> 24);
+                                        Debug.Assert(dword == Helpers.UnsafeReadUInt32(ip + i3));
+                                        hash = Helpers.HashBytes(dword, shift);
+                                        candidate = inputStart + Unsafe.Add(ref table, hash);
+                                        Debug.Assert(candidate >= inputStart);
+                                        Debug.Assert(candidate < ip + i3);
+                                        Unsafe.Add(ref table, hash) = (ushort) (delta + i3);
+
+                                        if (Helpers.UnsafeReadUInt32(candidate) == dword)
+                                        {
+                                            *op = (byte) (Constants.Literal | (i3 << 2));
+                                            CopyHelpers.UnalignedCopy128(in Unsafe.AsRef<byte>(nextEmit), ref Unsafe.AsRef<byte>(op + 1));
+                                            ip += i3;
+                                            op = op + i3 + 2;
+                                            goto emit_match;
+                                        }
+
+                                        data = Helpers.UnsafeReadUInt64(ip + j + 4);
                                     }
 
-                                    // Step 2: A 4-byte match has been found.  We'll later see if more
-                                    // than 4 bytes match.  But, prior to the match, input
-                                    // bytes [next_emit, ip) are unmatched.  Emit them as "literal bytes."
-                                    Debug.Assert(nextEmit + 16 <= inputEnd);
-                                    op = EmitLiteralFast(op, nextEmit, (uint) (ip - nextEmit));
-
-                                    // Step 3: Call EmitCopy, and then see if another EmitCopy could
-                                    // be our next move.  Repeat until we find no match for the
-                                    // input immediately after what was consumed by the last EmitCopy call.
-                                    //
-                                    // If we exit this loop normally then we need to call EmitLiteral next,
-                                    // though we don't yet know how big the literal will be.  We handle that
-                                    // by proceeding to the next iteration of the main loop.  We also can exit
-                                    // this loop via goto if we get close to exhausting the input.
-
-                                    emit_match:
-                                    do
-                                    {
-                                        // We have a 4-byte match at ip, and no need to emit any
-                                        // "literal bytes" prior to ip.
-                                        byte* emitBase = ip;
-
-                                        var (matchLength, matchLengthLessThan8) =
-                                            FindMatchLength(candidate + 4, ip + 4, inputEnd, ref data);
-
-                                        long matched = 4 + matchLength;
-                                        ip += matched;
-
-                                        long offset = emitBase - candidate;
-                                        if (matchLengthLessThan8)
-                                        {
-                                            op = EmitCopyLenLessThan12(op, offset, matched);
-                                        }
-                                        else
-                                        {
-                                            op = EmitCopyLenGreaterThanOrEqualTo12(op, offset, matched);
-                                        }
-
-                                        if (ip >= ipLimit)
-                                        {
-                                            goto emit_remainder;
-                                        }
-
-                                        // Expect 5 bytes to match
-                                        Debug.Assert((data & 0xfffffffffful) ==
-                                                     (Helpers.UnsafeReadUInt64(ip) & 0xfffffffffful));
-
-                                        // We are now looking for a 4-byte match again.  We read
-                                        // table[Hash(ip, shift)] for that.  To improve compression,
-                                        // we also update table[Hash(ip - 1, shift)] and table[Hash(ip, shift)].
-                                        table[Helpers.HashBytes(Helpers.UnsafeReadUInt32(ip - 1), shift)] =
-                                            (ushort) (ip - inputStart - 1);
-                                        long hash = Helpers.HashBytes((uint) data, shift);
-                                        candidate = inputStart + table[hash];
-                                        table[hash] = (ushort) (ip - inputStart);
-                                    } while ((uint) data == Helpers.UnsafeReadUInt32(candidate));
-
-                                    // Because the least significant 5 bytes matched, we can utilize data
-                                    // for the next iteration.
-                                    preload = (uint) (data >> 8);
+                                    ip += 16;
+                                    skip += 16;
                                 }
-                            }
 
-                            emit_remainder:
-                            // Emit the remaining bytes as a literal
-                            if (ip < inputEnd)
-                            {
-                                op = EmitLiteralSlow(op, ip, (uint) (inputEnd - ip));
-                            }
+                                while (true)
+                                {
+                                    Debug.Assert((uint) data == Helpers.UnsafeReadUInt32(ip));
+                                    int hash = Helpers.HashBytes((uint) data, shift);
+                                    uint bytesBetweenHashLookups = skip >> 5;
+                                    skip += bytesBetweenHashLookups;
 
-                            return (int) (op - outputStart);
+                                    byte* nextIp = ip + bytesBetweenHashLookups;
+                                    if (nextIp > ipLimit)
+                                    {
+                                        ip = nextEmit;
+                                        goto emit_remainder;
+                                    }
+
+                                    candidate = inputStart + Unsafe.Add(ref table, hash);
+                                    Debug.Assert(candidate >= inputStart);
+                                    Debug.Assert(candidate < ip);
+
+                                    Unsafe.Add(ref table, hash) = (ushort) (ip - inputStart);
+                                    if ((uint) data == Helpers.UnsafeReadUInt32(candidate))
+                                    {
+                                        break;
+                                    }
+
+                                    data = Helpers.UnsafeReadUInt32(nextIp);
+                                    ip = nextIp;
+                                }
+
+                                // Step 2: A 4-byte match has been found.  We'll later see if more
+                                // than 4 bytes match.  But, prior to the match, input
+                                // bytes [next_emit, ip) are unmatched.  Emit them as "literal bytes."
+                                Debug.Assert(nextEmit + 16 <= inputEnd);
+                                op = EmitLiteralFast(op, nextEmit, (uint) (ip - nextEmit));
+
+                                // Step 3: Call EmitCopy, and then see if another EmitCopy could
+                                // be our next move.  Repeat until we find no match for the
+                                // input immediately after what was consumed by the last EmitCopy call.
+                                //
+                                // If we exit this loop normally then we need to call EmitLiteral next,
+                                // though we don't yet know how big the literal will be.  We handle that
+                                // by proceeding to the next iteration of the main loop.  We also can exit
+                                // this loop via goto if we get close to exhausting the input.
+
+                                emit_match:
+                                do
+                                {
+                                    // We have a 4-byte match at ip, and no need to emit any
+                                    // "literal bytes" prior to ip.
+                                    byte* emitBase = ip;
+
+                                    var (matchLength, matchLengthLessThan8) =
+                                        FindMatchLength(candidate + 4, ip + 4, inputEnd, ref data);
+
+                                    long matched = 4 + matchLength;
+                                    ip += matched;
+
+                                    long offset = emitBase - candidate;
+                                    if (matchLengthLessThan8)
+                                    {
+                                        op = EmitCopyLenLessThan12(op, offset, matched);
+                                    }
+                                    else
+                                    {
+                                        op = EmitCopyLenGreaterThanOrEqualTo12(op, offset, matched);
+                                    }
+
+                                    if (ip >= ipLimit)
+                                    {
+                                        goto emit_remainder;
+                                    }
+
+                                    // Expect 5 bytes to match
+                                    Debug.Assert((data & 0xfffffffffful) ==
+                                                 (Helpers.UnsafeReadUInt64(ip) & 0xfffffffffful));
+
+                                    // We are now looking for a 4-byte match again.  We read
+                                    // table[Hash(ip, shift)] for that.  To improve compression,
+                                    // we also update table[Hash(ip - 1, shift)] and table[Hash(ip, shift)].
+                                    Unsafe.Add(ref table, Helpers.HashBytes(Helpers.UnsafeReadUInt32(ip - 1), shift)) =
+                                        (ushort) (ip - inputStart - 1);
+                                    int hash = Helpers.HashBytes((uint) data, shift);
+                                    candidate = inputStart + Unsafe.Add(ref table, hash);
+                                    Unsafe.Add(ref table, hash) = (ushort) (ip - inputStart);
+                                } while ((uint) data == Helpers.UnsafeReadUInt32(candidate));
+
+                                // Because the least significant 5 bytes matched, we can utilize data
+                                // for the next iteration.
+                                preload = (uint) (data >> 8);
+                            }
                         }
+
+                        emit_remainder:
+                        // Emit the remaining bytes as a literal
+                        if (ip < inputEnd)
+                        {
+                            op = EmitLiteralSlow(op, ip, (uint) (inputEnd - ip));
+                        }
+
+                        return (int) (op - outputStart);
                     }
                 }
             }
