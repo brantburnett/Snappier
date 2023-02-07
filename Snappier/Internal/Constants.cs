@@ -16,7 +16,7 @@
         public const byte Copy2ByteOffset = 2;
         public const byte Copy4ByteOffset = 3;
 
-        public const long MaximumTagLength = 5;
+        public const int MaximumTagLength = 5;
 
         public const int BlockLog = 16;
         public const long BlockSize = 1 << BlockLog;
