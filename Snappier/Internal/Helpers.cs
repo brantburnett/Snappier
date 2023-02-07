@@ -106,6 +106,18 @@ namespace Snappier.Internal
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static uint UnsafeReadUInt32(ref byte ptr)
+        {
+            var result = Unsafe.ReadUnaligned<uint>(ref ptr);
+            if (!BitConverter.IsLittleEndian)
+            {
+                result = BinaryPrimitives.ReverseEndianness(result);
+            }
+
+            return result;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static unsafe ulong UnsafeReadUInt64(void* ptr)
         {
             var result = Unsafe.ReadUnaligned<ulong>(ptr);
