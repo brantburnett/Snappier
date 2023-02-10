@@ -11,34 +11,38 @@ namespace Snappier.Internal
         private const int MaxHashTableBits = 14;
         private const int MaxHashTableSize = 1 << MaxHashTableBits;
 
-        private IMemoryOwner<ushort>? _buffer;
+        private ushort[]? _buffer;
 
-        public void EnsureCapacity(long inputSize)
+        public void EnsureCapacity(int inputSize)
         {
-            var maxFragmentSize = (int)Math.Min(inputSize, Constants.BlockSize);
+            var maxFragmentSize = Math.Min(inputSize, (int) Constants.BlockSize);
             var tableSize = CalculateTableSize(maxFragmentSize);
 
-            if (_buffer == null || tableSize < _buffer.Memory.Length)
+            if (_buffer is null || tableSize < _buffer.Length)
             {
-                _buffer?.Dispose();
-                _buffer = MemoryPool<ushort>.Shared.Rent(tableSize);
+                if (_buffer is not null)
+                {
+                    ArrayPool<ushort>.Shared.Return(_buffer);
+                }
+
+                _buffer = ArrayPool<ushort>.Shared.Rent(tableSize);
             }
         }
 
         public Span<ushort> GetHashTable(int fragmentSize)
         {
-            if (_buffer == null)
+            if (_buffer is null)
             {
-                throw new InvalidOperationException("Buffer not initialized");
+                ThrowHelper.ThrowInvalidOperationException("Buffer not initialized");
             }
 
             int hashTableSize = CalculateTableSize(fragmentSize);
-            if (hashTableSize > _buffer.Memory.Length)
+            if (hashTableSize > _buffer.Length)
             {
-                throw new InvalidOperationException("Insufficient buffer size");
+                ThrowHelper.ThrowInvalidOperationException("Insufficient buffer size");
             }
 
-            var hashTable = _buffer.Memory.Span.Slice(0, hashTableSize);
+            var hashTable = _buffer.AsSpan(0, hashTableSize);
             hashTable.Fill(0);
 
             return hashTable;
@@ -59,21 +63,13 @@ namespace Snappier.Internal
             return 2 << Helpers.Log2Floor((uint)(inputSize - 1));
         }
 
-        private void Dispose(bool disposing)
-        {
-            _buffer?.Dispose();
-            _buffer = null;
-        }
-
         public void Dispose()
         {
-            Dispose(true);
-            GC.SuppressFinalize(this);
-        }
-
-        ~HashTable()
-        {
-            Dispose(false);
+            if (_buffer is not null)
+            {
+                ArrayPool<ushort>.Shared.Return(_buffer);
+                _buffer = null;
+            }
         }
     }
 }
