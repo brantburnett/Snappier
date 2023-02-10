@@ -17,19 +17,17 @@ namespace Snappier.Internal
     /// </summary>
     internal class SnappyStreamCompressor : IDisposable
     {
-        private static readonly byte[] SnappyHeader =
+        private static ReadOnlySpan<byte> SnappyHeader => new byte[]
         {
             0xff, 0x06, 0x00, 0x00, 0x73, 0x4e, 0x61, 0x50, 0x70, 0x59
         };
 
         private SnappyCompressor? _compressor = new SnappyCompressor();
 
-        private IMemoryOwner<byte>? _inputBufferOwner;
-        private Memory<byte> _inputBuffer;
+        private byte[]? _inputBuffer;
         private int _inputBufferSize;
 
-        private IMemoryOwner<byte>? _outputBufferOwner;
-        private Memory<byte> _outputBuffer;
+        private byte[]? _outputBuffer;
         private int _outputBufferSize;
 
         private bool _streamHeaderWritten;
@@ -111,7 +109,7 @@ namespace Snappier.Internal
 
             if (_inputBufferSize > 0)
             {
-                CompressBlock(_inputBuffer.Span.Slice(0, _inputBufferSize));
+                CompressBlock(_inputBuffer.AsSpan(0, _inputBufferSize));
                 _inputBufferSize = 0;
             }
 
@@ -134,7 +132,7 @@ namespace Snappier.Internal
 
             if (_inputBufferSize > 0)
             {
-                CompressBlock(_inputBuffer.Span.Slice(0, _inputBufferSize));
+                CompressBlock(_inputBuffer.AsSpan(0, _inputBufferSize));
                 _inputBufferSize = 0;
             }
 
@@ -148,29 +146,7 @@ namespace Snappier.Internal
                 return;
             }
 
-            ReadOnlyMemory<byte> output = _outputBuffer.Slice(0, _outputBufferSize);
-
-#if NET6_0_OR_GREATER
-            stream.Write(output.Span);
-#else
-            if (MemoryMarshal.TryGetArray(output, out var arraySegment))
-            {
-                stream.Write(arraySegment.Array!, arraySegment.Offset, arraySegment.Count);
-            }
-            else
-            {
-                var temp = ArrayPool<byte>.Shared.Rent(_outputBufferSize);
-                try
-                {
-                    output.CopyTo(temp);
-                    stream.Write(temp, 0, temp.Length);
-                }
-                finally
-                {
-                    ArrayPool<byte>.Shared.Return(temp);
-                }
-            }
-#endif
+            stream.Write(_outputBuffer!, 0, _outputBufferSize);
 
             _outputBufferSize = 0;
         }
@@ -182,29 +158,7 @@ namespace Snappier.Internal
                 return;
             }
 
-            ReadOnlyMemory<byte> output = _outputBuffer.Slice(0, _outputBufferSize);
-
-#if NET6_0_OR_GREATER
-            await stream.WriteAsync(output, cancellationToken).ConfigureAwait(false);
-#else
-            if (MemoryMarshal.TryGetArray(output, out var arraySegment))
-            {
-                await stream.WriteAsync(arraySegment.Array!, arraySegment.Offset, arraySegment.Count, cancellationToken).ConfigureAwait(false);
-            }
-            else
-            {
-                var temp = ArrayPool<byte>.Shared.Rent(_outputBufferSize);
-                try
-                {
-                    output.CopyTo(temp);
-                    await stream.WriteAsync(temp, 0, temp.Length, cancellationToken).ConfigureAwait(false);
-                }
-                finally
-                {
-                    ArrayPool<byte>.Shared.Return(temp);
-                }
-            }
-#endif
+            await stream.WriteAsync(_outputBuffer!, 0, _outputBufferSize, cancellationToken).ConfigureAwait(false);
 
             _outputBufferSize = 0;
         }
@@ -213,7 +167,7 @@ namespace Snappier.Internal
         {
             if (!_streamHeaderWritten)
             {
-                SnappyHeader.AsSpan().CopyTo(_outputBuffer.Span);
+                SnappyHeader.CopyTo(_outputBuffer.AsSpan());
                 _outputBufferSize += SnappyHeader.Length;
 
                 _streamHeaderWritten = true;
@@ -243,12 +197,12 @@ namespace Snappier.Internal
             // Append what we can to the input buffer
 
             var appendLength = Math.Min(input.Length, (int) Constants.BlockSize - _inputBufferSize);
-            input.Slice(0, appendLength).CopyTo(_inputBuffer.Span.Slice(_inputBufferSize));
+            input.Slice(0, appendLength).CopyTo(_inputBuffer.AsSpan(_inputBufferSize));
             _inputBufferSize += appendLength;
 
             if (_inputBufferSize >= Constants.BlockSize)
             {
-                CompressBlock(_inputBuffer.Span.Slice(0, _inputBufferSize));
+                CompressBlock(_inputBuffer.AsSpan(0, _inputBufferSize));
                 _inputBufferSize = 0;
             }
 
@@ -260,7 +214,7 @@ namespace Snappier.Internal
             Debug.Assert(_compressor != null);
             Debug.Assert(input.Length <= Constants.BlockSize);
 
-            var output = _outputBuffer.Span.Slice(_outputBufferSize);
+            var output = _outputBuffer.AsSpan(_outputBufferSize);
 
             // Make room for the header and CRC
             var compressionOutput = output.Slice(8);
@@ -289,51 +243,34 @@ namespace Snappier.Internal
 
         private void EnsureBuffer()
         {
-            if (_outputBufferOwner == null)
+            if (_outputBuffer is null)
             {
                 // Allocate enough room for the stream header and block headers
-                _outputBufferOwner =
-                    MemoryPool<byte>.Shared.Rent(Helpers.MaxCompressedLength((int) Constants.BlockSize) + 8 + SnappyHeader.Length);
-                _outputBuffer = _outputBufferOwner.Memory;
+                _outputBuffer =
+                    ArrayPool<byte>.Shared.Rent(Helpers.MaxCompressedLength((int) Constants.BlockSize) + 8 + SnappyHeader.Length);
             }
 
-            if (_inputBufferOwner == null)
+            if (_inputBuffer is null)
             {
                 // Allocate enough room for the stream header and block headers
-                _inputBufferOwner = MemoryPool<byte>.Shared.Rent((int) Constants.BlockSize);
-                _inputBuffer = _inputBufferOwner.Memory;
+                _inputBuffer = ArrayPool<byte>.Shared.Rent((int) Constants.BlockSize);
             }
         }
 
         public void Dispose()
         {
-            try
+            _compressor?.Dispose();
+            _compressor = null;
+
+            if (_outputBuffer is not null)
             {
-                _compressor?.Dispose();
+                ArrayPool<byte>.Shared.Return(_outputBuffer);
+                _outputBuffer = null;
             }
-            finally
+            if (_inputBuffer is not null)
             {
-                _compressor = null;
-
-                try
-                {
-                    _outputBufferOwner?.Dispose();
-                }
-                finally
-                {
-                    _outputBufferOwner = null;
-                    _outputBuffer = default;
-
-                    try
-                    {
-                        _inputBufferOwner?.Dispose();
-                    }
-                    finally
-                    {
-                        _inputBufferOwner = null;
-                        _inputBuffer = default;
-                    }
-                }
+                ArrayPool<byte>.Shared.Return(_inputBuffer);
+                _inputBuffer = null;
             }
         }
     }
