@@ -87,30 +87,6 @@ namespace Snappier.Internal
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static unsafe int UnsafeReadInt32(void* ptr)
-        {
-            var result = Unsafe.ReadUnaligned<int>(ptr);
-            if (!BitConverter.IsLittleEndian)
-            {
-                result = BinaryPrimitives.ReverseEndianness(result);
-            }
-
-            return result;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static unsafe uint UnsafeReadUInt32(void* ptr)
-        {
-            var result = Unsafe.ReadUnaligned<uint>(ptr);
-            if (!BitConverter.IsLittleEndian)
-            {
-                result = BinaryPrimitives.ReverseEndianness(result);
-            }
-
-            return result;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static uint UnsafeReadUInt32(ref byte ptr)
         {
             var result = Unsafe.ReadUnaligned<uint>(ref ptr);

@@ -13,7 +13,7 @@ namespace Snappier.Internal
     {
         private const int ScratchBufferSize = 4;
 
-        private SnappyDecompressor? _decompressor = new SnappyDecompressor();
+        private SnappyDecompressor? _decompressor = new();
 
         private ReadOnlyMemory<byte> _input;
 
@@ -25,186 +25,175 @@ namespace Snappier.Internal
         private uint _expectedChunkCrc;
         private uint _chunkCrc;
 
-        public unsafe int Decompress(Span<byte> buffer)
+        public int Decompress(Span<byte> buffer)
         {
             Debug.Assert(_decompressor != null);
 
-            var chunkType = _chunkType;
-            var chunkSize = _chunkSize;
-            var chunkBytesProcessed = _chunkBytesProcessed;
+            Constants.ChunkType? chunkType = _chunkType;
+            int chunkSize = _chunkSize;
+            int chunkBytesProcessed = _chunkBytesProcessed;
 
-            fixed (byte* bufferStart = buffer)
+            ReadOnlySpan<byte> input = _input.Span;
+
+            // Cache this to use later to calculate the total bytes written
+            int originalBufferLength = buffer.Length;
+
+            while (buffer.Length > 0
+                   && (input.Length > 0 || (chunkType == Constants.ChunkType.CompressedData && _decompressor.AllDataDecompressed)))
             {
-                var bufferEnd = bufferStart + buffer.Length;
-                var bufferPtr = bufferStart;
-
-                fixed (byte* inputStart = _input.Span)
+                // ReSharper disable once SwitchStatementHandlesSomeKnownEnumValuesWithDefault
+                switch (chunkType)
                 {
-                    var inputEnd = inputStart + _input.Length;
-                    var inputPtr = inputStart;
+                    case null:
+                        // Not in a chunk, read the chunk type and size
 
-                    while (bufferPtr < bufferEnd && (inputPtr < inputEnd || (chunkType == Constants.ChunkType.CompressedData && _decompressor.AllDataDecompressed)))
-                    {
-                        // ReSharper disable once SwitchStatementHandlesSomeKnownEnumValuesWithDefault
-                        switch (chunkType)
+                        uint rawChunkHeader = ReadChunkHeader(ref input);
+
+                        if (rawChunkHeader == 0)
                         {
-                            case null:
-                                // Not in a chunk, read the chunk type and size
+                            // Not enough data, get some more
+                            break;
+                        }
 
-                                var rawChunkHeader =
-                                    ReadChunkHeader(ref inputPtr, inputEnd);
+                        chunkType = (Constants.ChunkType) (rawChunkHeader & 0xff);
+                        chunkSize = unchecked((int)(rawChunkHeader >> 8));
+                        chunkBytesProcessed = 0;
+                        _scratchLength = 0;
+                        _chunkCrc = 0;
+                        break;
 
-                                if (rawChunkHeader == 0)
-                                {
-                                    // Not enough data, get some more
-                                    break;
-                                }
+                    case Constants.ChunkType.CompressedData:
+                    {
+                        if (chunkBytesProcessed < 4)
+                        {
+                            _decompressor.Reset();
 
-                                chunkType = (Constants.ChunkType) (rawChunkHeader & 0xff);
-                                chunkSize = unchecked((int)(rawChunkHeader >> 8));
-                                chunkBytesProcessed = 0;
-                                _scratchLength = 0;
-                                _chunkCrc = 0;
-                                break;
-
-                            case Constants.ChunkType.CompressedData:
+                            if (!ReadChunkCrc(ref input, ref chunkBytesProcessed))
                             {
-                                if (chunkBytesProcessed < 4)
-                                {
-                                    _decompressor.Reset();
-
-                                    if (!ReadChunkCrc(ref inputPtr, inputEnd, ref chunkBytesProcessed))
-                                    {
-                                        // Incomplete CRC
-                                        break;
-                                    }
-
-                                    if (inputPtr >= inputEnd)
-                                    {
-                                        // No more data
-                                        break;
-                                    }
-                                }
-
-                                while (bufferPtr < bufferEnd && !_decompressor.EndOfFile)
-                                {
-                                    if (_decompressor.NeedMoreData)
-                                    {
-                                        var availableInputBytes = unchecked((int) (inputEnd - inputPtr));
-                                        if (availableInputBytes <= 0)
-                                        {
-                                            // No more data to give
-                                            break;
-                                        }
-
-                                        var availableChunkBytes = Math.Min(availableInputBytes,
-                                            chunkSize - chunkBytesProcessed);
-                                        Debug.Assert(availableChunkBytes > 0);
-
-
-                                        _decompressor.Decompress(new ReadOnlySpan<byte>(inputPtr, availableChunkBytes));
-
-                                        chunkBytesProcessed += availableChunkBytes;
-                                        inputPtr += availableChunkBytes;
-                                    }
-
-                                    var decompressedBytes = _decompressor.Read(new Span<byte>(bufferPtr,
-                                            unchecked((int) (bufferEnd - bufferPtr))));
-
-                                    _chunkCrc = Crc32CAlgorithm.Append(_chunkCrc, new ReadOnlySpan<byte>(bufferPtr, decompressedBytes));
-
-                                    bufferPtr += decompressedBytes;
-                                }
-
-                                if (_decompressor.EndOfFile)
-                                {
-                                    // Completed reading the chunk
-                                    chunkType = null;
-
-                                    var crc = Crc32CAlgorithm.ApplyMask(_chunkCrc);
-                                    if (_expectedChunkCrc != crc)
-                                    {
-                                        throw new InvalidDataException("Chunk CRC mismatch.");
-                                    }
-                                }
-
+                                // Incomplete CRC
                                 break;
                             }
 
-                            case Constants.ChunkType.UncompressedData:
+                            if (input.Length == 0)
                             {
-                                if (chunkBytesProcessed < 4)
-                                {
-                                    if (!ReadChunkCrc(ref inputPtr, inputEnd, ref chunkBytesProcessed))
-                                    {
-                                        // Incomplete CRC
-                                        break;
-                                    }
-
-                                    if (inputPtr >= inputEnd)
-                                    {
-                                        // No more data
-                                        break;
-                                    }
-                                }
-
-                                var chunkBytes = unchecked(Math.Min(Math.Min((int)(bufferEnd - bufferPtr), (int)(inputEnd - inputPtr)),
-                                    chunkSize - chunkBytesProcessed));
-
-                                Unsafe.CopyBlockUnaligned(bufferPtr, inputPtr, unchecked((uint)chunkBytes));
-
-                                _chunkCrc = Crc32CAlgorithm.Append(_chunkCrc, new ReadOnlySpan<byte>(bufferPtr, chunkBytes));
-
-                                bufferPtr += chunkBytes;
-                                inputPtr += chunkBytes;
-                                chunkBytesProcessed += chunkBytes;
-
-                                if (chunkBytesProcessed >= chunkSize)
-                                {
-                                    // Completed reading the chunk
-                                    chunkType = null;
-
-                                    var crc = Crc32CAlgorithm.ApplyMask(_chunkCrc);
-                                    if (_expectedChunkCrc != crc)
-                                    {
-                                        throw new InvalidDataException("Chunk CRC mismatch.");
-                                    }
-                                }
-
-                                break;
-                            }
-
-                            default:
-                            {
-                                if (chunkType < Constants.ChunkType.SkippableChunk)
-                                {
-                                    throw new InvalidDataException($"Unknown chunk type {(int) chunkType:x}");
-                                }
-
-                                var chunkBytes = Math.Min(unchecked((int)(inputEnd - inputPtr)), chunkSize - chunkBytesProcessed);
-
-                                inputPtr += chunkBytes;
-                                chunkBytesProcessed += chunkBytes;
-
-                                if (chunkBytesProcessed >= chunkSize)
-                                {
-                                    // Completed reading the chunk
-                                    chunkType = null;
-                                }
-
+                                // No more data
                                 break;
                             }
                         }
+
+                        while (buffer.Length > 0 && !_decompressor.EndOfFile)
+                        {
+                            if (_decompressor.NeedMoreData)
+                            {
+                                if (input.Length == 0)
+                                {
+                                    // No more data to give
+                                    break;
+                                }
+
+                                int availableChunkBytes = Math.Min(input.Length, chunkSize - chunkBytesProcessed);
+                                Debug.Assert(availableChunkBytes > 0);
+
+                                _decompressor.Decompress(input.Slice(0, availableChunkBytes));
+
+                                chunkBytesProcessed += availableChunkBytes;
+                                input = input.Slice(availableChunkBytes);
+                            }
+
+                            int decompressedBytes = _decompressor.Read(buffer);
+
+                            _chunkCrc = Crc32CAlgorithm.Append(_chunkCrc, buffer.Slice(0, decompressedBytes));
+
+                            buffer = buffer.Slice(decompressedBytes);
+                        }
+
+                        if (_decompressor.EndOfFile)
+                        {
+                            // Completed reading the chunk
+                            chunkType = null;
+
+                            uint crc = Crc32CAlgorithm.ApplyMask(_chunkCrc);
+                            if (_expectedChunkCrc != crc)
+                            {
+                                throw new InvalidDataException("Chunk CRC mismatch.");
+                            }
+                        }
+
+                        break;
                     }
 
-                    _chunkType = chunkType;
-                    _chunkSize = chunkSize;
-                    _chunkBytesProcessed = chunkBytesProcessed;
+                    case Constants.ChunkType.UncompressedData:
+                    {
+                        if (chunkBytesProcessed < 4)
+                        {
+                            if (!ReadChunkCrc(ref input, ref chunkBytesProcessed))
+                            {
+                                // Incomplete CRC
+                                break;
+                            }
 
-                    _input = _input.Slice(unchecked((int)(inputPtr - inputStart)));
-                    return unchecked((int)(bufferPtr - bufferStart));
+                            if (input.Length == 0)
+                            {
+                                // No more data
+                                break;
+                            }
+                        }
+
+                        int chunkBytes = unchecked(Math.Min(Math.Min(buffer.Length, input.Length),
+                            chunkSize - chunkBytesProcessed));
+
+                        input.Slice(0, chunkBytes).CopyTo(buffer);
+
+                        _chunkCrc = Crc32CAlgorithm.Append(_chunkCrc, buffer.Slice(0, chunkBytes));
+
+                        buffer = buffer.Slice(chunkBytes);
+                        input = input.Slice(chunkBytes);
+                        chunkBytesProcessed += chunkBytes;
+
+                        if (chunkBytesProcessed >= chunkSize)
+                        {
+                            // Completed reading the chunk
+                            chunkType = null;
+
+                            uint crc = Crc32CAlgorithm.ApplyMask(_chunkCrc);
+                            if (_expectedChunkCrc != crc)
+                            {
+                                throw new InvalidDataException("Chunk CRC mismatch.");
+                            }
+                        }
+
+                        break;
+                    }
+
+                    default:
+                    {
+                        if (chunkType < Constants.ChunkType.SkippableChunk)
+                        {
+                            throw new InvalidDataException($"Unknown chunk type {(int) chunkType:x}");
+                        }
+
+                        int chunkBytes = Math.Min(input.Length, chunkSize - chunkBytesProcessed);
+
+                        input = input.Slice(chunkBytes);
+                        chunkBytesProcessed += chunkBytes;
+
+                        if (chunkBytesProcessed >= chunkSize)
+                        {
+                            // Completed reading the chunk
+                            chunkType = null;
+                        }
+
+                        break;
+                    }
                 }
             }
+
+            _chunkType = chunkType;
+            _chunkSize = chunkSize;
+            _chunkBytesProcessed = chunkBytesProcessed;
+
+            _input = _input.Slice(_input.Length - input.Length);
+            return originalBufferLength - buffer.Length;
         }
 
         public void SetInput(ReadOnlyMemory<byte> input)
@@ -213,47 +202,43 @@ namespace Snappier.Internal
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private unsafe uint ReadChunkHeader(ref byte* buffer, byte* bufferEnd)
+        private uint ReadChunkHeader(ref ReadOnlySpan<byte> buffer)
         {
             if (_scratchLength > 0)
             {
                 var bytesToCopyToScratch = 4 - _scratchLength;
-                fixed (byte* scratch = _scratch)
+
+                Span<byte> scratch = _scratch.AsSpan();
+                buffer.Slice(0, bytesToCopyToScratch).CopyTo(scratch.Slice(_scratchLength));
+
+                buffer = buffer.Slice(bytesToCopyToScratch);
+                _scratchLength += bytesToCopyToScratch;
+
+                if (_scratchLength < 4)
                 {
-                    Buffer.MemoryCopy(buffer, scratch + _scratchLength, ScratchBufferSize, bytesToCopyToScratch);
-
-                    buffer += bytesToCopyToScratch;
-                    _scratchLength += bytesToCopyToScratch;
-
-                    if (_scratchLength < 4)
-                    {
-                        // Insufficient data
-                        return 0;
-                    }
-
-                    _scratchLength = 0;
-                    return unchecked((uint) Helpers.UnsafeReadInt32(scratch));
+                    // Insufficient data
+                    return 0;
                 }
+
+                _scratchLength = 0;
+                return BinaryPrimitives.ReadUInt32LittleEndian(scratch);
             }
 
-            var bufferLength = unchecked((int) (bufferEnd - buffer));
-            if (bufferLength < 4)
+            if (buffer.Length < 4)
             {
                 // Insufficient data
 
-                fixed (byte* scratch = _scratch) {
-                    Buffer.MemoryCopy(buffer, scratch, ScratchBufferSize, bufferLength);
-                }
+                buffer.CopyTo(_scratch);
 
-                buffer += bufferLength;
-                _scratchLength = bufferLength;
+                _scratchLength = buffer.Length;
+                buffer = Span<byte>.Empty;
 
                 return 0;
             }
             else
             {
-                var result = unchecked((uint) Helpers.UnsafeReadInt32(buffer));
-                buffer += 4;
+                uint result = BinaryPrimitives.ReadUInt32LittleEndian(buffer);
+                buffer = buffer.Slice(4);
                 return result;
             }
         }
@@ -263,28 +248,25 @@ namespace Snappier.Internal
         /// _scratch for subsequent reads. Should not be called if chunkByteProcessed >= 4.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private unsafe bool ReadChunkCrc(ref byte* inputPtr, byte* inputEnd, ref int chunkBytesProcessed)
+        private bool ReadChunkCrc(ref ReadOnlySpan<byte> input, ref int chunkBytesProcessed)
         {
             Debug.Assert(chunkBytesProcessed < 4);
 
-            var bytesAvailable = unchecked((int)(inputEnd - inputPtr));
-
-            if (chunkBytesProcessed == 0 && bytesAvailable >= 4)
+            if (chunkBytesProcessed == 0 && input.Length >= 4)
             {
                 // Common fast path
 
-                _expectedChunkCrc = Helpers.UnsafeReadUInt32(inputPtr);
-                inputPtr += 4;
+                _expectedChunkCrc = BinaryPrimitives.ReadUInt32LittleEndian(input);
+                input = input.Slice(4);
                 chunkBytesProcessed += 4;
                 return true;
             }
 
             // Copy to scratch
-            int crcBytesAvailable = Math.Min(bytesAvailable, 4 - chunkBytesProcessed);
-            new ReadOnlySpan<byte>(inputPtr, crcBytesAvailable)
-                .CopyTo(_scratch.AsSpan(_scratchLength));
+            int crcBytesAvailable = Math.Min(input.Length, 4 - chunkBytesProcessed);
+            input.Slice(0, crcBytesAvailable).CopyTo(_scratch.AsSpan(_scratchLength));
             _scratchLength += crcBytesAvailable;
-            inputPtr += crcBytesAvailable;
+            input = input.Slice(crcBytesAvailable);
             chunkBytesProcessed += crcBytesAvailable;
 
             if (_scratchLength >= 4)
