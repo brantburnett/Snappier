@@ -56,7 +56,8 @@ namespace Snappier
         /// <exception cref="ArgumentOutOfRangeException">Invalid <paramref name="mode"/>.</exception>
         public SnappyStream(Stream stream, CompressionMode mode, bool leaveOpen)
         {
-            _stream = stream ?? throw new ArgumentNullException(nameof(stream));
+            ThrowHelper.ThrowIfNull(stream);
+            _stream = stream;
             _mode = mode;
             _leaveOpen = leaveOpen;
 
@@ -65,7 +66,7 @@ namespace Snappier
                 case CompressionMode.Decompress:
                     if (!stream.CanRead)
                     {
-                        throw new ArgumentException("Unreadable stream", nameof(stream));
+                        ThrowHelper.ThrowArgumentException("Unreadable stream", nameof(stream));
                     }
 
                     _decompressor = new SnappyStreamDecompressor();
@@ -75,14 +76,15 @@ namespace Snappier
                 case CompressionMode.Compress:
                     if (!stream.CanWrite)
                     {
-                        throw new NotSupportedException("Unwritable stream");
+                        ThrowHelper.ThrowArgumentException("Unwritable stream", nameof(stream));
                     }
 
                     _compressor = new SnappyStreamCompressor();
                     break;
 
                 default:
-                    throw new ArgumentOutOfRangeException(nameof(mode));
+                    ThrowHelper.ThrowArgumentOutOfRangeException(nameof(mode), "Invalid mode");
+                    break;
             }
         }
 
@@ -103,13 +105,25 @@ namespace Snappier
         public override bool CanSeek => false;
 
         /// <inheritdoc />
-        public override long Length => throw new NotSupportedException();
+        public override long Length
+        {
+            get
+            {
+                ThrowHelper.ThrowNotSupportedException();
+                return 0;
+            }
+        }
 
         /// <inheritdoc />
         public override long Position
         {
-            get => throw new NotSupportedException();
-            set => throw new NotSupportedException();
+            get
+            {
+                ThrowHelper.ThrowNotSupportedException();
+                return 0;
+            }
+            // ReSharper disable once ValueParameterNotUsed
+            set => ThrowHelper.ThrowNotSupportedException();
         }
 
         /// <inheritdoc />
@@ -145,10 +159,14 @@ namespace Snappier
         }
 
         /// <inheritdoc />
-        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin)
+        {
+            ThrowHelper.ThrowNotSupportedException();
+            return 0;
+        }
 
         /// <inheritdoc />
-        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void SetLength(long value) => ThrowHelper.ThrowNotSupportedException();
 
         /// <inheritdoc />
         public override int Read(byte[] buffer, int offset, int count) => ReadCore(buffer.AsSpan(offset, count));
@@ -189,7 +207,7 @@ namespace Snappier
                 }
                 else if (bytes > _buffer.Length)
                 {
-                    throw new InvalidDataException();
+                    ThrowHelper.ThrowInvalidDataException("Insufficient buffer");
                 }
 
                 _decompressor.SetInput(_buffer.AsMemory(0, bytes));
@@ -280,7 +298,7 @@ namespace Snappier
                     {
                         // The stream is either malicious or poorly implemented and returned a number of
                         // bytes larger than the buffer supplied to it.
-                        throw new InvalidDataException();
+                        ThrowHelper.ThrowInvalidDataException("Insufficient buffer");
                     }
 
                     cancellationToken.ThrowIfCancellationRequested();
@@ -517,7 +535,7 @@ namespace Snappier
         {
             if (_stream == null)
             {
-                throw new ObjectDisposedException(nameof(SnappyStream));
+                ThrowHelper.ThrowObjectDisposedException(nameof(SnappyStream));
             }
         }
 
@@ -525,7 +543,7 @@ namespace Snappier
         {
             if (_mode != CompressionMode.Decompress)
             {
-                throw new NotSupportedException();
+                ThrowHelper.ThrowNotSupportedException();
             }
         }
 
@@ -533,16 +551,13 @@ namespace Snappier
         {
             if (_mode != CompressionMode.Compress)
             {
-                throw new NotSupportedException();
+                ThrowHelper.ThrowNotSupportedException();
             }
         }
 
         private void EnsureBufferInitialized()
         {
-            if (_buffer == null)
-            {
-                _buffer = ArrayPool<byte>.Shared.Rent(DefaultBufferSize);
-            }
+            _buffer ??= ArrayPool<byte>.Shared.Rent(DefaultBufferSize);
         }
 
         #region async controls
@@ -554,7 +569,7 @@ namespace Snappier
         {
             if (AsyncOperationIsActive)
             {
-                ThrowInvalidBeginCall();
+                ThrowHelper.ThrowInvalidOperationException("Invalid begin call");
             }
         }
 
@@ -562,7 +577,7 @@ namespace Snappier
         {
             if (Interlocked.CompareExchange(ref _activeAsyncOperation, 1, 0) != 0)
             {
-                ThrowInvalidBeginCall();
+                ThrowHelper.ThrowInvalidOperationException("Invalid begin call");
             }
         }
 
@@ -570,11 +585,6 @@ namespace Snappier
         {
             int oldValue = Interlocked.CompareExchange(ref _activeAsyncOperation, 0, 1);
             Debug.Assert(oldValue == 1, $"Expected {nameof(_activeAsyncOperation)} to be 1, got {oldValue}");
-        }
-
-        private static void ThrowInvalidBeginCall()
-        {
-            throw new InvalidOperationException("Invalid begin call");
         }
 
         #endregion

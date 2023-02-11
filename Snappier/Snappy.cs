@@ -109,14 +109,14 @@ namespace Snappier
 
             if (!decompressor.AllDataDecompressed)
             {
-                throw new InvalidDataException("Incomplete Snappy block.");
+                ThrowHelper.ThrowInvalidDataException("Incomplete Snappy block.");
             }
 
-            var read = decompressor.Read(output);
+            int read = decompressor.Read(output);
 
             if (!decompressor.EndOfFile)
             {
-                throw new ArgumentException("Output buffer is too small.", nameof(output));
+                ThrowHelper.ThrowArgumentException("Output buffer is too small.", nameof(output));
             }
 
             return read;
@@ -138,7 +138,7 @@ namespace Snappier
 
             if (!decompressor.AllDataDecompressed)
             {
-                throw new InvalidDataException("Incomplete Snappy block.");
+                ThrowHelper.ThrowInvalidDataException("Incomplete Snappy block.");
             }
 
             return decompressor.ExtractData();

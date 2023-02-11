@@ -7,17 +7,17 @@ namespace Snappier.Internal
 {
     internal class SnappyCompressor : IDisposable
     {
-        private HashTable? _workingMemory = new HashTable();
+        private HashTable? _workingMemory = new();
 
         public int Compress(ReadOnlySpan<byte> input, Span<byte> output)
         {
             if (output.Length < Helpers.MaxCompressedLength(input.Length))
             {
-                throw new ArgumentException("Insufficient output buffer", nameof(output));
+                ThrowHelper.ThrowArgumentException("Insufficient output buffer", nameof(output));
             }
             if (_workingMemory == null)
             {
-                throw new ObjectDisposedException(nameof(SnappyCompressor));
+                ThrowHelper.ThrowObjectDisposedException(nameof(SnappyCompressor));
             }
 
             _workingMemory.EnsureCapacity(input.Length);
