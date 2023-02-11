@@ -33,6 +33,11 @@ namespace Snappier.Internal
             // since a literal of length 60 needs one tag byte + one extra byte
             // for length information.
             //
+            // We also add one extra byte to the blowup to account for the use of
+            // "ref byte" pointers. The output index will be pushed one byte past
+            // the end of the output data, but for safety we need to ensure that
+            // it still points to an element in the buffer array.
+            //
             // Item blowup is trickier to measure.  Suppose the "copy" op copies
             // 4 bytes of data.  Because of a special check in the encoding code,
             // we produce a 4-byte copy only if the offset is < 65536.  Therefore
@@ -46,7 +51,7 @@ namespace Snappier.Internal
             //
             // This last factor dominates the blowup, so the final estimate is:
 
-            return 32 + sourceBytes + sourceBytes / 6;
+            return 32 + sourceBytes + sourceBytes / 6 + 1;
         }
 
         private static readonly byte[] LeftShiftOverflowsMasks =
@@ -130,14 +135,14 @@ namespace Snappier.Internal
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static unsafe void UnsafeWriteUInt32(void* ptr, uint value)
+        public static void UnsafeWriteUInt32(ref byte ptr, uint value)
         {
             if (!BitConverter.IsLittleEndian)
             {
                 value = BinaryPrimitives.ReverseEndianness(value);
             }
 
-            Unsafe.WriteUnaligned(ptr, value);
+            Unsafe.WriteUnaligned(ref ptr, value);
         }
 
         /// <summary>
