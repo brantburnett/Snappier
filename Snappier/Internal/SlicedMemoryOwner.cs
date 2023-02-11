@@ -18,7 +18,7 @@ namespace Snappier.Internal
             {
                 if (_innerMemoryOwner == null)
                 {
-                    throw new ObjectDisposedException(nameof(SlicedMemoryOwner));
+                    ThrowHelper.ThrowObjectDisposedException(nameof(SlicedMemoryOwner));
                 }
 
                 return _innerMemoryOwner.Memory.Slice(0, _length);
@@ -27,13 +27,13 @@ namespace Snappier.Internal
 
         public SlicedMemoryOwner(IMemoryOwner<byte> innerMemoryOwner, int length)
         {
-            _innerMemoryOwner = innerMemoryOwner ?? throw new ArgumentNullException(nameof(innerMemoryOwner));
-
-            if (_length > _innerMemoryOwner.Memory.Length)
+            ThrowHelper.ThrowIfNull(innerMemoryOwner);
+            if (_length > innerMemoryOwner.Memory.Length)
             {
-                throw new ArgumentException($"{nameof(length)} is greater than the inner length.", nameof(length));
+                ThrowHelper.ThrowArgumentOutOfRangeException(nameof(length), $"{nameof(length)} is greater than the inner length.");
             }
 
+            _innerMemoryOwner = innerMemoryOwner;
             _length = length;
         }
 

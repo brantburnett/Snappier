@@ -102,7 +102,7 @@ namespace Snappier.Internal
                 int val = c & 0x7f;
                 if (Helpers.LeftShiftOverflows((byte) val, shift))
                 {
-                    throw new InvalidOperationException("Invalid stream length");
+                    ThrowHelper.ThrowInvalidOperationException("Invalid stream length");
                 }
 
                 result |= val << shift;
@@ -117,7 +117,7 @@ namespace Snappier.Internal
 
                 if (shift >= 32)
                 {
-                    throw new InvalidOperationException("Invalid stream length");
+                    ThrowHelper.ThrowInvalidOperationException("Invalid stream length");
                 }
             }
 
@@ -149,7 +149,7 @@ namespace Snappier.Internal
                 int val = c & 0x7f;
                 if (Helpers.LeftShiftOverflows((byte) val, shift))
                 {
-                    throw new InvalidDataException("Invalid stream length");
+                    ThrowHelper.ThrowInvalidDataException("Invalid stream length");
                 }
 
                 result |= val << shift;
@@ -164,13 +164,13 @@ namespace Snappier.Internal
 
                 if (shift >= 32)
                 {
-                    throw new InvalidDataException("Invalid stream length");
+                    ThrowHelper.ThrowInvalidDataException("Invalid stream length");
                 }
             }
 
             if (!foundEnd)
             {
-                throw new InvalidDataException("Invalid stream length");
+                ThrowHelper.ThrowInvalidDataException("Invalid stream length");
             }
 
             return result;
@@ -596,20 +596,10 @@ namespace Snappier.Internal
         {
             if (length > Unsafe.ByteOffset(ref op, ref bufferEnd))
             {
-                ThrowInvalidDataException("Data too long");
+                ThrowHelper.ThrowInvalidDataException("Data too long");
             }
 
             Unsafe.CopyBlockUnaligned(ref op, ref Unsafe.AsRef(in input), (uint) length);
-        }
-
-        /// <summary>
-        /// Throws an <see cref="ThrowInvalidDataException"/>. This is in a separate subroutine to allow the
-        /// calling subroutine to be inlined.
-        /// </summary>
-        /// <param name="message">Exception message.</param>
-        private static void ThrowInvalidDataException(string message)
-        {
-            throw new InvalidDataException(message);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -631,12 +621,12 @@ namespace Snappier.Internal
             ref byte source = ref Unsafe.Subtract(ref op, copyOffset);
             if (!Unsafe.IsAddressLessThan(ref source, ref op) || Unsafe.IsAddressLessThan(ref source, ref buffer))
             {
-                ThrowInvalidDataException("Invalid copy offset");
+                ThrowHelper.ThrowInvalidDataException("Invalid copy offset");
             }
 
             if (length > Unsafe.ByteOffset(ref op, ref bufferEnd))
             {
-                ThrowInvalidDataException("Data too long");
+                ThrowHelper.ThrowInvalidDataException("Data too long");
             }
 
             CopyHelpers.IncrementalCopy(ref source, ref op,
@@ -679,7 +669,7 @@ namespace Snappier.Internal
             var data = _lookbackBufferOwner!;
             if (!ExpectedLength.HasValue)
             {
-                throw new InvalidOperationException("No data present.");
+                ThrowHelper.ThrowInvalidOperationException("No data present.");
             }
             else if (_lookbackBufferOwner == null)
             {
@@ -689,7 +679,7 @@ namespace Snappier.Internal
 
             if (!AllDataDecompressed)
             {
-                throw new InvalidOperationException("Block is not fully decompressed.");
+                ThrowHelper.ThrowInvalidOperationException("Block is not fully decompressed.");
             }
 
             if (data.Memory.Length > ExpectedLength.Value)
@@ -724,7 +714,8 @@ namespace Snappier.Internal
         /// </summary>
         internal void LoadScratchForTest(byte[] newScratch, uint newScratchLength)
         {
-            _scratch = newScratch ?? throw new ArgumentNullException(nameof(newScratch));
+            ThrowHelper.ThrowIfNull(newScratch);
+            _scratch = newScratch;
             _scratchLength = newScratchLength;
         }
 

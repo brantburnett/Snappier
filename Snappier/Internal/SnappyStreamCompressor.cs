@@ -41,13 +41,10 @@ namespace Snappier.Internal
         /// <returns>A block of memory with compressed data (if any). Must be used before any subsequent call to Write.</returns>
         public void Write(ReadOnlySpan<byte> input, Stream stream)
         {
-            if (stream == null)
-            {
-                throw new ArgumentNullException(nameof(stream));
-            }
+            ThrowHelper.ThrowIfNull(stream);
             if (_compressor == null)
             {
-                throw new ObjectDisposedException(nameof(SnappyStreamCompressor));
+                ThrowHelper.ThrowObjectDisposedException(nameof(SnappyStreamCompressor));
             }
 
             EnsureBuffer();
@@ -72,13 +69,10 @@ namespace Snappier.Internal
         /// <returns>A block of memory with compressed data (if any). Must be used before any subsequent call to Write.</returns>
         public async ValueTask WriteAsync(ReadOnlyMemory<byte> input, Stream stream, CancellationToken cancellationToken = default)
         {
-            if (stream == null)
-            {
-                throw new ArgumentNullException(nameof(stream));
-            }
+            ThrowHelper.ThrowIfNull(stream);
             if (_compressor == null)
             {
-                throw new ObjectDisposedException(nameof(SnappyStreamCompressor));
+                ThrowHelper.ThrowObjectDisposedException(nameof(SnappyStreamCompressor));
             }
 
             EnsureBuffer();
@@ -95,13 +89,10 @@ namespace Snappier.Internal
 
         public void Flush(Stream stream)
         {
-            if (stream == null)
-            {
-                throw new ArgumentNullException(nameof(stream));
-            }
+            ThrowHelper.ThrowIfNull(stream);
             if (_compressor == null)
             {
-                throw new ObjectDisposedException(nameof(SnappyStreamCompressor));
+                ThrowHelper.ThrowObjectDisposedException(nameof(SnappyStreamCompressor));
             }
 
             EnsureBuffer();
@@ -118,13 +109,10 @@ namespace Snappier.Internal
 
         public async ValueTask FlushAsync(Stream stream, CancellationToken cancellationToken = default)
         {
-            if (stream == null)
-            {
-                throw new ArgumentNullException(nameof(stream));
-            }
+            ThrowHelper.ThrowIfNull(stream);
             if (_compressor == null)
             {
-                throw new ObjectDisposedException(nameof(SnappyStreamCompressor));
+                ThrowHelper.ThrowObjectDisposedException(nameof(SnappyStreamCompressor));
             }
 
             EnsureBuffer();

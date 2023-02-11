@@ -20,7 +20,7 @@ namespace Snappier.Internal
             {
                 if (_disposed)
                 {
-                    throw new ObjectDisposedException(nameof(EmptyMemoryOwner));
+                    ThrowHelper.ThrowObjectDisposedException(nameof(EmptyMemoryOwner));
                 }
 
                 return Memory<byte>.Empty;
