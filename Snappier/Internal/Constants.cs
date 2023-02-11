@@ -20,7 +20,7 @@
 
         public const int BlockLog = 16;
         public const long BlockSize = 1 << BlockLog;
-        public const long InputMarginBytes = 15;
+        public const nint InputMarginBytes = 15;
 
         /// <summary>
         /// Data stored per entry in lookup table:
