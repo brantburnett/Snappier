@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Runtime.CompilerServices;
 using System.Text;
 using Snappier.Internal;
 using Xunit;
@@ -87,16 +88,14 @@ namespace Snappier.Tests.Internal
                                                          + new string('\0', Math.Max(0, length - s2String.Length)));
 
             ulong data = 0;
-            fixed (byte* s1 = array)
-            {
-                byte* s2 = s1 + s1String.Length;
+            ref byte s1 = ref array[0];
+            ref byte s2 = ref Unsafe.Add(ref s1, s1String.Length);
 
-                var result =
-                    SnappyCompressor.FindMatchLength(s1, s2, s2 + length, ref data);
+            var result =
+                SnappyCompressor.FindMatchLength(ref s1, ref s2, ref Unsafe.Add(ref s2, length - 1), ref data);
 
-                Assert.Equal(result.matchLength < 8, result.matchLengthLessThan8);
-                Assert.Equal(expectedResult, result.matchLength);
-            }
+            Assert.Equal(result.matchLength < 8, result.matchLengthLessThan8);
+            Assert.Equal(expectedResult, result.matchLength);
         }
 
         #endregion

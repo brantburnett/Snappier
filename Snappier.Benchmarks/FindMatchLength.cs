@@ -1,4 +1,5 @@
-﻿using BenchmarkDotNet.Attributes;
+﻿using System.Runtime.CompilerServices;
+using BenchmarkDotNet.Attributes;
 using Snappier.Internal;
 
 namespace Snappier.Benchmarks
@@ -15,13 +16,12 @@ namespace Snappier.Benchmarks
         public unsafe (long, bool) Regular()
         {
             ulong data = 0;
-            fixed (byte* s1 = _array)
-            {
-                var s2 = s1 + 12;
-                var s2Limit = s1 + _array.Length;
 
-                return SnappyCompressor.FindMatchLength(s1, s2, s2Limit, ref data);
-            }
+            ref byte s1 = ref _array[0];
+            ref byte s2 = ref Unsafe.Add(ref s1, 12);
+            ref byte s2Limit = ref Unsafe.Add(ref s1, _array.Length - 1);
+
+            return SnappyCompressor.FindMatchLength(ref s1, ref s2, ref s2Limit, ref data);
         }
     }
 }
