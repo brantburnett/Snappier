@@ -1,4 +1,5 @@
-﻿using BenchmarkDotNet.Environments;
+﻿using BenchmarkDotNet.Columns;
+using BenchmarkDotNet.Environments;
 using BenchmarkDotNet.Jobs;
 
 namespace Snappier.Benchmarks
@@ -18,6 +19,8 @@ namespace Snappier.Benchmarks
             AddJob(job70.WithId(".NET 7.0"));
             AddJob(job70.WithId(".NET 7.0 PGO")
                 .WithEnvironmentVariable("DOTNET_TieredPGO", "1"));
+
+            HideColumns(Column.EnvironmentVariables); // Job name is sufficient
         }
     }
 }
