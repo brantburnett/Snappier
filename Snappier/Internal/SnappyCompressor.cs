@@ -11,10 +11,6 @@ namespace Snappier.Internal
 
         public int Compress(ReadOnlySpan<byte> input, Span<byte> output)
         {
-            if (output.Length < Helpers.MaxCompressedLength(input.Length))
-            {
-                ThrowHelper.ThrowArgumentException("Insufficient output buffer", nameof(output));
-            }
             if (_workingMemory == null)
             {
                 ThrowHelper.ThrowObjectDisposedException(nameof(SnappyCompressor));
@@ -46,6 +42,10 @@ namespace Snappier.Internal
                     try
                     {
                         int written = CompressFragment(fragment, scratch.AsSpan(), hashTable);
+                        if (output.Length < written)
+                        {
+                            ThrowHelper.ThrowArgumentException("Insufficient output buffer", nameof(output));
+                        }
 
                         scratch.AsSpan(0, written).CopyTo(output);
                         output = output.Slice(written);
