@@ -3,7 +3,7 @@ using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Exporters;
 using BenchmarkDotNet.Loggers;
 
-namespace Snappier.Benchmarks
+namespace Snappier.Benchmarks.Configuration
 {
     public class StandardConfig : ManualConfig
     {
