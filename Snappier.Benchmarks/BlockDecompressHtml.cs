@@ -7,6 +7,7 @@ namespace Snappier.Benchmarks
     public class BlockDecompressHtml
     {
         private ReadOnlyMemory<byte> _input;
+        private Memory<byte> _output;
 
         [GlobalSetup]
         public void LoadToMemory()
@@ -14,14 +15,16 @@ namespace Snappier.Benchmarks
             using var resource =
                 typeof(DecompressHtml).Assembly.GetManifestResourceStream("Snappier.Benchmarks.TestData.html");
 
-            var input = new byte[65536]; // Just test the first 64KB
+            byte[] input = new byte[65536]; // Just test the first 64KB
             // ReSharper disable once PossibleNullReferenceException
-            resource.Read(input, 0, input.Length);
+            int inputLength = resource!.Read(input, 0, input.Length);
 
-            var compressed = new byte[Snappy.GetMaxCompressedLength(input.Length)];
-            var compressedLength = Snappy.Compress(input, compressed);
+            byte[] compressed = new byte[Snappy.GetMaxCompressedLength(inputLength)];
+            int compressedLength = Snappy.Compress(input.AsSpan(0, inputLength), compressed);
 
             _input = compressed.AsMemory(0, compressedLength);
+
+            _output = new byte[65536];
         }
 
 
@@ -31,6 +34,7 @@ namespace Snappier.Benchmarks
             var decompressor = new SnappyDecompressor();
 
             decompressor.Decompress(_input.Span);
+            decompressor.Read(_output.Span);
         }
     }
 }

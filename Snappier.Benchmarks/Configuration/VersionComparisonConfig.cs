@@ -51,9 +51,8 @@ namespace Snappier.Benchmarks.Configuration
             public IEnumerable<BenchmarkCase> GetExecutionOrder(ImmutableArray<BenchmarkCase> benchmarksCase,
                 IEnumerable<BenchmarkLogicalGroupRule> order = null) =>
                 benchmarksCase
-                    .OrderBy(p => p.Job.Environment.Runtime.Name)
-                    .ThenBy(p => p.Job.Environment.EnvironmentVariables?.FirstOrDefault(
-                        q => q.Key == PgoColumn.PgoEnvironmentVariableName)?.Value ?? "0")
+                    .OrderBy(p => p.Job.Environment.Runtime.MsBuildMoniker)
+                    .ThenBy(p => PgoColumn.IsPgo(p) ? 1 : 0)
                     .ThenBy(p => p.DisplayInfo)
                     .ThenBy(p => !p.Descriptor.Baseline);
 
@@ -65,7 +64,7 @@ namespace Snappier.Benchmarks.Configuration
 
             public string GetLogicalGroupKey(ImmutableArray<BenchmarkCase> allBenchmarksCases,
                 BenchmarkCase benchmarkCase) =>
-                $"{benchmarkCase.Job.Environment.Runtime.Name}-Pgo={(PgoColumn.IsPgo(benchmarkCase) ? "Y" : "N")}";
+                $"{benchmarkCase.Job.Environment.Runtime.MsBuildMoniker}-Pgo={(PgoColumn.IsPgo(benchmarkCase) ? "Y" : "N")}";
 
             public IEnumerable<IGrouping<string, BenchmarkCase>> GetLogicalGroupOrder(
                 IEnumerable<IGrouping<string, BenchmarkCase>> logicalGroups,
