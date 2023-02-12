@@ -1,7 +1,6 @@
 ﻿using System.Runtime.CompilerServices;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Diagnostics.Windows.Configs;
-using BenchmarkDotNet.Jobs;
 using Snappier.Internal;
 
 namespace Snappier.Benchmarks

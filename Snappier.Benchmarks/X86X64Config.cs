@@ -8,7 +8,7 @@ namespace Snappier.Benchmarks
 {
     public class X86X64Config : StandardConfig
     {
-        public X86X64Config()
+        public X86X64Config(Job baseJob)
         {
             var dotnetCli32Bit = NetCoreAppSettings
                 .NetCoreApp50
@@ -18,11 +18,11 @@ namespace Snappier.Benchmarks
                 .NetCoreApp50
                 .WithCustomDotNetCliPath(@"C:\Program Files\dotnet\dotnet.exe", "64 bit cli");
 
-            AddJob(Job.MediumRun
+            AddJob(baseJob
                 .WithToolchain(CsProjCoreToolchain.From(dotnetCli32Bit))
                 .WithPlatform(Platform.X86)
                 .WithId("x86"));
-            AddJob(Job.MediumRun
+            AddJob(baseJob
                 .WithToolchain(CsProjCoreToolchain.From(dotnetCli64Bit))
                 .WithPlatform(Platform.X64)
                 .WithId("x64"));

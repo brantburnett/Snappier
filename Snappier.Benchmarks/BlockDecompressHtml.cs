@@ -1,15 +1,10 @@
 ﻿using System;
 using BenchmarkDotNet.Attributes;
-using BenchmarkDotNet.Jobs;
 using Snappier.Internal;
 
 namespace Snappier.Benchmarks
 {
-    [MediumRunJob(RuntimeMoniker.Net48)]
-    [MediumRunJob(RuntimeMoniker.Net60)]
-    [MediumRunJob(RuntimeMoniker.Net70)]
-    [DisassemblyDiagnoser]
-    public class BlockDecompressAlice
+    public class BlockDecompressHtml
     {
         private ReadOnlyMemory<byte> _input;
 
@@ -17,7 +12,7 @@ namespace Snappier.Benchmarks
         public void LoadToMemory()
         {
             using var resource =
-                typeof(DecompressAlice).Assembly.GetManifestResourceStream("Snappier.Benchmarks.TestData.alice29.txt");
+                typeof(DecompressHtml).Assembly.GetManifestResourceStream("Snappier.Benchmarks.TestData.html");
 
             var input = new byte[65536]; // Just test the first 64KB
             // ReSharper disable once PossibleNullReferenceException
@@ -30,8 +25,8 @@ namespace Snappier.Benchmarks
         }
 
 
-        [Benchmark(Baseline = true)]
-        public void Snappier()
+        [Benchmark]
+        public void Decompress()
         {
             var decompressor = new SnappyDecompressor();
 

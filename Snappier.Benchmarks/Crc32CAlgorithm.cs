@@ -1,11 +1,8 @@
 ﻿using System;
 using BenchmarkDotNet.Attributes;
-using BenchmarkDotNet.Jobs;
 
 namespace Snappier.Benchmarks
 {
-    [SimpleJob(RuntimeMoniker.Net60, baseline: true)]
-    [SimpleJob(RuntimeMoniker.Net70)]
     public class Crc32CAlgorithm
     {
         private byte[] _buffer;

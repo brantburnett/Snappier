@@ -4,7 +4,6 @@ using Snappier.Internal;
 
 namespace Snappier.Benchmarks
 {
-    [SimpleJob]
     public class IncrementalCopy
     {
         private readonly byte[] _buffer = new byte[128];
