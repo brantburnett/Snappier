@@ -1,4 +1,5 @@
 ﻿using BenchmarkDotNet.Columns;
+using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Environments;
 using BenchmarkDotNet.Jobs;
 
@@ -16,6 +17,8 @@ namespace Snappier.Benchmarks.Configuration
             var job70 = baseJob.WithRuntime(CoreRuntime.Core70);
             AddJob(job70);
             AddJob(job70.WithPgo());
+
+            AddLogicalGroupRules(BenchmarkLogicalGroupRule.ByJob);
 
             AddColumn(PgoColumn.Default);
             HideColumns(Column.EnvironmentVariables);
