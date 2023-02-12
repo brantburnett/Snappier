@@ -20,6 +20,7 @@ namespace Snappier.Internal
         /// into a repeating byte pattern.
         /// </summary>
         private static readonly Vector128<byte>[] PshufbFillPatterns = {
+            Vector128<byte>.Zero, // Never referenced, here for padding
             Vector128.Create((byte) 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
             Vector128.Create((byte) 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1),
             Vector128.Create((byte) 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0),
@@ -28,18 +29,6 @@ namespace Snappier.Internal
             Vector128.Create((byte) 0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5, 0, 1, 2, 3),
             Vector128.Create((byte) 0, 1, 2, 3, 4, 5, 6, 0, 1, 2, 3, 4, 5, 6, 0, 1)
         };
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static Vector128<byte> LoadVector128Unsafe(ref byte source)
-        {
-#if NET7_0_OR_GREATER
-            // Use the intrinsic for .NET 7
-            return Vector128.LoadUnsafe(ref source);
-#else
-            // Fallback for .NET 6
-            return Unsafe.ReadUnaligned<Vector128<byte>>(ref source);
-#endif
-        }
 
         /// <summary>
         /// j * (16 / j) for all j from 0 to 7. 0 is not actually used.
@@ -57,13 +46,12 @@ namespace Snappier.Internal
         /// <param name="op">Pointer to the destination point in the buffer.</param>
         /// <param name="opEnd">Pointer to the end of the area to write in the buffer.</param>
         /// <param name="bufferEnd">Pointer past the end of the buffer.</param>
-        /// <remarks>
-        /// Fixing the PshufbFillPatterns array for use in the SSSE3 optimized route is expensive, so we
-        /// do that in the outer loop in <see cref="SnappyDecompressor.DecompressAllTags"/> and pass the pointer
-        /// to this method. This makes the logic a bit more confusing, but is a significant performance boost.
-        /// </remarks>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static unsafe void IncrementalCopy(ref byte source, ref byte op, ref byte opEnd, ref byte bufferEnd)
+        public static
+#if NET6_0
+            unsafe
+#endif
+            void IncrementalCopy(ref byte source, ref byte op, ref byte opEnd, ref byte bufferEnd)
         {
             Debug.Assert(Unsafe.IsAddressLessThan(ref source, ref op));
             Debug.Assert(!Unsafe.IsAddressGreaterThan(ref op, ref opEnd));
@@ -97,9 +85,15 @@ namespace Snappier.Internal
 
                     if (!Unsafe.IsAddressGreaterThan(ref op, ref Unsafe.Subtract(ref bufferEnd, 16)))
                     {
-                        var shuffleMask = PshufbFillPatterns[patternSize - 1];
-                        var srcPattern = LoadVector128Unsafe(ref source);
-                        var pattern = Shuffle(srcPattern, shuffleMask);
+                        Vector128<byte> shuffleMask = PshufbFillPatterns[patternSize];
+
+#if NET7_0_OR_GREATER
+                        Vector128<byte> srcPattern = Vector128.LoadUnsafe(ref source);
+#else
+                        Vector128<byte> srcPattern = Unsafe.ReadUnaligned<Vector128<byte>>(ref source);
+#endif
+
+                        Vector128<byte> pattern = Shuffle(srcPattern, shuffleMask);
 
                         // Get the new pattern size now that we've repeated it
                         patternSize = PatternSizeTable[patternSize];
@@ -113,7 +107,11 @@ namespace Snappier.Internal
 
                         while (Unsafe.IsAddressLessThan(ref op, ref loopEnd))
                         {
-                            Store((byte*) Unsafe.AsPointer(ref op), pattern);
+#if NET7_0_OR_GREATER
+                            pattern.StoreUnsafe(ref op);
+#else
+                            Store((byte*)Unsafe.AsPointer(ref op), pattern);
+#endif
                             op = ref Unsafe.Add(ref op, patternSize);
                         }
 
