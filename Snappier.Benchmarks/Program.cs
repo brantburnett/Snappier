@@ -2,6 +2,7 @@
 using BenchmarkDotNet.Jobs;
 using BenchmarkDotNet.Running;
 using Snappier.Benchmarks;
+using Snappier.Benchmarks.Configuration;
 
 Console.WriteLine("Select configuration:");
 Console.WriteLine("  #0 Frameworks Short");

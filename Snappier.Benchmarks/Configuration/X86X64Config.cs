@@ -4,7 +4,7 @@ using BenchmarkDotNet.Jobs;
 using BenchmarkDotNet.Toolchains.CsProj;
 using BenchmarkDotNet.Toolchains.DotNetCli;
 
-namespace Snappier.Benchmarks
+namespace Snappier.Benchmarks.Configuration
 {
     public class X86X64Config : StandardConfig
     {

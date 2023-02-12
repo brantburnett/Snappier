@@ -1,6 +1,6 @@
 ﻿using BenchmarkDotNet.Jobs;
 
-namespace Snappier.Benchmarks
+namespace Snappier.Benchmarks.Configuration
 {
     public class BasicConfig : StandardConfig
     {
