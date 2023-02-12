@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Buffers;
+using System.Runtime.InteropServices;
 
 namespace Snappier.Internal
 {
@@ -42,8 +43,8 @@ namespace Snappier.Internal
                 ThrowHelper.ThrowInvalidOperationException("Insufficient buffer size");
             }
 
-            var hashTable = _buffer.AsSpan(0, hashTableSize);
-            hashTable.Fill(0);
+            Span<ushort> hashTable = _buffer.AsSpan(0, hashTableSize);
+            MemoryMarshal.AsBytes(hashTable).Fill(0);
 
             return hashTable;
         }
