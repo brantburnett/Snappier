@@ -5,8 +5,6 @@ using BenchmarkDotNet.Jobs;
 
 namespace Snappier.Benchmarks
 {
-    //[ShortRunJob(RuntimeMoniker.Net60)]
-    [ShortRunJob(RuntimeMoniker.Net70)]
     public class CompressAll
     {
         private MemoryStream _source;
@@ -31,21 +29,11 @@ namespace Snappier.Benchmarks
 
 
         [Benchmark]
-        public void Snappier()
+        public void Compress()
         {
             _source.Position = 0;
             _destination.Position = 0;
             using var stream = new SnappyStream(_destination, CompressionMode.Compress, true);
-
-            _source.CopyTo(_destination, 65536);
-        }
-
-        [Benchmark(Baseline = true)]
-        public void PInvoke()
-        {
-            _source.Position = 0;
-            _destination.Position = 0;
-            using var stream = new global::Snappy.SnappyStream(_destination, CompressionMode.Compress, true);
 
             _source.CopyTo(_destination, 65536);
         }

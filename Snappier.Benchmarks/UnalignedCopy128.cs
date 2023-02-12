@@ -5,7 +5,6 @@ using Snappier.Internal;
 
 namespace Snappier.Benchmarks
 {
-
     [RyuJitX64Job]
     [InliningDiagnoser(false, new[] {"Snappier.Benchmarks"})]
     public class UnalignedCopy128

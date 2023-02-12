@@ -1,12 +1,9 @@
 ﻿using System.IO;
 using System.IO.Compression;
 using BenchmarkDotNet.Attributes;
-using BenchmarkDotNet.Jobs;
 
 namespace Snappier.Benchmarks
 {
-    //[ShortRunJob(RuntimeMoniker.Net60)]
-    [ShortRunJob(RuntimeMoniker.Net70)]
     public class DecompressAll
     {
         private MemoryStream _memoryStream;
@@ -35,21 +32,10 @@ namespace Snappier.Benchmarks
 
 
         [Benchmark]
-        public void Snappier()
+        public void Decompress()
         {
             _memoryStream.Position = 0;
             using var stream = new SnappyStream(_memoryStream, CompressionMode.Decompress, true);
-
-            while (stream.Read(_buffer, 0, _buffer.Length) > 0)
-            {
-            }
-        }
-
-        [Benchmark(Baseline = true)]
-        public void PInvoke()
-        {
-            _memoryStream.Position = 0;
-            using var stream = new global::Snappy.SnappyStream(_memoryStream, CompressionMode.Decompress, true);
 
             while (stream.Read(_buffer, 0, _buffer.Length) > 0)
             {

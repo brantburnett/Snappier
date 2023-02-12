@@ -1,66 +1,38 @@
-﻿using System;
-using System.IO;
+﻿using System.IO;
+using System.IO.Compression;
 using BenchmarkDotNet.Attributes;
-using Snappier.Internal;
 
 namespace Snappier.Benchmarks
 {
-    [Config(typeof(FrameworkCompareConfig))]
     public class CompressHtml
     {
-        private ReadOnlyMemory<byte> _buffer;
-        private Memory<byte> _buffer2;
+        private MemoryStream _source;
+        private MemoryStream _destination;
 
-        private SnappyCompressor _snappyCompressor;
-        //private SnappyCompressor2 _snappyCompressor2;
+        [Params(16384)]
+        public int ReadSize;
 
-        public void GlobalSetup()
+        [GlobalSetup]
+        public void LoadToMemory()
         {
-            using var memoryStream = new MemoryStream();
+            _source = new MemoryStream();
+            _destination = new MemoryStream();
 
             using var resource =
-                typeof(DecompressAlice).Assembly.GetManifestResourceStream("Snappier.Benchmarks.TestData.html");
+                typeof(DecompressHtml).Assembly.GetManifestResourceStream("Snappier.Benchmarks.TestData.html_x_4");
 
             // ReSharper disable once PossibleNullReferenceException
-            resource.CopyTo(memoryStream);
-
-            _buffer = memoryStream.ToArray().AsMemory();
-            _buffer2 = new byte[Helpers.MaxCompressedLength(_buffer.Length)].AsMemory();
+            resource.CopyTo(_source);
         }
 
-        [GlobalSetup(Target = nameof(Snappier))]
-        public void SnappierSetup()
+        [Benchmark]
+        public void Compress()
         {
-            GlobalSetup();
+            _source.Position = 0;
+            _destination.Position = 0;
+            using var stream = new SnappyStream(_destination, CompressionMode.Compress, true);
 
-            _snappyCompressor = new SnappyCompressor();
+            _source.CopyTo(_destination, ReadSize);
         }
-
-        //[GlobalSetup(Target = nameof(Snappier2))]
-        //public void Snappier2Setup()
-        //{
-        //    GlobalSetup();
-
-        //    _snappyCompressor2 = new SnappyCompressor2();
-        //}
-
-        [GlobalCleanup]
-        public void Cleanup()
-        {
-            _snappyCompressor?.Dispose();
-            //_snappyCompressor2?.Dispose();
-        }
-
-        [Benchmark(Baseline = true)]
-        public void Snappier()
-        {
-            _snappyCompressor.Compress(_buffer.Span, _buffer2.Span);
-        }
-
-        //[Benchmark]
-        //public void Snappier2()
-        //{
-        //    _snappyCompressor2.Compress(_buffer.Span, _buffer2.Span);
-        //}
     }
 }
