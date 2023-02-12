@@ -32,7 +32,8 @@ namespace Snappier.Benchmarks
             _destination.Position = 0;
             using var stream = new SnappyStream(_destination, CompressionMode.Compress, true);
 
-            _source.CopyTo(_destination, ReadSize);
+            _source.CopyTo(stream, ReadSize);
+            stream.Flush();
         }
     }
 }
