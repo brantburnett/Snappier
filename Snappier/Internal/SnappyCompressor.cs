@@ -5,7 +5,7 @@ using System.Runtime.CompilerServices;
 
 namespace Snappier.Internal
 {
-    internal class SnappyCompressor2 : IDisposable
+    internal class SnappyCompressor : IDisposable
     {
         private HashTable? _workingMemory = new();
 
