@@ -11,17 +11,6 @@ namespace Snappier.Internal
 {
     internal static class Helpers
     {
-        private const uint HashMultiplier = 0x1e35a7bd;
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static int HashBytes(uint bytes, int shift)
-        {
-            unchecked
-            {
-                return (int)((bytes * HashMultiplier) >> shift);
-            }
-        }
-
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int MaxCompressedLength(int sourceBytes)
         {
