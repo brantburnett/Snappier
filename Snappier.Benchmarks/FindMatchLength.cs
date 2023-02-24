@@ -13,7 +13,7 @@ namespace Snappier.Benchmarks
         };
 
         [Benchmark(Baseline = true)]
-        public unsafe (long, bool) Regular()
+        public (long, bool) Regular()
         {
             ulong data = 0;
 

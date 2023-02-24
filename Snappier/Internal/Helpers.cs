@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 #if NET6_0_OR_GREATER
 using System.Numerics;
+using System.Runtime.Intrinsics;
 using System.Runtime.Intrinsics.X86;
 #endif
 
@@ -109,6 +110,21 @@ namespace Snappier.Internal
 
             Unsafe.WriteUnaligned(ref ptr, value);
         }
+
+#if NET6_0
+
+        // Port of the method from .NET 7, but specific to bytes
+
+        /// <summary>Stores a vector at the given destination.</summary>
+        /// <param name="source">The vector that will be stored.</param>
+        /// <param name="destination">The destination at which <paramref name="source" /> will be stored.</param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void StoreUnsafe(this Vector128<byte> source, ref byte destination)
+        {
+            Unsafe.WriteUnaligned(ref destination, source);
+        }
+
+#endif
 
         /// <summary>
         /// Return floor(log2(n)) for positive integer n.  Returns -1 iff n == 0.

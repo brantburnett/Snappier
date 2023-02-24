@@ -82,7 +82,7 @@ namespace Snappier.Tests.Internal
         [InlineData(11, "xxxxxxabcd0123", "xxxxxxabcd0?23", 14)]
         [InlineData(12, "xxxxxxabcd0123", "xxxxxxabcd0132", 14)]
         [InlineData(13, "xxxxxxabcd0123", "xxxxxxabcd012?", 14)]
-        public unsafe void FindMatchLength(int expectedResult, string s1String, string s2String, int length)
+        public void FindMatchLength(int expectedResult, string s1String, string s2String, int length)
         {
             var array = Encoding.ASCII.GetBytes(s1String + s2String
                                                          + new string('\0', Math.Max(0, length - s2String.Length)));

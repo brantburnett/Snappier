@@ -47,11 +47,7 @@ namespace Snappier.Internal
         /// <param name="opEnd">Pointer to the end of the area to write in the buffer.</param>
         /// <param name="bufferEnd">Pointer past the end of the buffer.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static
-#if NET6_0
-            unsafe
-#endif
-            void IncrementalCopy(ref byte source, ref byte op, ref byte opEnd, ref byte bufferEnd)
+        public static void IncrementalCopy(ref byte source, ref byte op, ref byte opEnd, ref byte bufferEnd)
         {
             Debug.Assert(Unsafe.IsAddressLessThan(ref source, ref op));
             Debug.Assert(!Unsafe.IsAddressGreaterThan(ref op, ref opEnd));
@@ -107,11 +103,7 @@ namespace Snappier.Internal
 
                         while (Unsafe.IsAddressLessThan(ref op, ref loopEnd))
                         {
-#if NET7_0_OR_GREATER
                             pattern.StoreUnsafe(ref op);
-#else
-                            Store((byte*)Unsafe.AsPointer(ref op), pattern);
-#endif
                             op = ref Unsafe.Add(ref op, patternSize);
                         }
 
@@ -219,7 +211,7 @@ namespace Snappier.Internal
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static unsafe void IncrementalCopySlow(ref byte source, ref byte op, ref byte opEnd)
+        public static void IncrementalCopySlow(ref byte source, ref byte op, ref byte opEnd)
         {
             while (Unsafe.IsAddressLessThan(ref op, ref opEnd))
             {

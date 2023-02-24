@@ -176,7 +176,7 @@ namespace Snappier.Internal
             return result;
         }
 
-        internal unsafe void DecompressAllTags(ReadOnlySpan<byte> inputSpan)
+        internal void DecompressAllTags(ReadOnlySpan<byte> inputSpan)
         {
             // Put Constants.CharTable on the stack to simplify lookups within the loops below.
             // Slicing with length 256 here allows the JIT compiler to recognize the size is greater than
