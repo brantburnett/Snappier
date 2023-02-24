@@ -122,9 +122,7 @@ namespace Snappier.Internal
                 Debug.Assert(input.Length <= Constants.BlockSize);
                 Debug.Assert((tableSpan.Length & (tableSpan.Length - 1)) == 0); // table must be power of two
 
-                int shift = 32 - Helpers.Log2Floor((uint) tableSpan.Length);
-
-                Debug.Assert(uint.MaxValue >> shift == tableSpan.Length - 1);
+                uint mask = (uint)(2 * (tableSpan.Length - 1));
 
                 ref byte inputStart = ref Unsafe.AsRef(in input[0]);
                 // Last byte of the input, not one byte past the end, to avoid issues on GC moves
@@ -183,11 +181,11 @@ namespace Snappier.Internal
 
                                 uint dword = j == 0 ? preload : (uint) data;
                                 Debug.Assert(dword == Helpers.UnsafeReadUInt32(ref Unsafe.Add(ref ip, j)));
-                                int hash = Helpers.HashBytes(dword, shift);
-                                candidate = ref Unsafe.Add(ref inputStart, Unsafe.Add(ref table, hash));
+                                ref ushort tableEntry = ref HashTable.TableEntry(ref table, dword, mask);
+                                candidate = ref Unsafe.Add(ref inputStart, tableEntry);
                                 Debug.Assert(!Unsafe.IsAddressLessThan(ref candidate, ref inputStart));
                                 Debug.Assert(Unsafe.IsAddressLessThan(ref candidate, ref Unsafe.Add(ref ip, j)));
-                                Unsafe.Add(ref table, hash) = (ushort) (delta + j);
+                                tableEntry = (ushort) (delta + j);
 
                                 if (Helpers.UnsafeReadUInt32(ref candidate) == dword)
                                 {
@@ -201,11 +199,11 @@ namespace Snappier.Internal
                                 int i1 = j + 1;
                                 dword = (uint)(data >> 8);
                                 Debug.Assert(dword == Helpers.UnsafeReadUInt32(ref Unsafe.Add(ref ip, i1)));
-                                hash = Helpers.HashBytes(dword, shift);
-                                candidate = ref Unsafe.Add(ref inputStart, Unsafe.Add(ref table, hash));
+                                tableEntry = ref HashTable.TableEntry(ref table, dword, mask);
+                                candidate = ref Unsafe.Add(ref inputStart, tableEntry);
                                 Debug.Assert(!Unsafe.IsAddressLessThan(ref candidate, ref inputStart));
                                 Debug.Assert(Unsafe.IsAddressLessThan(ref candidate, ref Unsafe.Add(ref ip, i1)));
-                                Unsafe.Add(ref table, hash) = (ushort) (delta + i1);
+                                tableEntry = (ushort) (delta + i1);
 
                                 if (Helpers.UnsafeReadUInt32(ref candidate) == dword)
                                 {
@@ -219,11 +217,11 @@ namespace Snappier.Internal
                                 int i2 = j + 2;
                                 dword = (uint)(data >> 16);
                                 Debug.Assert(dword == Helpers.UnsafeReadUInt32(ref Unsafe.Add(ref ip, i2)));
-                                hash = Helpers.HashBytes(dword, shift);
-                                candidate = ref Unsafe.Add(ref inputStart, Unsafe.Add(ref table, hash));
+                                tableEntry = ref HashTable.TableEntry(ref table, dword, mask);
+                                candidate = ref Unsafe.Add(ref inputStart, tableEntry);
                                 Debug.Assert(!Unsafe.IsAddressLessThan(ref candidate, ref inputStart));
                                 Debug.Assert(Unsafe.IsAddressLessThan(ref candidate, ref Unsafe.Add(ref ip, i2)));
-                                Unsafe.Add(ref table, hash) = (ushort) (delta + i2);
+                                tableEntry = (ushort) (delta + i2);
 
                                 if (Helpers.UnsafeReadUInt32(ref candidate) == dword)
                                 {
@@ -237,11 +235,11 @@ namespace Snappier.Internal
                                 int i3 = j + 3;
                                 dword = (uint)(data >> 24);
                                 Debug.Assert(dword == Helpers.UnsafeReadUInt32(ref Unsafe.Add(ref ip, i3)));
-                                hash = Helpers.HashBytes(dword, shift);
-                                candidate = ref Unsafe.Add(ref inputStart, Unsafe.Add(ref table, hash));
+                                tableEntry = ref HashTable.TableEntry(ref table, dword, mask);
+                                candidate = ref Unsafe.Add(ref inputStart, tableEntry);
                                 Debug.Assert(!Unsafe.IsAddressLessThan(ref candidate, ref inputStart));
                                 Debug.Assert(Unsafe.IsAddressLessThan(ref candidate, ref Unsafe.Add(ref ip, i3)));
-                                Unsafe.Add(ref table, hash) = (ushort) (delta + i3);
+                                tableEntry = (ushort) (delta + i3);
 
                                 if (Helpers.UnsafeReadUInt32(ref candidate) == dword)
                                 {
@@ -262,7 +260,7 @@ namespace Snappier.Internal
                         while (true)
                         {
                             Debug.Assert((uint) data == Helpers.UnsafeReadUInt32(ref ip));
-                            int hash = Helpers.HashBytes((uint) data, shift);
+                            ref ushort tableEntry = ref HashTable.TableEntry(ref table, (uint) data, mask);
                             int bytesBetweenHashLookups = skip >> 5;
                             skip += bytesBetweenHashLookups;
 
@@ -273,11 +271,11 @@ namespace Snappier.Internal
                                 goto emit_remainder;
                             }
 
-                            candidate = ref Unsafe.Add(ref inputStart, Unsafe.Add(ref table, hash));
+                            candidate = ref Unsafe.Add(ref inputStart, tableEntry);
                             Debug.Assert(!Unsafe.IsAddressLessThan(ref candidate, ref inputStart));
                             Debug.Assert(Unsafe.IsAddressLessThan(ref candidate, ref ip));
 
-                            Unsafe.Add(ref table, hash) = (ushort) Unsafe.ByteOffset(ref inputStart, ref ip);
+                            tableEntry = (ushort) Unsafe.ByteOffset(ref inputStart, ref ip);
                             if ((uint) data == Helpers.UnsafeReadUInt32(ref candidate))
                             {
                                 break;
@@ -335,13 +333,13 @@ namespace Snappier.Internal
                                          (Helpers.UnsafeReadUInt64(ref ip) & 0xfffffffffful));
 
                             // We are now looking for a 4-byte match again.  We read
-                            // table[Hash(ip, shift)] for that.  To improve compression,
-                            // we also update table[Hash(ip - 1, shift)] and table[Hash(ip, shift)].
-                            Unsafe.Add(ref table, Helpers.HashBytes(Helpers.UnsafeReadUInt32(ref Unsafe.Subtract(ref ip, 1)), shift)) =
+                            // table[Hash(ip, mask)] for that.  To improve compression,
+                            // we also update table[Hash(ip - 1, mask)] and table[Hash(ip, mask)].
+                            HashTable.TableEntry(ref table, Helpers.UnsafeReadUInt32(ref Unsafe.Subtract(ref ip, 1)), mask) =
                                 (ushort) (Unsafe.ByteOffset(ref inputStart, ref ip) - 1);
-                            int hash = Helpers.HashBytes((uint) data, shift);
-                            candidate = ref Unsafe.Add(ref inputStart, Unsafe.Add(ref table, hash));
-                            Unsafe.Add(ref table, hash) = (ushort) Unsafe.ByteOffset(ref inputStart, ref ip);
+                            ref ushort tableEntry = ref HashTable.TableEntry(ref table, (uint) data, mask);
+                            candidate = ref Unsafe.Add(ref inputStart, tableEntry);
+                            tableEntry = (ushort) Unsafe.ByteOffset(ref inputStart, ref ip);
                         } while ((uint) data == Helpers.UnsafeReadUInt32(ref candidate));
 
                         // Because the least significant 5 bytes matched, we can utilize data
