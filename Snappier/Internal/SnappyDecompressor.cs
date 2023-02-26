@@ -535,7 +535,7 @@ namespace Snappier.Internal
 
         #region Loopback Writer
 
-        private IMemoryOwner<byte>? _lookbackBufferOwner;
+        private byte[]? _lookbackBufferArray;
         private Memory<byte> _lookbackBuffer;
         private int _lookbackPosition = 0;
         private int _readPosition = 0;
@@ -548,15 +548,18 @@ namespace Snappier.Internal
             {
                 _expectedLength = value;
 
-                if (_expectedLength.HasValue && _lookbackBuffer.Length < _expectedLength.GetValueOrDefault())
+                if (value.HasValue && _lookbackBuffer.Length < value.GetValueOrDefault())
                 {
-                    _lookbackBufferOwner?.Dispose();
+                    if (_lookbackBufferArray is not null)
+                    {
+                        ArrayPool<byte>.Shared.Return(_lookbackBufferArray);
+                    }
 
                     // Always pad the lookback buffer with an extra byte that we don't use. This allows a "ref byte" reference past
                     // the end of the perceived buffer that still points within the array. This is a requirement so that GC can recognize
                     // the "ref byte" points within the array and adjust it if the array is moved.
-                    _lookbackBufferOwner = MemoryPool<byte>.Shared.Rent(_expectedLength.GetValueOrDefault() + 1);
-                    _lookbackBuffer = _lookbackBufferOwner.Memory.Slice(0, _lookbackBufferOwner.Memory.Length - 1);
+                    _lookbackBufferArray = ArrayPool<byte>.Shared.Rent(value.GetValueOrDefault() + 1);
+                    _lookbackBuffer = _lookbackBufferArray.AsMemory(0, _lookbackBufferArray.Length - 1);
                 }
             }
         }
@@ -666,15 +669,15 @@ namespace Snappier.Internal
         /// </remarks>
         public IMemoryOwner<byte> ExtractData()
         {
-            var data = _lookbackBufferOwner!;
+            byte[]? data = _lookbackBufferArray;
             if (!ExpectedLength.HasValue)
             {
                 ThrowHelper.ThrowInvalidOperationException("No data present.");
             }
-            else if (_lookbackBufferOwner == null)
+            else if (data is null || ExpectedLength.GetValueOrDefault() == 0)
             {
                 // Length was 0, so we've allocated nothing
-                return new EmptyMemoryOwner();
+                return new ByteArrayPoolMemoryOwner();
             }
 
             if (!AllDataDecompressed)
@@ -682,18 +685,16 @@ namespace Snappier.Internal
                 ThrowHelper.ThrowInvalidOperationException("Block is not fully decompressed.");
             }
 
-            if (data.Memory.Length > ExpectedLength.Value)
-            {
-                data = new SlicedMemoryOwner(data, ExpectedLength.Value);
-            }
+            // Build the return before we reset and clear ExpectedLength
+            var returnBuffer = new ByteArrayPoolMemoryOwner(data, ExpectedLength.GetValueOrDefault());
 
-            // Clear owner so we don't dispose it
-            _lookbackBufferOwner = null;
-            _lookbackBuffer = Memory<byte>.Empty;
+            // Clear the buffer so we don't return it
+            _lookbackBufferArray = null;
+            _lookbackBuffer = default;
 
             Reset();
 
-            return data;
+            return returnBuffer;
         }
 
         #endregion
@@ -731,8 +732,12 @@ namespace Snappier.Internal
 
         public void Dispose()
         {
-            _lookbackBufferOwner?.Dispose();
-            _lookbackBufferOwner = null;
+            if (_lookbackBufferArray is not null)
+            {
+                ArrayPool<byte>.Shared.Return(_lookbackBufferArray);
+                _lookbackBufferArray = null;
+                _lookbackBuffer = default;
+            }
         }
     }
 }
