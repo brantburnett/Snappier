@@ -513,6 +513,12 @@ namespace Snappier.Internal
         {
             Debug.Assert(!Unsafe.IsAddressLessThan(ref Unsafe.Add(ref s2Limit, 1), ref s2));
 
+            if (BitConverter.IsLittleEndian && IntPtr.Size == 8)
+            {
+                // Special implementation for 64-bit little endian processors (i.e. Intel/AMD x64)
+                return FindMatchLengthX64(ref s1, ref s2, ref s2Limit, ref data);
+            }
+
             int matched = 0;
 
             while (!Unsafe.IsAddressGreaterThan(ref s2, ref Unsafe.Subtract(ref s2Limit, 3))
@@ -544,6 +550,90 @@ namespace Snappier.Internal
             }
 
             return (matched, matched < 8);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static (int matchLength, bool matchLengthLessThan8) FindMatchLengthX64(
+            ref byte s1, ref byte s2, ref byte s2Limit, ref ulong data)
+        {
+            nint matched = 0;
+
+            // This block isn't necessary for correctness; we could just start looping
+            // immediately.  As an optimization though, it is useful.  It creates some not
+            // uncommon code paths that determine, without extra effort, whether the match
+            // length is less than 8.
+            if (!Unsafe.IsAddressGreaterThan(ref s2, ref Unsafe.Subtract(ref s2Limit, 15)))
+            {
+                ulong a1 = Helpers.UnsafeReadUInt64(ref s1);
+                ulong a2 = Helpers.UnsafeReadUInt64(ref s2);
+
+                if (a1 != a2)
+                {
+                    ulong xorval = a1 ^ a2;
+                    int shift = Helpers.FindLsbSetNonZero(xorval);
+                    int matchedBytes = shift >> 3;
+
+                    ulong a3 = Helpers.UnsafeReadUInt64(ref Unsafe.Add(ref s2, 4));
+                    a2 = unchecked((uint)xorval) == 0 ? a3 : a2;
+
+                    data = a2 >> (shift & (3 * 8));
+                    return (matchedBytes, true);
+                }
+                else
+                {
+                    matched = 8;
+                    s2 = ref Unsafe.Add(ref s2, 8);
+                }
+            }
+
+            // Find out how long the match is. We loop over the data 64 bits at a
+            // time until we find a 64-bit block that doesn't match; then we find
+            // the first non-matching bit and use that to calculate the total
+            // length of the match.
+            while (!Unsafe.IsAddressGreaterThan(ref s2, ref Unsafe.Subtract(ref s2Limit, 15)))
+            {
+                ulong a1 = Helpers.UnsafeReadUInt64(ref Unsafe.Add(ref s1, matched));
+                ulong a2 = Helpers.UnsafeReadUInt64(ref s2);
+                if (a1 == a2)
+                {
+                    s2 = ref Unsafe.Add(ref s2, 8);
+                    matched += 8;
+                }
+                else
+                {
+                    ulong xorval = a1 ^ a2;
+                    int shift = Helpers.FindLsbSetNonZero(xorval);
+                    int matchedBytes = shift >> 3;
+
+                    ulong a3 = Helpers.UnsafeReadUInt64(ref Unsafe.Add(ref s2, 4));
+                    a2 = unchecked((uint)xorval) == 0 ? a3 : a2;
+
+                    data = a2 >> (shift & (3 * 8));
+                    matched += matchedBytes;
+                    Debug.Assert(matched >= 8);
+                    return ((int)matched, false);
+                }
+            }
+
+            while (!Unsafe.IsAddressGreaterThan(ref s2, ref s2Limit))
+            {
+                if (Unsafe.Add(ref s1, matched) == s2)
+                {
+                    s2 = ref Unsafe.Add(ref s2, 1);
+                    matched++;
+                }
+                else
+                {
+                    if (!Unsafe.IsAddressGreaterThan(ref s2, ref Unsafe.Subtract(ref s2Limit, 7)))
+                    {
+                        data = Helpers.UnsafeReadUInt64(ref s2);
+                    }
+
+                    return ((int)matched, matched < 8);
+                }
+            }
+
+            return ((int)matched, matched < 8);
         }
 
         #endregion

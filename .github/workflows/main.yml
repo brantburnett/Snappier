@@ -43,14 +43,15 @@ jobs:
     - name: Test
       run: |
         export COMPlus_Enable${{ matrix.disable }}=0 && \
-        dotnet test --no-build -f ${{ matrix.framework }} --configuration Release --verbosity normal --logger "trx;LogFileName=results.trx"
+        dotnet test --no-build -f ${{ matrix.framework }} --configuration Release --verbosity normal --logger "trx;LogFileName=results.trx" && \
+        dotnet test --runtime linux-x86 -f ${{ matrix.framework }} --configuration Release --verbosity normal --logger "trx;LogFileName=results-x86.trx"
 
     - name: Test Report
       uses: dorny/test-reporter@v1
       if: success() || failure() # run this step even if previous step failed
       with:
         name: Unit Tests ${{ matrix.framework }} ${{ matrix.disable }}
-        path: "**/results.trx"
+        path: "**/results*.trx"
         reporter: dotnet-trx
 
   publish:
