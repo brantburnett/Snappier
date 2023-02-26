@@ -48,17 +48,17 @@ namespace Snappier
         /// </remarks>
         public static IMemoryOwner<byte> CompressToMemory(ReadOnlySpan<byte> input)
         {
-            var buffer = MemoryPool<byte>.Shared.Rent(GetMaxCompressedLength(input.Length));
+            byte[] buffer = ArrayPool<byte>.Shared.Rent(GetMaxCompressedLength(input.Length));
 
             try
             {
-                var length = Compress(input, buffer.Memory.Span);
+                int length = Compress(input, buffer);
 
-                return new SlicedMemoryOwner(buffer, length);
+                return new ByteArrayPoolMemoryOwner(buffer, length);
             }
             catch
             {
-                buffer.Dispose();
+                ArrayPool<byte>.Shared.Return(buffer);
                 throw;
             }
         }
