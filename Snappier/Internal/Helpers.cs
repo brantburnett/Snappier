@@ -221,5 +221,28 @@ namespace Snappier.Internal
             return rc;
 #endif
         }
+
+        /// <summary>
+        /// Finds the index of the least significant non-zero bit.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int FindLsbSetNonZero(ulong n)
+        {
+            Debug.Assert(n != 0);
+
+#if NET6_0_OR_GREATER
+            return BitOperations.TrailingZeroCount(n);
+#else
+            uint bottomBits = unchecked((uint)n);
+            if (bottomBits == 0)
+            {
+                return 32 + FindLsbSetNonZero(unchecked((uint)(n >> 32)));
+            }
+            else
+            {
+                return FindLsbSetNonZero(bottomBits);
+            }
+#endif
+        }
     }
 }
