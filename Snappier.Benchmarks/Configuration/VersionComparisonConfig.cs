@@ -41,7 +41,7 @@ namespace Snappier.Benchmarks.Configuration
             WithOrderer(VersionComparisonOrderer.Default);
 
             AddColumn(PgoColumn.Default);
-            HideColumns(Column.EnvironmentVariables);
+            HideColumns(Column.EnvironmentVariables, Column.Job);
         }
 
         private class VersionComparisonOrderer : IOrderer
