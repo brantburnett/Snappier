@@ -29,20 +29,16 @@ namespace Snappier.Internal
         {
             Debug.Assert(_decompressor != null);
 
-            Constants.ChunkType? chunkType = _chunkType;
-            int chunkSize = _chunkSize;
-            int chunkBytesProcessed = _chunkBytesProcessed;
-
             ReadOnlySpan<byte> input = _input.Span;
 
             // Cache this to use later to calculate the total bytes written
             int originalBufferLength = buffer.Length;
 
             while (buffer.Length > 0
-                   && (input.Length > 0 || (chunkType == Constants.ChunkType.CompressedData && _decompressor.AllDataDecompressed)))
+                   && (input.Length > 0 || (_chunkType == Constants.ChunkType.CompressedData && _decompressor.AllDataDecompressed)))
             {
                 // ReSharper disable once SwitchStatementHandlesSomeKnownEnumValuesWithDefault
-                switch (chunkType)
+                switch (_chunkType)
                 {
                     case null:
                         // Not in a chunk, read the chunk type and size
@@ -52,32 +48,32 @@ namespace Snappier.Internal
                         if (rawChunkHeader == 0)
                         {
                             // Not enough data, get some more
-                            break;
+                            goto exit;
                         }
 
-                        chunkType = (Constants.ChunkType) (rawChunkHeader & 0xff);
-                        chunkSize = unchecked((int)(rawChunkHeader >> 8));
-                        chunkBytesProcessed = 0;
+                        _chunkType = (Constants.ChunkType) (rawChunkHeader & 0xff);
+                        _chunkSize = unchecked((int)(rawChunkHeader >> 8));
+                        _chunkBytesProcessed = 0;
                         _scratchLength = 0;
                         _chunkCrc = 0;
                         break;
 
                     case Constants.ChunkType.CompressedData:
                     {
-                        if (chunkBytesProcessed < 4)
+                        if (_chunkBytesProcessed < 4)
                         {
                             _decompressor.Reset();
 
-                            if (!ReadChunkCrc(ref input, ref chunkBytesProcessed))
+                            if (!ReadChunkCrc(ref input))
                             {
                                 // Incomplete CRC
-                                break;
+                                goto exit;
                             }
 
                             if (input.Length == 0)
                             {
                                 // No more data
-                                break;
+                                goto exit;
                             }
                         }
 
@@ -88,15 +84,15 @@ namespace Snappier.Internal
                                 if (input.Length == 0)
                                 {
                                     // No more data to give
-                                    break;
+                                    goto exit;
                                 }
 
-                                int availableChunkBytes = Math.Min(input.Length, chunkSize - chunkBytesProcessed);
+                                int availableChunkBytes = Math.Min(input.Length, _chunkSize - _chunkBytesProcessed);
                                 Debug.Assert(availableChunkBytes > 0);
 
                                 _decompressor.Decompress(input.Slice(0, availableChunkBytes));
 
-                                chunkBytesProcessed += availableChunkBytes;
+                                _chunkBytesProcessed += availableChunkBytes;
                                 input = input.Slice(availableChunkBytes);
                             }
 
@@ -110,12 +106,12 @@ namespace Snappier.Internal
                         if (_decompressor.EndOfFile)
                         {
                             // Completed reading the chunk
-                            chunkType = null;
+                            _chunkType = null;
 
                             uint crc = Crc32CAlgorithm.ApplyMask(_chunkCrc);
                             if (_expectedChunkCrc != crc)
                             {
-                                throw new InvalidDataException("Chunk CRC mismatch.");
+                                ThrowHelper.ThrowInvalidDataException("Chunk CRC mismatch.");
                             }
                         }
 
@@ -124,23 +120,23 @@ namespace Snappier.Internal
 
                     case Constants.ChunkType.UncompressedData:
                     {
-                        if (chunkBytesProcessed < 4)
+                        if (_chunkBytesProcessed < 4)
                         {
-                            if (!ReadChunkCrc(ref input, ref chunkBytesProcessed))
+                            if (!ReadChunkCrc(ref input))
                             {
                                 // Incomplete CRC
-                                break;
+                                goto exit;
                             }
 
                             if (input.Length == 0)
                             {
                                 // No more data
-                                break;
+                                goto exit;
                             }
                         }
 
                         int chunkBytes = unchecked(Math.Min(Math.Min(buffer.Length, input.Length),
-                            chunkSize - chunkBytesProcessed));
+                            _chunkSize - _chunkBytesProcessed));
 
                         input.Slice(0, chunkBytes).CopyTo(buffer);
 
@@ -148,17 +144,17 @@ namespace Snappier.Internal
 
                         buffer = buffer.Slice(chunkBytes);
                         input = input.Slice(chunkBytes);
-                        chunkBytesProcessed += chunkBytes;
+                        _chunkBytesProcessed += chunkBytes;
 
-                        if (chunkBytesProcessed >= chunkSize)
+                        if (_chunkBytesProcessed >= _chunkSize)
                         {
                             // Completed reading the chunk
-                            chunkType = null;
+                            _chunkType = null;
 
                             uint crc = Crc32CAlgorithm.ApplyMask(_chunkCrc);
                             if (_expectedChunkCrc != crc)
                             {
-                                throw new InvalidDataException("Chunk CRC mismatch.");
+                                ThrowHelper.ThrowInvalidDataException("Chunk CRC mismatch.");
                             }
                         }
 
@@ -167,20 +163,20 @@ namespace Snappier.Internal
 
                     default:
                     {
-                        if (chunkType < Constants.ChunkType.SkippableChunk)
+                        if (_chunkType < Constants.ChunkType.SkippableChunk)
                         {
-                            throw new InvalidDataException($"Unknown chunk type {(int) chunkType:x}");
+                            ThrowHelper.ThrowInvalidDataException($"Unknown chunk type {(int) _chunkType:x}");
                         }
 
-                        int chunkBytes = Math.Min(input.Length, chunkSize - chunkBytesProcessed);
+                        int chunkBytes = Math.Min(input.Length, _chunkSize - _chunkBytesProcessed);
 
                         input = input.Slice(chunkBytes);
-                        chunkBytesProcessed += chunkBytes;
+                        _chunkBytesProcessed += chunkBytes;
 
-                        if (chunkBytesProcessed >= chunkSize)
+                        if (_chunkBytesProcessed >= _chunkSize)
                         {
                             // Completed reading the chunk
-                            chunkType = null;
+                            _chunkType = null;
                         }
 
                         break;
@@ -188,10 +184,9 @@ namespace Snappier.Internal
                 }
             }
 
-            _chunkType = chunkType;
-            _chunkSize = chunkSize;
-            _chunkBytesProcessed = chunkBytesProcessed;
-
+            // We use a label and goto exit to avoid an unnecessary comparison on the while loop clause before
+            // exiting the loop in cases where we know we're done processing data.
+            exit:
             _input = _input.Slice(_input.Length - input.Length);
             return originalBufferLength - buffer.Length;
         }
@@ -248,26 +243,26 @@ namespace Snappier.Internal
         /// _scratch for subsequent reads. Should not be called if chunkByteProcessed >= 4.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private bool ReadChunkCrc(ref ReadOnlySpan<byte> input, ref int chunkBytesProcessed)
+        private bool ReadChunkCrc(ref ReadOnlySpan<byte> input)
         {
-            Debug.Assert(chunkBytesProcessed < 4);
+            Debug.Assert(_chunkBytesProcessed < 4);
 
-            if (chunkBytesProcessed == 0 && input.Length >= 4)
+            if (_chunkBytesProcessed == 0 && input.Length >= 4)
             {
                 // Common fast path
 
                 _expectedChunkCrc = BinaryPrimitives.ReadUInt32LittleEndian(input);
                 input = input.Slice(4);
-                chunkBytesProcessed += 4;
+                _chunkBytesProcessed += 4;
                 return true;
             }
 
             // Copy to scratch
-            int crcBytesAvailable = Math.Min(input.Length, 4 - chunkBytesProcessed);
+            int crcBytesAvailable = Math.Min(input.Length, 4 - _chunkBytesProcessed);
             input.Slice(0, crcBytesAvailable).CopyTo(_scratch.AsSpan(_scratchLength));
             _scratchLength += crcBytesAvailable;
             input = input.Slice(crcBytesAvailable);
-            chunkBytesProcessed += crcBytesAvailable;
+            _chunkBytesProcessed += crcBytesAvailable;
 
             if (_scratchLength >= 4)
             {

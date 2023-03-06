@@ -64,7 +64,7 @@ namespace Snappier.Benchmarks.Configuration
 
             public string GetLogicalGroupKey(ImmutableArray<BenchmarkCase> allBenchmarksCases,
                 BenchmarkCase benchmarkCase) =>
-                $"{benchmarkCase.Job.Environment.Runtime.MsBuildMoniker}-Pgo={(PgoColumn.IsPgo(benchmarkCase) ? "Y" : "N")}";
+                $"{benchmarkCase.Job.Environment.Runtime.MsBuildMoniker}-Pgo={(PgoColumn.IsPgo(benchmarkCase) ? "Y" : "N")}-{benchmarkCase.Descriptor.MethodIndex}";
 
             public IEnumerable<IGrouping<string, BenchmarkCase>> GetLogicalGroupOrder(
                 IEnumerable<IGrouping<string, BenchmarkCase>> logicalGroups,
