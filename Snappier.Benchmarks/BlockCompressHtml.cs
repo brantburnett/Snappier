@@ -15,7 +15,7 @@ namespace Snappier.Benchmarks
             using var resource =
                 typeof(BlockCompressHtml).Assembly.GetManifestResourceStream("Snappier.Benchmarks.TestData.html");
 
-            byte[] input = new byte[resource!.Length];
+            byte[] input = new byte[65536]; // Just test the first 64KB
             int inputLength = resource!.Read(input, 0, input.Length);
             _input = input.AsMemory(0, inputLength);
 
