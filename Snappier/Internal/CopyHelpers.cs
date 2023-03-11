@@ -2,9 +2,9 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 #if NET6_0_OR_GREATER
+using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics;
 using System.Runtime.Intrinsics.X86;
-using static System.Runtime.Intrinsics.X86.Sse2;
 using static System.Runtime.Intrinsics.X86.Ssse3;
 #endif
 
@@ -12,28 +12,41 @@ namespace Snappier.Internal
 {
     internal class CopyHelpers
     {
-        #if NET6_0_OR_GREATER
+#if NET6_0_OR_GREATER
+
+        // Raw bytes for PshufbFillPatterns. This syntax returns a ReadOnlySpan<byte> that references
+        // directly to the static data within the DLL. This is only supported with bytes due to things
+        // like byte-ordering on various architectures, so we can reference Vector128<byte> directly.
+        // It is however safe to convert to Vector128<byte> so we'll do that below with some casts
+        // that are elided by JIT.
+        private static ReadOnlySpan<byte> PshufbFillPatternsAsBytes => new byte[] {
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // Never referenced, here for padding
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
+            0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0,
+            0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3,
+            0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 0,
+            0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5, 0, 1, 2, 3,
+            0, 1, 2, 3, 4, 5, 6, 0, 1, 2, 3, 4, 5, 6, 0, 1
+        };
 
         /// <summary>
         /// This is a table of shuffle control masks that can be used as the source
         /// operand for PSHUFB to permute the contents of the destination XMM register
         /// into a repeating byte pattern.
         /// </summary>
-        private static readonly Vector128<byte>[] PshufbFillPatterns = {
-            Vector128<byte>.Zero, // Never referenced, here for padding
-            Vector128.Create((byte) 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
-            Vector128.Create((byte) 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1),
-            Vector128.Create((byte) 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0),
-            Vector128.Create((byte) 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3),
-            Vector128.Create((byte) 0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 0),
-            Vector128.Create((byte) 0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5, 0, 1, 2, 3),
-            Vector128.Create((byte) 0, 1, 2, 3, 4, 5, 6, 0, 1, 2, 3, 4, 5, 6, 0, 1)
-        };
+        private static ReadOnlySpan<Vector128<byte>> PshufbFillPatterns
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => MemoryMarshal.CreateReadOnlySpan(
+                reference: ref Unsafe.As<byte, Vector128<byte>>(ref MemoryMarshal.GetReference(PshufbFillPatternsAsBytes)),
+                length: 8);
+        }
 
         /// <summary>
         /// j * (16 / j) for all j from 0 to 7. 0 is not actually used.
         /// </summary>
-        private static readonly byte[] PatternSizeTable = {0, 16, 16, 15, 16, 15, 12, 14};
+        private static ReadOnlySpan<byte> PatternSizeTable => new byte[] {0, 16, 16, 15, 16, 15, 12, 14};
 
 #endif
 

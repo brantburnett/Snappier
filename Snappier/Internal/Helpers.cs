@@ -45,7 +45,7 @@ namespace Snappier.Internal
             return 32 + sourceBytes + sourceBytes / 6 + 1;
         }
 
-        private static readonly byte[] LeftShiftOverflowsMasks =
+        private static ReadOnlySpan<byte> LeftShiftOverflowsMasks => new byte[]
         {
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
