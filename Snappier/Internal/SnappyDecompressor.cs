@@ -186,17 +186,11 @@ namespace Snappier.Internal
             unchecked
             {
                 ref byte input = ref Unsafe.AsRef(in inputSpan[0]);
-
-                // The reference Snappy implementation uses inputEnd as a pointer one byte past the end of the buffer.
-                // However, this is not safe when using ref locals. The ref must point to somewhere within the array
-                // so that GC can adjust the ref if the memory is moved.
-                ref byte inputEnd = ref Unsafe.Add(ref input, inputSpan.Length - 1);
+                ref byte inputEnd = ref Unsafe.Add(ref input, inputSpan.Length);
 
                 // Track the point in the input before which input is guaranteed to have at least Constants.MaxTagLength bytes left
-                ref byte inputLimitMinMaxTagLength = ref Unsafe.Subtract(ref inputEnd, Math.Min(inputSpan.Length, Constants.MaximumTagLength - 1) - 1);
+                ref byte inputLimitMinMaxTagLength = ref Unsafe.Subtract(ref inputEnd, Math.Min(inputSpan.Length, Constants.MaximumTagLength - 1));
 
-                // We always allocate buffer with at least one extra byte on the end, so bufferEnd doesn't have the same
-                // restrictions as inputEnd.
                 ref byte buffer = ref _lookbackBuffer.Span[0];
                 ref byte bufferEnd = ref Unsafe.Add(ref buffer, _lookbackBuffer.Length);
                 ref byte op = ref Unsafe.Add(ref buffer, _lookbackPosition);
@@ -239,9 +233,9 @@ namespace Snappier.Internal
                     {
                         // Data has been moved to the scratch buffer
                         input = ref scratch;
-                        inputEnd = ref Unsafe.Add(ref input, newScratchLength - 1);
+                        inputEnd = ref Unsafe.Add(ref input, newScratchLength);
                         inputLimitMinMaxTagLength = ref Unsafe.Subtract(ref inputEnd,
-                            Math.Min(newScratchLength, Constants.MaximumTagLength - 1) - 1);
+                            Math.Min(newScratchLength, Constants.MaximumTagLength - 1));
                     }
                 }
 
@@ -256,7 +250,7 @@ namespace Snappier.Internal
                     {
                         nint literalLength = unchecked((c >> 2) + 1);
 
-                        if (TryFastAppend(ref op, ref bufferEnd, in input, Unsafe.ByteOffset(ref input, ref inputEnd) + 1, literalLength))
+                        if (TryFastAppend(ref op, ref bufferEnd, in input, Unsafe.ByteOffset(ref input, ref inputEnd), literalLength))
                         {
                             Debug.Assert(literalLength < 61);
                             op = ref Unsafe.Add(ref op, literalLength);
@@ -280,7 +274,7 @@ namespace Snappier.Internal
                             input = ref Unsafe.Add(ref input, literalLengthLength);
                         }
 
-                        nint inputRemaining = Unsafe.ByteOffset(ref input, ref inputEnd) + 1;
+                        nint inputRemaining = Unsafe.ByteOffset(ref input, ref inputEnd);
                         if (inputRemaining < literalLength)
                         {
                             Append(ref op, ref bufferEnd, in input, inputRemaining);
@@ -306,9 +300,9 @@ namespace Snappier.Internal
                                 {
                                     // Data has been moved to the scratch buffer
                                     input = ref scratch;
-                                    inputEnd = ref Unsafe.Add(ref input, newScratchLength - 1);
+                                    inputEnd = ref Unsafe.Add(ref input, newScratchLength);
                                     inputLimitMinMaxTagLength = ref Unsafe.Subtract(ref inputEnd,
-                                        Math.Min(newScratchLength, Constants.MaximumTagLength - 1) - 1);
+                                        Math.Min(newScratchLength, Constants.MaximumTagLength - 1));
 
                                 }
                             }
@@ -367,9 +361,9 @@ namespace Snappier.Internal
                             {
                                 // Data has been moved to the scratch buffer
                                 input = ref scratch;
-                                inputEnd = ref Unsafe.Add(ref input, newScratchLength - 1);
+                                inputEnd = ref Unsafe.Add(ref input, newScratchLength);
                                 inputLimitMinMaxTagLength = ref Unsafe.Subtract(ref inputEnd,
-                                    Math.Min(newScratchLength, Constants.MaximumTagLength - 1) - 1);
+                                    Math.Min(newScratchLength, Constants.MaximumTagLength - 1));
                             }
                         }
 
@@ -415,7 +409,7 @@ namespace Snappier.Internal
                         (int) literalLengthLength) + 1;
                 }
 
-                nint inputRemaining = Unsafe.ByteOffset(ref input, ref inputEnd) + 1;
+                nint inputRemaining = Unsafe.ByteOffset(ref input, ref inputEnd);
                 if (inputRemaining < literalLength)
                 {
                     Append(ref op, ref bufferEnd, in input, inputRemaining);
@@ -468,7 +462,7 @@ namespace Snappier.Internal
         {
             Debug.Assert(_scratchLength > 0);
 
-            if (Unsafe.IsAddressGreaterThan(ref input, ref inputEnd))
+            if (!Unsafe.IsAddressLessThan(ref input, ref inputEnd))
             {
                 return 0;
             }
@@ -477,7 +471,7 @@ namespace Snappier.Internal
             uint entry = Constants.CharTable[scratch];
             uint needed = (entry >> 11) + 1; // +1 byte for 'c'
 
-            uint toCopy = Math.Min((uint)Unsafe.ByteOffset(ref input, ref inputEnd) + 1, needed - _scratchLength);
+            uint toCopy = Math.Min((uint)Unsafe.ByteOffset(ref input, ref inputEnd), needed - _scratchLength);
             Unsafe.CopyBlockUnaligned(ref Unsafe.Add(ref scratch, _scratchLength), ref input, toCopy);
 
             _scratchLength += toCopy;
@@ -502,7 +496,7 @@ namespace Snappier.Internal
         // always have some extra bytes on the end so we don't risk buffer overruns.
         private uint RefillTag(ref byte input, ref byte inputEnd, ref byte scratch)
         {
-            if (Unsafe.IsAddressGreaterThan(ref input, ref inputEnd))
+            if (!Unsafe.IsAddressLessThan(ref input, ref inputEnd))
             {
                 return uint.MaxValue;
             }
@@ -511,7 +505,7 @@ namespace Snappier.Internal
             uint entry = Constants.CharTable[input];
             uint needed = (entry >> 11) + 1; // +1 byte for 'c'
 
-            uint inputLength = (uint)Unsafe.ByteOffset(ref input, ref inputEnd) + 1;
+            uint inputLength = (uint)Unsafe.ByteOffset(ref input, ref inputEnd);
             if (inputLength < needed)
             {
                 // Data is insufficient, copy to scratch
@@ -555,11 +549,8 @@ namespace Snappier.Internal
                         ArrayPool<byte>.Shared.Return(_lookbackBufferArray);
                     }
 
-                    // Always pad the lookback buffer with an extra byte that we don't use. This allows a "ref byte" reference past
-                    // the end of the perceived buffer that still points within the array. This is a requirement so that GC can recognize
-                    // the "ref byte" points within the array and adjust it if the array is moved.
-                    _lookbackBufferArray = ArrayPool<byte>.Shared.Rent(value.GetValueOrDefault() + 1);
-                    _lookbackBuffer = _lookbackBufferArray.AsMemory(0, _lookbackBufferArray.Length - 1);
+                    _lookbackBufferArray = ArrayPool<byte>.Shared.Rent(value.GetValueOrDefault());
+                    _lookbackBuffer = _lookbackBufferArray.AsMemory(0, _lookbackBufferArray.Length);
                 }
             }
         }
@@ -595,7 +586,7 @@ namespace Snappier.Internal
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void Append(ref byte op, ref byte bufferEnd, in byte input, nint length)
+        private static void Append(ref byte op, ref byte bufferEnd, in byte input, nint length)
         {
             if (length > Unsafe.ByteOffset(ref op, ref bufferEnd))
             {
@@ -606,7 +597,7 @@ namespace Snappier.Internal
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private bool TryFastAppend(ref byte op, ref byte bufferEnd, in byte input, nint available, nint length)
+        private static bool TryFastAppend(ref byte op, ref byte bufferEnd, in byte input, nint available, nint length)
         {
             if (length <= 16 && available >= 16 + Constants.MaximumTagLength &&
                 Unsafe.ByteOffset(ref op, ref bufferEnd) >= (nint) 16)
@@ -619,10 +610,9 @@ namespace Snappier.Internal
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void AppendFromSelf(ref byte op, ref byte buffer, ref byte bufferEnd, uint copyOffset, nint length)
+        private static void AppendFromSelf(ref byte op, ref byte buffer, ref byte bufferEnd, uint copyOffset, nint length)
         {
-            ref byte source = ref Unsafe.Subtract(ref op, copyOffset);
-            if (!Unsafe.IsAddressLessThan(ref source, ref op) || Unsafe.IsAddressLessThan(ref source, ref buffer))
+            if (copyOffset == 0 || Unsafe.ByteOffset(ref buffer, ref op) < (nint)copyOffset)
             {
                 ThrowHelper.ThrowInvalidDataException("Invalid copy offset");
             }
@@ -632,6 +622,7 @@ namespace Snappier.Internal
                 ThrowHelper.ThrowInvalidDataException("Data too long");
             }
 
+            ref byte source = ref Unsafe.Subtract(ref op, copyOffset);
             CopyHelpers.IncrementalCopy(ref source, ref op,
                 ref Unsafe.Add(ref op, length), ref bufferEnd);
         }

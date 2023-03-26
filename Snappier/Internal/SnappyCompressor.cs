@@ -125,8 +125,7 @@ namespace Snappier.Internal
                 uint mask = (uint)(2 * (tableSpan.Length - 1));
 
                 ref byte inputStart = ref Unsafe.AsRef(in input[0]);
-                // Last byte of the input, not one byte past the end, to avoid issues on GC moves
-                ref byte inputEnd = ref Unsafe.Add(ref inputStart, input.Length - 1);
+                ref byte inputEnd = ref Unsafe.Add(ref inputStart, input.Length);
                 ref byte ip = ref inputStart;
 
                 ref byte op = ref output[0];
@@ -134,7 +133,7 @@ namespace Snappier.Internal
 
                 if (input.Length >= Constants.InputMarginBytes)
                 {
-                    ref byte ipLimit = ref Unsafe.Subtract(ref inputEnd, Constants.InputMarginBytes - 1);
+                    ref byte ipLimit = ref Unsafe.Subtract(ref inputEnd, Constants.InputMarginBytes);
 
                     for (uint preload = Helpers.UnsafeReadUInt32(ref Unsafe.Add(ref ip, 1));;)
                     {
@@ -288,7 +287,7 @@ namespace Snappier.Internal
                         // Step 2: A 4-byte match has been found.  We'll later see if more
                         // than 4 bytes match.  But, prior to the match, input
                         // bytes [next_emit, ip) are unmatched.  Emit them as "literal bytes."
-                        Debug.Assert(!Unsafe.IsAddressGreaterThan(ref Unsafe.Add(ref nextEmit, 16), ref Unsafe.Add(ref inputEnd, 1)));
+                        Debug.Assert(!Unsafe.IsAddressGreaterThan(ref Unsafe.Add(ref nextEmit, 16), ref inputEnd));
                         op = ref EmitLiteralFast(ref op, ref nextEmit, (uint) Unsafe.ByteOffset(ref nextEmit, ref ip));
 
                         // Step 3: Call EmitCopy, and then see if another EmitCopy could
@@ -350,9 +349,9 @@ namespace Snappier.Internal
 
                 emit_remainder:
                 // Emit the remaining bytes as a literal
-                if (!Unsafe.IsAddressGreaterThan(ref ip, ref inputEnd))
+                if (Unsafe.IsAddressLessThan(ref ip, ref inputEnd))
                 {
-                    op = ref EmitLiteralSlow(ref op, ref ip, (uint) Unsafe.ByteOffset(ref ip, ref inputEnd) + 1);
+                    op = ref EmitLiteralSlow(ref op, ref ip, (uint) Unsafe.ByteOffset(ref ip, ref inputEnd));
                 }
 
                 return (int) Unsafe.ByteOffset(ref output[0], ref op);
@@ -490,28 +489,23 @@ namespace Snappier.Internal
         /// Find the largest n such that
         ///
         ///   s1[0,n-1] == s2[0,n-1]
-        ///   and n &lt;= (s2_limit - s2 + 1).
+        ///   and n &lt;= (s2_limit - s2).
         ///
         /// Return (n, n &lt; 8).
         /// Reads up to and including *s2_limit but not beyond.
-        /// Does not read *(s1 + (s2_limit - s2 + 1)) or beyond.
-        /// Requires that s2_limit+1 &gt;= s2.
+        /// Does not read *(s1 + (s2_limit - s2)) or beyond.
+        /// Requires that s2_limit &gt;= s2.
         ///
         /// In addition populate *data with the next 5 bytes from the end of the match.
         /// This is only done if 8 bytes are available (s2_limit - s2 &gt;= 8). The point is
         /// that on some arch's this can be done faster in this routine than subsequent
         /// loading from s2 + n.
         /// </summary>
-        /// <remarks>
-        /// The reference implementation has s2Limit as one byte past the end of the input,
-        /// but this implementation has it at the end of the input. This ensures that it always
-        /// points within the array in case GC moves the array.
-        /// </remarks>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static (int matchLength, bool matchLengthLessThan8) FindMatchLength(
             ref byte s1, ref byte s2, ref byte s2Limit, ref ulong data)
         {
-            Debug.Assert(!Unsafe.IsAddressLessThan(ref Unsafe.Add(ref s2Limit, 1), ref s2));
+            Debug.Assert(!Unsafe.IsAddressLessThan(ref s2Limit, ref s2));
 
             if (BitConverter.IsLittleEndian && IntPtr.Size == 8)
             {
@@ -521,14 +515,14 @@ namespace Snappier.Internal
 
             int matched = 0;
 
-            while (!Unsafe.IsAddressGreaterThan(ref s2, ref Unsafe.Subtract(ref s2Limit, 3))
+            while (Unsafe.ByteOffset(ref s2, ref s2Limit) >= (nint)4
                    && Helpers.UnsafeReadUInt32(ref s2) == Helpers.UnsafeReadUInt32(ref Unsafe.Add(ref s1, matched)))
             {
                 s2 = ref Unsafe.Add(ref s2, 4);
                 matched += 4;
             }
 
-            if (BitConverter.IsLittleEndian && !Unsafe.IsAddressGreaterThan(ref s2, ref Unsafe.Subtract(ref s2Limit, 3)))
+            if (BitConverter.IsLittleEndian && Unsafe.ByteOffset(ref s2, ref s2Limit) >= (nint)4)
             {
                 uint x = Helpers.UnsafeReadUInt32(ref s2) ^ Helpers.UnsafeReadUInt32(ref Unsafe.Add(ref s1, matched));
                 int matchingBits = Helpers.FindLsbSetNonZero(x);
@@ -537,14 +531,14 @@ namespace Snappier.Internal
             }
             else
             {
-                while (!Unsafe.IsAddressGreaterThan(ref s2, ref s2Limit) && Unsafe.Add(ref s1, matched) == s2)
+                while (Unsafe.IsAddressLessThan(ref s2, ref s2Limit) && Unsafe.Add(ref s1, matched) == s2)
                 {
                     s2 = ref Unsafe.Add(ref s2, 1);
                     ++matched;
                 }
             }
 
-            if (!Unsafe.IsAddressGreaterThan(ref s2, ref Unsafe.Subtract(ref s2Limit, 7)))
+            if (Unsafe.ByteOffset(ref s2, ref s2Limit) >= (nint)8)
             {
                 data = Helpers.UnsafeReadUInt64(ref s2);
             }
@@ -562,7 +556,7 @@ namespace Snappier.Internal
             // immediately.  As an optimization though, it is useful.  It creates some not
             // uncommon code paths that determine, without extra effort, whether the match
             // length is less than 8.
-            if (!Unsafe.IsAddressGreaterThan(ref s2, ref Unsafe.Subtract(ref s2Limit, 15)))
+            if (Unsafe.ByteOffset(ref s2, ref s2Limit) >= (nint)16)
             {
                 ulong a1 = Helpers.UnsafeReadUInt64(ref s1);
                 ulong a2 = Helpers.UnsafeReadUInt64(ref s2);
@@ -590,7 +584,7 @@ namespace Snappier.Internal
             // time until we find a 64-bit block that doesn't match; then we find
             // the first non-matching bit and use that to calculate the total
             // length of the match.
-            while (!Unsafe.IsAddressGreaterThan(ref s2, ref Unsafe.Subtract(ref s2Limit, 15)))
+            while (Unsafe.ByteOffset(ref s2, ref s2Limit) >= (nint)16)
             {
                 ulong a1 = Helpers.UnsafeReadUInt64(ref Unsafe.Add(ref s1, matched));
                 ulong a2 = Helpers.UnsafeReadUInt64(ref s2);
@@ -615,7 +609,7 @@ namespace Snappier.Internal
                 }
             }
 
-            while (!Unsafe.IsAddressGreaterThan(ref s2, ref s2Limit))
+            while (Unsafe.IsAddressLessThan(ref s2, ref s2Limit))
             {
                 if (Unsafe.Add(ref s1, matched) == s2)
                 {
@@ -624,7 +618,7 @@ namespace Snappier.Internal
                 }
                 else
                 {
-                    if (!Unsafe.IsAddressGreaterThan(ref s2, ref Unsafe.Subtract(ref s2Limit, 7)))
+                    if (Unsafe.ByteOffset(ref s2, ref s2Limit) >= (nint)8)
                     {
                         data = Helpers.UnsafeReadUInt64(ref s2);
                     }

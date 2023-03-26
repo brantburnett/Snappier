@@ -64,7 +64,7 @@ namespace Snappier.Benchmarks
 
             ref byte s1 = ref _array[0];
             ref byte s2 = ref Unsafe.Add(ref s1, 12);
-            ref byte s2Limit = ref Unsafe.Add(ref s1, _array.Length - 1);
+            ref byte s2Limit = ref Unsafe.Add(ref s1, _array.Length);
 
             return SnappyCompressor.FindMatchLength(ref s1, ref s2, ref s2Limit, ref data);
         }

@@ -92,7 +92,7 @@ namespace Snappier.Tests.Internal
             ref byte s2 = ref Unsafe.Add(ref s1, s1String.Length);
 
             var result =
-                SnappyCompressor.FindMatchLength(ref s1, ref s2, ref Unsafe.Add(ref s2, length - 1), ref data);
+                SnappyCompressor.FindMatchLength(ref s1, ref s2, ref Unsafe.Add(ref s2, length), ref data);
 
             Assert.Equal(result.matchLength < 8, result.matchLengthLessThan8);
             Assert.Equal(expectedResult, result.matchLength);
