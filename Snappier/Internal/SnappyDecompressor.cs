@@ -612,7 +612,11 @@ namespace Snappier.Internal
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void AppendFromSelf(ref byte op, ref byte buffer, ref byte bufferEnd, uint copyOffset, nint length)
         {
-            if (copyOffset == 0 || Unsafe.ByteOffset(ref buffer, ref op) < (nint)copyOffset)
+            // ToInt64() ensures that this logic works correctly on x86 (with a slight perf hit on x86, though). This is because
+            // nint is only 32-bit on x86, so casting uint copyOffset to an nint for the comparison can result in a negative number with some
+            // forms of illegal data. This would then bypass the exception and cause unsafe memory access. Performing the comparison
+            // as a long ensures we have enough bits to not lose data. On 64-bit platforms this is effectively a no-op.
+            if (copyOffset == 0 || Unsafe.ByteOffset(ref buffer, ref op).ToInt64() < copyOffset)
             {
                 ThrowHelper.ThrowInvalidDataException("Invalid copy offset");
             }
