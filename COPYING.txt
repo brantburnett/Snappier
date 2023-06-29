@@ -1,4 +1,4 @@
-Copyright 2011-2020, Snappier Authors
+Copyright 2011-2020, Google, Inc. and Snappier Authors
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -11,9 +11,9 @@ notice, this list of conditions and the following disclaimer.
 copyright notice, this list of conditions and the following disclaimer
 in the documentation and/or other materials provided with the
 distribution.
-    * Neither the name of Google Inc. nor the names of its
-contributors may be used to endorse or promote products derived from
-this software without specific prior written permission.
+    * Neither the name of Google, Inc., any Snappier authors, nor the 
+names of its contributors may be used to endorse or promote products 
+derived from this software without specific prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
@@ -45,7 +45,7 @@ Some of the benchmark data in testdata/ is licensed differently:
    “Combinatorial Modeling of Chromatin Features Quantitatively Predicts DNA
    Replication Timing in _Drosophila_” by Federico Comoglio and Renato Paro,
    which is licensed under the CC-BY license. See
-   http://www.ploscompbiol.org/static/license for more ifnormation.
+   http://www.ploscompbiol.org/static/license for more information.
 
  - alice29.txt, asyoulik.txt, plrabn12.txt and lcet10.txt are from Project
    Gutenberg. The first three have expired copyrights and are in the public
