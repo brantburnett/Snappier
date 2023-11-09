@@ -46,12 +46,11 @@ jobs:
         dotnet test --no-build -f ${{ matrix.framework }} --configuration Release --verbosity normal --logger "trx;LogFileName=results.trx"
 
     - name: Test Report
-      uses: dorny/test-reporter@v1
+      uses: actions/upload-artifact@v3
       if: success() || failure() # run this step even if previous step failed
       with:
-        name: Unit Tests ${{ matrix.framework }} ${{ matrix.disable }}
+        name: test-results-${{ matrix.framework }}-${{ matrix.disable }}
         path: "**/results.trx"
-        reporter: dotnet-trx
 
   test-windows:
 
@@ -79,19 +78,17 @@ jobs:
         dotnet test --runtime win10-x86 -f net48 --configuration Release --verbosity normal --logger "trx;LogFileName=results-x86.trx"
 
     - name: Test Report x64
-      uses: dorny/test-reporter@v1
+      uses: actions/upload-artifact@v3
       if: success() || failure() # run this step even if previous step failed
       with:
-        name: Unit Tests Windows x64
+        name: tests-results-windows-x64
         path: "**/results-x64.trx"
-        reporter: dotnet-trx
     - name: Test Report x86
-      uses: dorny/test-reporter@v1
+      uses: actions/upload-artifact@v3
       if: success() || failure() # run this step even if previous step failed
       with:
-        name: Unit Tests Windows x86
+        name: test-results-windows-x86
         path: "**/results-x86.trx"
-        reporter: dotnet-trx
 
   publish:
 
