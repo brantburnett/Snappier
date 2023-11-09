@@ -81,7 +81,7 @@ jobs:
       uses: actions/upload-artifact@v3
       if: success() || failure() # run this step even if previous step failed
       with:
-        name: tests-results-windows-x64
+        name: test-results-windows-x64
         path: "**/results-x64.trx"
     - name: Test Report x86
       uses: actions/upload-artifact@v3
