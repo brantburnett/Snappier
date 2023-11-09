@@ -25,7 +25,7 @@ namespace Snappier.Internal
             var maxFragmentSize = Math.Min(inputSize, (int) Constants.BlockSize);
             var tableSize = CalculateTableSize(maxFragmentSize);
 
-            if (_buffer is null || tableSize < _buffer.Length)
+            if (_buffer is null || tableSize > _buffer.Length)
             {
                 if (_buffer is not null)
                 {
