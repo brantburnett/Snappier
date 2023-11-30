@@ -2,11 +2,11 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFrameworks>net48;net6.0;net7.0</TargetFrameworks>
+    <TargetFrameworks>net48;net6.0;net7.0;net8.0</TargetFrameworks>
     <PlatformTarget>AnyCPU</PlatformTarget>
 
     <IsPackable>false</IsPackable>
-    <LangVersion>11</LangVersion>
+    <LangVersion>12</LangVersion>
     <SignAssembly>true</SignAssembly>
     <AssemblyOriginatorKeyFile>..\Snappier.snk</AssemblyOriginatorKeyFile>
     <NoWarn>$(NoWarn);8002</NoWarn> <!-- Don't nag about Snappy.NET not being strong named -->
@@ -21,8 +21,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="BenchmarkDotNet" Version="0.13.4" />
-    <PackageReference Include="BenchmarkDotNet.Diagnostics.Windows" Version="0.13.4" />
+    <PackageReference Include="BenchmarkDotNet" Version="0.13.10" />
+    <PackageReference Include="BenchmarkDotNet.Diagnostics.Windows" Version="0.13.10" />
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
