@@ -237,14 +237,14 @@ namespace Snappier.Internal
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void UnalignedCopy64(in byte source, ref byte destination)
         {
-            long tempStackVar = Unsafe.As<byte, long>(ref Unsafe.AsRef(source));
+            long tempStackVar = Unsafe.As<byte, long>(ref Unsafe.AsRef(in source));
             Unsafe.As<byte, long>(ref destination) = tempStackVar;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void UnalignedCopy128(in byte source, ref byte destination)
         {
-            Guid tempStackVar = Unsafe.As<byte, Guid>(ref Unsafe.AsRef(source));
+            Guid tempStackVar = Unsafe.As<byte, Guid>(ref Unsafe.AsRef(in source));
             Unsafe.As<byte, Guid>(ref destination) = tempStackVar;
         }
     }
