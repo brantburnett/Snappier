@@ -74,8 +74,8 @@ jobs:
       run: dotnet restore
     - name: Test
       run: |-
-        dotnet test --runtime win10-x64 -f net48 --configuration Release --verbosity normal --logger "trx;LogFileName=results-x64.trx"
-        dotnet test --runtime win10-x86 -f net48 --configuration Release --verbosity normal --logger "trx;LogFileName=results-x86.trx"
+        dotnet test --runtime win-x64 -f net48 --configuration Release --verbosity normal --logger "trx;LogFileName=results-x64.trx"
+        dotnet test --runtime win-x86 -f net48 --configuration Release --verbosity normal --logger "trx;LogFileName=results-x86.trx"
 
     - name: Test Report x64
       uses: actions/upload-artifact@v3
