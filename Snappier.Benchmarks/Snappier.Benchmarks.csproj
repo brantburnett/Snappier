@@ -33,7 +33,7 @@
     <ProjectReference Include="..\Snappier\Snappier.csproj" />
   </ItemGroup>
   <ItemGroup Condition=" '$(Configuration)' == 'Previous' ">
-    <PackageReference Include="Snappier" Version="1.0.0" />
+    <PackageReference Include="Snappier" Version="1.1.3" />
 
     <Compile Remove="FindMatchLength.cs" />
     <Compile Remove="IncrementalCopy.cs" />

@@ -20,23 +20,23 @@ namespace Snappier.Benchmarks.Configuration
 
             var jobBefore48 = jobBefore.WithRuntime(ClrRuntime.Net48).AsBaseline();
             var jobBefore60 = jobBefore.WithRuntime(CoreRuntime.Core60).AsBaseline();
-            var jobBefore70 = jobBefore.WithRuntime(CoreRuntime.Core70).AsBaseline();
-            var jobBefore70Pgo = jobBefore70.WithPgo();
+            var jobBefore80 = jobBefore.WithRuntime(CoreRuntime.Core80).AsBaseline();
+            var jobBefore80Pgo = jobBefore80.WithPgo();
 
             var jobAfter48 = baseJob.WithRuntime(ClrRuntime.Net48);
             var jobAfter60 = baseJob.WithRuntime(CoreRuntime.Core60);
-            var jobAfter70 = baseJob.WithRuntime(CoreRuntime.Core70);
-            var jobAfter70Pgo = jobAfter70.WithPgo();
+            var jobAfter80 = baseJob.WithRuntime(CoreRuntime.Core80);
+            var jobAfter80Pgo = jobAfter80.WithPgo();
 
             AddJob(jobBefore48);
             AddJob(jobBefore60);
-            AddJob(jobBefore70);
-            AddJob(jobBefore70Pgo);
+            AddJob(jobBefore80);
+            AddJob(jobBefore80Pgo);
 
             AddJob(jobAfter48);
             AddJob(jobAfter60);
-            AddJob(jobAfter70);
-            AddJob(jobAfter70Pgo);
+            AddJob(jobAfter80);
+            AddJob(jobAfter80Pgo);
 
             WithOrderer(VersionComparisonOrderer.Default);
 
@@ -53,8 +53,8 @@ namespace Snappier.Benchmarks.Configuration
                 benchmarksCase
                     .OrderBy(p => p.Job.Environment.Runtime.MsBuildMoniker)
                     .ThenBy(p => PgoColumn.IsPgo(p) ? 1 : 0)
-                    .ThenBy(p => p.DisplayInfo)
-                    .ThenBy(p => !p.Descriptor.Baseline);
+                    .ThenBy(p => !p.Descriptor.Baseline)
+                    .ThenBy(p => p.DisplayInfo);
 
             public IEnumerable<BenchmarkCase> GetSummaryOrder(ImmutableArray<BenchmarkCase> benchmarksCases,
                 Summary summary) =>
