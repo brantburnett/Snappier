@@ -14,11 +14,14 @@ namespace Snappier.Internal
 
         private const uint Poly = 0x82F63B78u;
 
+#pragma warning disable IDE1006
+        // ReSharper disable once InconsistentNaming
         private static readonly uint[] Table;
+#pragma warning restore IDE1006
 
         static Crc32CAlgorithm()
         {
-            var table = new uint[16 * 256];
+            uint[] table = new uint[16 * 256];
             for (uint i = 0; i < 256; i++)
             {
                 uint res = i;
@@ -118,25 +121,25 @@ namespace Snappier.Internal
             uint[] table = Table;
             while (source.Length >= 16)
             {
-                var a = table[(3 * 256) + source[12]]
-                        ^ table[(2 * 256) + source[13]]
-                        ^ table[(1 * 256) + source[14]]
-                        ^ table[(0 * 256) + source[15]];
+                uint a = table[(3 * 256) + source[12]]
+                         ^ table[(2 * 256) + source[13]]
+                         ^ table[(1 * 256) + source[14]]
+                         ^ table[(0 * 256) + source[15]];
 
-                var b = table[(7 * 256) + source[8]]
-                        ^ table[(6 * 256) + source[9]]
-                        ^ table[(5 * 256) + source[10]]
-                        ^ table[(4 * 256) + source[11]];
+                uint b = table[(7 * 256) + source[8]]
+                         ^ table[(6 * 256) + source[9]]
+                         ^ table[(5 * 256) + source[10]]
+                         ^ table[(4 * 256) + source[11]];
 
-                var c = table[(11 * 256) + source[4]]
-                        ^ table[(10 * 256) + source[5]]
-                        ^ table[(9 * 256) + source[6]]
-                        ^ table[(8 * 256) + source[7]];
+                uint c = table[(11 * 256) + source[4]]
+                         ^ table[(10 * 256) + source[5]]
+                         ^ table[(9 * 256) + source[6]]
+                         ^ table[(8 * 256) + source[7]];
 
-                var d = table[(15 * 256) + ((byte)crcLocal ^ source[0])]
-                        ^ table[(14 * 256) + ((byte)(crcLocal >> 8) ^ source[1])]
-                        ^ table[(13 * 256) + ((byte)(crcLocal >> 16) ^ source[2])]
-                        ^ table[(12 * 256) + ((crcLocal >> 24) ^ source[3])];
+                uint d = table[(15 * 256) + ((byte)crcLocal ^ source[0])]
+                         ^ table[(14 * 256) + ((byte)(crcLocal >> 8) ^ source[1])]
+                         ^ table[(13 * 256) + ((byte)(crcLocal >> 16) ^ source[2])]
+                         ^ table[(12 * 256) + ((crcLocal >> 24) ^ source[3])];
 
                 crcLocal = d ^ c ^ b ^ a;
                 source = source.Slice(16);

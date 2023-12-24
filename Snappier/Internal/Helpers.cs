@@ -45,13 +45,13 @@ namespace Snappier.Internal
             return 32 + sourceBytes + sourceBytes / 6 + 1;
         }
 
-        private static ReadOnlySpan<byte> LeftShiftOverflowsMasks => new byte[]
-        {
+        private static ReadOnlySpan<byte> LeftShiftOverflowsMasks =>
+        [
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             0x00, 0x80, 0xc0, 0xe0, 0xf0, 0xf8, 0xfc, 0xfe
-        };
+        ];
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool LeftShiftOverflows(byte value, int shift) =>
@@ -80,7 +80,7 @@ namespace Snappier.Internal
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static uint UnsafeReadUInt32(ref byte ptr)
         {
-            var result = Unsafe.ReadUnaligned<uint>(ref ptr);
+            uint result = Unsafe.ReadUnaligned<uint>(ref ptr);
             if (!BitConverter.IsLittleEndian)
             {
                 result = BinaryPrimitives.ReverseEndianness(result);
@@ -92,7 +92,7 @@ namespace Snappier.Internal
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ulong UnsafeReadUInt64(ref byte ptr)
         {
-            var result = Unsafe.ReadUnaligned<ulong>(ref ptr);
+            ulong result = Unsafe.ReadUnaligned<ulong>(ref ptr);
             if (!BitConverter.IsLittleEndian)
             {
                 result = BinaryPrimitives.ReverseEndianness(result);
@@ -133,13 +133,13 @@ namespace Snappier.Internal
         // or BitOperations. This is the same algorithm used by BitOperations.Log2 when hardware acceleration is unavailable.
         // https://github.com/dotnet/runtime/blob/bee217ffbdd6b3ad60b0e1e17c6370f4bb618779/src/libraries/System.Private.CoreLib/src/System/Numerics/BitOperations.cs#L404
 
-        private static ReadOnlySpan<byte> Log2DeBruijn => new byte[32]
-        {
+        private static ReadOnlySpan<byte> Log2DeBruijn =>
+        [
             00, 09, 01, 10, 13, 21, 02, 29,
             11, 14, 16, 18, 22, 25, 03, 30,
             08, 12, 20, 28, 15, 17, 24, 07,
             19, 27, 23, 06, 26, 05, 04, 31
-        };
+        ];
 
         /// <summary>
         /// Returns the integer (floor) log of the specified value, base 2.

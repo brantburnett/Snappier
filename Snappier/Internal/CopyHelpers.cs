@@ -19,7 +19,8 @@ namespace Snappier.Internal
         // like byte-ordering on various architectures, so we can reference Vector128<byte> directly.
         // It is however safe to convert to Vector128<byte> so we'll do that below with some casts
         // that are elided by JIT.
-        private static ReadOnlySpan<byte> PshufbFillPatternsAsBytes => new byte[] {
+        private static ReadOnlySpan<byte> PshufbFillPatternsAsBytes =>
+        [
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // Never referenced, here for padding
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
@@ -28,7 +29,7 @@ namespace Snappier.Internal
             0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 0,
             0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5, 0, 1, 2, 3,
             0, 1, 2, 3, 4, 5, 6, 0, 1, 2, 3, 4, 5, 6, 0, 1
-        };
+        ];
 
         /// <summary>
         /// This is a table of shuffle control masks that can be used as the source
@@ -46,7 +47,7 @@ namespace Snappier.Internal
         /// <summary>
         /// j * (16 / j) for all j from 0 to 7. 0 is not actually used.
         /// </summary>
-        private static ReadOnlySpan<byte> PatternSizeTable => new byte[] {0, 16, 16, 15, 16, 15, 12, 14};
+        private static ReadOnlySpan<byte> PatternSizeTable => [0, 16, 16, 15, 16, 15, 12, 14];
 
 #endif
 

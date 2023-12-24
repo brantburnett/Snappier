@@ -22,8 +22,8 @@ namespace Snappier.Internal
 
         public void EnsureCapacity(int inputSize)
         {
-            var maxFragmentSize = Math.Min(inputSize, (int) Constants.BlockSize);
-            var tableSize = CalculateTableSize(maxFragmentSize);
+            int maxFragmentSize = Math.Min(inputSize, (int) Constants.BlockSize);
+            int tableSize = CalculateTableSize(maxFragmentSize);
 
             if (_buffer is null || tableSize > _buffer.Length)
             {
@@ -50,12 +50,12 @@ namespace Snappier.Internal
             }
 
             Span<ushort> hashTable = _buffer.AsSpan(0, hashTableSize);
-            MemoryMarshal.AsBytes(hashTable).Fill(0);
+            hashTable.Clear();
 
             return hashTable;
         }
 
-        private int CalculateTableSize(int inputSize)
+        private static int CalculateTableSize(int inputSize)
         {
             if (inputSize > MaxHashTableSize)
             {

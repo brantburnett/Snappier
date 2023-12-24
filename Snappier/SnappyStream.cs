@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.IO.Compression;
 using System.Threading;
@@ -17,7 +18,7 @@ namespace Snappier
     {
         private const int DefaultBufferSize = 8192;
 
-        private Stream _stream;
+        private Stream? _stream;
         private readonly CompressionMode _mode;
         private readonly bool _leaveOpen;
 
@@ -91,7 +92,14 @@ namespace Snappier
         /// <summary>
         /// The base stream being read from or written to.
         /// </summary>
-        public Stream BaseStream => _stream;
+        public Stream BaseStream
+        {
+            get
+            {
+                EnsureNotDisposed();
+                return _stream;
+            }
+        }
 
         #region overrides
 
@@ -263,7 +271,7 @@ namespace Snappier
                 #if !NETSTANDARD2_0
                 ValueTask<int> readTask = _stream.ReadAsync(_buffer, cancellationToken);
                 #else
-                ValueTask<int> readTask = new ValueTask<int>(_stream.ReadAsync(_buffer, 0, _buffer.Length, cancellationToken));
+                ValueTask<int> readTask = new(_stream.ReadAsync(_buffer, 0, _buffer.Length, cancellationToken));
                 #endif
                 cleanup = false;
                 return FinishReadAsyncMemory(readTask, buffer, cancellationToken);
@@ -384,9 +392,10 @@ namespace Snappier
             AsyncOperationStarting();
             try
             {
+                Debug.Assert(_stream != null);
                 Debug.Assert(_compressor != null);
 
-                await _compressor.WriteAsync(buffer, _stream, cancellationToken).ConfigureAwait(false);
+                await _compressor.WriteAsync(buffer, _stream!, cancellationToken).ConfigureAwait(false);
 
                 _wroteBytes = true;
             }
@@ -494,8 +503,8 @@ namespace Snappier
 
                 // Stream.Close() may throw here (may or may not be due to the same error).
                 // In this case, we still need to clean up internal resources, hence the inner finally blocks.
-                Stream stream = _stream;
-                _stream = null!;
+                Stream? stream = _stream;
+                _stream = null;
                 try
                 {
                     // ReSharper disable once ConditionIsAlwaysTrueOrFalse
@@ -531,6 +540,7 @@ namespace Snappier
 
         #endregion
 
+        [MemberNotNull(nameof(_stream))]
         private void EnsureNotDisposed()
         {
             if (_stream == null)
@@ -555,6 +565,7 @@ namespace Snappier
             }
         }
 
+        [MemberNotNull(nameof(_buffer))]
         private void EnsureBufferInitialized()
         {
             _buffer ??= ArrayPool<byte>.Shared.Rent(DefaultBufferSize);

@@ -2,6 +2,7 @@
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Runtime.CompilerServices;
 #if NETSTANDARD2_0
@@ -17,12 +18,12 @@ namespace Snappier.Internal
     /// </summary>
     internal class SnappyStreamCompressor : IDisposable
     {
-        private static ReadOnlySpan<byte> SnappyHeader => new byte[]
-        {
+        private static ReadOnlySpan<byte> SnappyHeader =>
+        [
             0xff, 0x06, 0x00, 0x00, 0x73, 0x4e, 0x61, 0x50, 0x70, 0x59
-        };
+        ];
 
-        private SnappyCompressor? _compressor = new SnappyCompressor();
+        private SnappyCompressor? _compressor = new();
 
         private byte[]? _inputBuffer;
         private int _inputBufferSize;
@@ -52,7 +53,7 @@ namespace Snappier.Internal
 
             while (input.Length > 0)
             {
-                var bytesRead = CompressInput(input);
+                int bytesRead = CompressInput(input);
                 input = input.Slice(bytesRead);
 
                 WriteOutputBuffer(stream);
@@ -80,7 +81,7 @@ namespace Snappier.Internal
 
             while (input.Length > 0)
             {
-                var bytesRead = CompressInput(input.Span);
+                int bytesRead = CompressInput(input.Span);
                 input = input.Slice(bytesRead);
 
                 await WriteOutputBufferAsync(stream, cancellationToken).ConfigureAwait(false);
@@ -146,7 +147,11 @@ namespace Snappier.Internal
                 return;
             }
 
+#if NET6_0_OR_GREATER
+            await stream.WriteAsync(_outputBuffer!.AsMemory(0, _outputBufferSize), cancellationToken).ConfigureAwait(false);
+#else
             await stream.WriteAsync(_outputBuffer!, 0, _outputBufferSize, cancellationToken).ConfigureAwait(false);
+#endif
 
             _outputBufferSize = 0;
         }
@@ -184,7 +189,7 @@ namespace Snappier.Internal
 
             // Append what we can to the input buffer
 
-            var appendLength = Math.Min(input.Length, (int) Constants.BlockSize - _inputBufferSize);
+            int appendLength = Math.Min(input.Length, (int) Constants.BlockSize - _inputBufferSize);
             input.Slice(0, appendLength).CopyTo(_inputBuffer.AsSpan(_inputBufferSize));
             _inputBufferSize += appendLength;
 
@@ -202,12 +207,12 @@ namespace Snappier.Internal
             Debug.Assert(_compressor != null);
             Debug.Assert(input.Length <= Constants.BlockSize);
 
-            var output = _outputBuffer.AsSpan(_outputBufferSize);
+            Span<byte> output = _outputBuffer.AsSpan(_outputBufferSize);
 
             // Make room for the header and CRC
-            var compressionOutput = output.Slice(8);
+            Span<byte> compressionOutput = output.Slice(8);
 
-            var bytesWritten = _compressor.Compress(input, compressionOutput);
+            int bytesWritten = _compressor.Compress(input, compressionOutput);
 
             // Write the header
 
@@ -217,32 +222,27 @@ namespace Snappier.Internal
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void WriteCompressedBlockHeader(ReadOnlySpan<byte> input, Span<byte> output, int compressedSize)
+        private static void WriteCompressedBlockHeader(ReadOnlySpan<byte> input, Span<byte> output, int compressedSize)
         {
-            var blockSize = compressedSize + 4; // CRC
+            int blockSize = compressedSize + 4; // CRC
 
             BinaryPrimitives.WriteInt32LittleEndian(output.Slice(1), blockSize);
             output[0] = (byte) Constants.ChunkType.CompressedData;
 
-            var crc = Crc32CAlgorithm.Compute(input);
+            uint crc = Crc32CAlgorithm.Compute(input);
             crc = Crc32CAlgorithm.ApplyMask(crc);
             BinaryPrimitives.WriteUInt32LittleEndian(output.Slice(4), crc);
         }
 
+        [MemberNotNull(nameof(_outputBuffer), nameof(_inputBuffer))]
         private void EnsureBuffer()
         {
-            if (_outputBuffer is null)
-            {
-                // Allocate enough room for the stream header and block headers
-                _outputBuffer =
-                    ArrayPool<byte>.Shared.Rent(Helpers.MaxCompressedLength((int) Constants.BlockSize) + 8 + SnappyHeader.Length);
-            }
+            // Allocate enough room for the stream header and block headers
+            _outputBuffer ??=
+                ArrayPool<byte>.Shared.Rent(Helpers.MaxCompressedLength((int) Constants.BlockSize) + 8 + SnappyHeader.Length);
 
-            if (_inputBuffer is null)
-            {
-                // Allocate enough room for the stream header and block headers
-                _inputBuffer = ArrayPool<byte>.Shared.Rent((int) Constants.BlockSize);
-            }
+            // Allocate enough room for the stream header and block headers
+            _inputBuffer ??= ArrayPool<byte>.Shared.Rent((int) Constants.BlockSize);
         }
 
         public void Dispose()
