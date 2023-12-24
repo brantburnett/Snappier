@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace Snappier.Internal
 {
@@ -178,10 +179,10 @@ namespace Snappier.Internal
 
         internal void DecompressAllTags(ReadOnlySpan<byte> inputSpan)
         {
-            // Put Constants.CharTable on the stack to simplify lookups within the loops below.
-            // Slicing with length 256 here allows the JIT compiler to recognize the size is greater than
-            // the size of the byte we're indexing with and optimize out range checks.
-            ReadOnlySpan<ushort> charTable = Constants.CharTable.AsSpan(0, 256);
+            // We only index into this array with a byte, and the list is 256 long, so it's safe to skip range checks.
+            // JIT doesn't seem to recognize this currently, so we'll use a ref and Unsafe.Add to avoid the checks.
+            Debug.Assert(Constants.CharTable.Length >= 256);
+            ref ushort charTable = ref MemoryMarshal.GetReference(Constants.CharTable);
 
             unchecked
             {
@@ -323,7 +324,7 @@ namespace Snappier.Internal
                         }
                         else
                         {
-                            ushort entry = charTable[c];
+                            ushort entry = Unsafe.Add(ref charTable, c);
 
                             // We don't use BitConverter to read because we might be reading past the end of the span
                             // But we know that's safe because we'll be doing it in _scratch with extra data on the end.

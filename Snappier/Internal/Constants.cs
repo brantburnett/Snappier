@@ -1,4 +1,6 @@
-﻿namespace Snappier.Internal
+﻿using System;
+
+namespace Snappier.Internal
 {
     internal static class Constants
     {
@@ -35,8 +37,8 @@
         ///      (1) Extracting a byte is faster than a bit-field
         ///      (2) It properly aligns copy offset so we do not need a &lt;&lt;8
         /// </summary>
-        public static readonly ushort[] CharTable =
-        {
+        public static ReadOnlySpan<ushort> CharTable =>
+        [
             0x0001, 0x0804, 0x1001, 0x2001, 0x0002, 0x0805, 0x1002, 0x2002,
             0x0003, 0x0806, 0x1003, 0x2003, 0x0004, 0x0807, 0x1004, 0x2004,
             0x0005, 0x0808, 0x1005, 0x2005, 0x0006, 0x0809, 0x1006, 0x2006,
@@ -69,6 +71,6 @@
             0x003b, 0x0f06, 0x103b, 0x203b, 0x003c, 0x0f07, 0x103c, 0x203c,
             0x0801, 0x0f08, 0x103d, 0x203d, 0x1001, 0x0f09, 0x103e, 0x203e,
             0x1801, 0x0f0a, 0x103f, 0x203f, 0x2001, 0x0f0b, 0x1040, 0x2040
-        };
+        ];
     }
 }
