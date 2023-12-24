@@ -34,7 +34,7 @@ namespace Snappier.Internal
         {
             if (!ExpectedLength.HasValue)
             {
-                var readLength = ReadUncompressedLength(ref input);
+                int? readLength = ReadUncompressedLength(ref input);
                 if (readLength.HasValue)
                 {
                     ExpectedLength = readLength.GetValueOrDefault();
@@ -94,7 +94,7 @@ namespace Snappier.Internal
             int shift = _uncompressedLengthShift;
             bool foundEnd = false;
 
-            var i = 0;
+            int i = 0;
             while (input.Length > i)
             {
                 byte c = input[i];
@@ -126,7 +126,7 @@ namespace Snappier.Internal
             _uncompressedLength = result;
             _uncompressedLengthShift = shift;
 
-            return foundEnd ? (int?)result : null;
+            return foundEnd ? result : null;
         }
 
         /// <summary>
@@ -141,7 +141,7 @@ namespace Snappier.Internal
             int shift = 0;
             bool foundEnd = false;
 
-            var i = 0;
+            int i = 0;
             while (input.Length > 0)
             {
                 byte c = input[i];
@@ -579,7 +579,7 @@ namespace Snappier.Internal
         {
             ref readonly byte inputPtr = ref input[0];
 
-            var lookbackSpan = _lookbackBuffer.Span;
+            Span<byte> lookbackSpan = _lookbackBuffer.Span;
             ref byte op = ref lookbackSpan[_lookbackPosition];
 
             Append(ref op, ref Unsafe.Add(ref lookbackSpan[0], lookbackSpan.Length), in inputPtr, input.Length);
@@ -634,7 +634,7 @@ namespace Snappier.Internal
 
         public int Read(Span<byte> destination)
         {
-            var unreadBytes = UnreadBytes;
+            int unreadBytes = UnreadBytes;
             if (unreadBytes == 0)
             {
                 return 0;

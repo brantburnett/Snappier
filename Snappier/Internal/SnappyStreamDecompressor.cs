@@ -201,7 +201,7 @@ namespace Snappier.Internal
         {
             if (_scratchLength > 0)
             {
-                var bytesToCopyToScratch = 4 - _scratchLength;
+                int bytesToCopyToScratch = 4 - _scratchLength;
 
                 Span<byte> scratch = _scratch.AsSpan();
                 buffer.Slice(0, bytesToCopyToScratch).CopyTo(scratch.Slice(_scratchLength));
@@ -226,7 +226,7 @@ namespace Snappier.Internal
                 buffer.CopyTo(_scratch);
 
                 _scratchLength = buffer.Length;
-                buffer = Span<byte>.Empty;
+                buffer = default;
 
                 return 0;
             }

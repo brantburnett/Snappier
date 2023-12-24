@@ -23,22 +23,22 @@ namespace Snappier.Internal
 
             while (input.Length > 0)
             {
-                var fragment = input.Slice(0, Math.Min(input.Length, (int)Constants.BlockSize));
+                ReadOnlySpan<byte> fragment = input.Slice(0, Math.Min(input.Length, (int)Constants.BlockSize));
 
-                var hashTable = _workingMemory.GetHashTable(fragment.Length);
+                Span<ushort> hashTable = _workingMemory.GetHashTable(fragment.Length);
 
-                var maxOutput = Helpers.MaxCompressedLength(fragment.Length);
+                int maxOutput = Helpers.MaxCompressedLength(fragment.Length);
 
                 if (output.Length >= maxOutput)
                 {
-                    var written = CompressFragment(fragment, output, hashTable);
+                    int written = CompressFragment(fragment, output, hashTable);
 
                     output = output.Slice(written);
                     bytesWritten += written;
                 }
                 else
                 {
-                    var scratch = ArrayPool<byte>.Shared.Rent(maxOutput);
+                    byte[] scratch = ArrayPool<byte>.Shared.Rent(maxOutput);
                     try
                     {
                         int written = CompressFragment(fragment, scratch.AsSpan(), hashTable);
@@ -306,7 +306,7 @@ namespace Snappier.Internal
                             // "literal bytes" prior to ip.
                             ref byte emitBase = ref ip;
 
-                            var (matchLength, matchLengthLessThan8) =
+                            (int matchLength, bool matchLengthLessThan8) =
                                 FindMatchLength(ref Unsafe.Add(ref candidate, 4), ref Unsafe.Add(ref ip, 4), ref inputEnd, ref data);
 
                             int matched = 4 + matchLength;
@@ -442,7 +442,7 @@ namespace Snappier.Internal
 
             // Write 4 bytes, though we only care about 3 of them.  The output buffer
             // is required to have some slack, so the extra byte won't overrun it.
-            var u = unchecked((uint)(Constants.Copy2ByteOffset + ((length - 1) << 2) + (offset << 8)));
+            uint u = unchecked((uint)(Constants.Copy2ByteOffset + ((length - 1) << 2) + (offset << 8)));
             Helpers.UnsafeWriteUInt32(ref op, u);
             return ref Unsafe.Add(ref op, 3);
         }

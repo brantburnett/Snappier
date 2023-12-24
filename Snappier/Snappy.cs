@@ -73,10 +73,10 @@ namespace Snappier
         /// </remarks>
         public static byte[] CompressToArray(ReadOnlySpan<byte> input)
         {
-            using var buffer = CompressToMemory(input);
-            var bufferSpan = buffer.Memory.Span;
+            using IMemoryOwner<byte> buffer = CompressToMemory(input);
+            Span<byte> bufferSpan = buffer.Memory.Span;
 
-            var result = new byte[bufferSpan.Length];
+            byte[] result = new byte[bufferSpan.Length];
             bufferSpan.CopyTo(result);
             return result;
         }
@@ -155,9 +155,9 @@ namespace Snappier
         /// </remarks>
         public static byte[] DecompressToArray(ReadOnlySpan<byte> input)
         {
-            var length = GetUncompressedLength(input);
+            int length = GetUncompressedLength(input);
 
-            var result = new byte[length];
+            byte[] result = new byte[length];
 
             Decompress(input, result);
 
