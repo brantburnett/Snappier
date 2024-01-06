@@ -222,28 +222,31 @@ namespace Snappier.Internal
                     op = ref Unsafe.Add(ref op, bytesWritten);
                 }
 
-                if (!Unsafe.IsAddressLessThan(ref input, ref inputLimitMinMaxTagLength))
-                {
-                    uint newScratchLength = RefillTag(ref input, ref inputEnd, ref scratch);
-                    if (newScratchLength == uint.MaxValue)
-                    {
-                        goto exit;
-                    }
-
-                    if (newScratchLength > 0)
-                    {
-                        // Data has been moved to the scratch buffer
-                        input = ref scratch;
-                        inputEnd = ref Unsafe.Add(ref input, newScratchLength);
-                        inputLimitMinMaxTagLength = ref Unsafe.Subtract(ref inputEnd,
-                            Math.Min(newScratchLength, Constants.MaximumTagLength - 1));
-                    }
-                }
-
-                uint preload = Helpers.UnsafeReadUInt32(ref input);
-
                 while (true)
                 {
+                    if (!Unsafe.IsAddressLessThan(ref input, ref inputLimitMinMaxTagLength))
+                    {
+                        uint newScratchLength = RefillTag(ref input, ref inputEnd, ref scratch);
+                        if (newScratchLength == uint.MaxValue)
+                        {
+                            break;
+                        }
+
+                        if (newScratchLength > 0)
+                        {
+                            // Data has been moved to the scratch buffer
+                            input = ref scratch;
+                            inputEnd = ref Unsafe.Add(ref input, newScratchLength);
+                            inputLimitMinMaxTagLength = ref Unsafe.Subtract(ref inputEnd,
+                                Math.Min(newScratchLength, Constants.MaximumTagLength - 1));
+                        }
+                    }
+
+                    uint preload = Helpers.UnsafeReadUInt32(ref input);
+
+                    // Some branches refill preload in a more optimal manner, they jump here to avoid the code above
+                    skip_preload:
+
                     byte c = (byte) preload;
                     input = ref Unsafe.Add(ref input, 1);
 
@@ -260,7 +263,7 @@ namespace Snappier.Internal
                             // will not return true unless there's already at least five spare
                             // bytes in addition to the literal.
                             preload = Helpers.UnsafeReadUInt32(ref input);
-                            continue;
+                            goto skip_preload;
                         }
 
                         if (literalLength >= 61)
@@ -281,35 +284,12 @@ namespace Snappier.Internal
                             Append(ref op, ref bufferEnd, in input, inputRemaining);
                             op = ref Unsafe.Add(ref op, inputRemaining);
                             _remainingLiteral = (int) (literalLength - inputRemaining);
-                            goto exit;
+                            break;
                         }
-                        else
-                        {
-                            Append(ref op, ref bufferEnd, in input, literalLength);
-                            op = ref Unsafe.Add(ref op, literalLength);
-                            input = ref Unsafe.Add(ref input, literalLength);
 
-                            if (!Unsafe.IsAddressLessThan(ref input, ref inputLimitMinMaxTagLength))
-                            {
-                                uint newScratchLength = RefillTag(ref input, ref inputEnd, ref scratch);
-                                if (newScratchLength == uint.MaxValue)
-                                {
-                                    goto exit;
-                                }
-
-                                if (newScratchLength > 0)
-                                {
-                                    // Data has been moved to the scratch buffer
-                                    input = ref scratch;
-                                    inputEnd = ref Unsafe.Add(ref input, newScratchLength);
-                                    inputLimitMinMaxTagLength = ref Unsafe.Subtract(ref inputEnd,
-                                        Math.Min(newScratchLength, Constants.MaximumTagLength - 1));
-
-                                }
-                            }
-
-                            preload = Helpers.UnsafeReadUInt32(ref input);
-                        }
+                        Append(ref op, ref bufferEnd, in input, literalLength);
+                        op = ref Unsafe.Add(ref op, literalLength);
+                        input = ref Unsafe.Add(ref input, literalLength);
                     }
                     else
                     {
@@ -325,10 +305,6 @@ namespace Snappier.Internal
                         else
                         {
                             ushort entry = Unsafe.Add(ref charTable, c);
-
-                            // We don't use BitConverter to read because we might be reading past the end of the span
-                            // But we know that's safe because we'll be doing it in _scratch with extra data on the end.
-                            // This reduces this step by several operations
                             preload = Helpers.UnsafeReadUInt32(ref input);
 
                             uint trailer = Helpers.ExtractLowBytes(preload, c & 3);
@@ -347,32 +323,15 @@ namespace Snappier.Internal
                             // By using the result of the previous load we reduce the critical
                             // dependency chain of ip to 4 cycles.
                             preload >>= (c & 3) * 8;
-                            if (Unsafe.IsAddressLessThan(ref input, ref inputLimitMinMaxTagLength)) continue;
-                        }
-
-                        if (!Unsafe.IsAddressLessThan(ref input, ref inputLimitMinMaxTagLength))
-                        {
-                            uint newScratchLength = RefillTag(ref input, ref inputEnd, ref scratch);
-                            if (newScratchLength == uint.MaxValue)
+                            if (Unsafe.IsAddressLessThan(ref input, ref inputLimitMinMaxTagLength))
                             {
-                                goto exit;
-                            }
-
-                            if (newScratchLength > 0)
-                            {
-                                // Data has been moved to the scratch buffer
-                                input = ref scratch;
-                                inputEnd = ref Unsafe.Add(ref input, newScratchLength);
-                                inputLimitMinMaxTagLength = ref Unsafe.Subtract(ref inputEnd,
-                                    Math.Min(newScratchLength, Constants.MaximumTagLength - 1));
+                                goto skip_preload;
                             }
                         }
-
-                        preload = Helpers.UnsafeReadUInt32(ref input);
                     }
                 }
 
-                exit: ; // All input data is processed
+                // All input data is processed
                 _lookbackPosition = (int)Unsafe.ByteOffset(ref buffer, ref op);
             }
         }
