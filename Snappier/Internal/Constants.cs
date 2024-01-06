@@ -10,7 +10,11 @@ namespace Snappier.Internal
             UncompressedData = 0x01,
             SkippableChunk = 0x80, // If this bit is set, we can safely skip the chunk if unknown
             Padding = 0xfe,
-            StreamIdentifier = 0xff
+            StreamIdentifier = 0xff,
+
+            // This is not part of the spec, but having this extra value representing null avoids
+            // the cost of wrapping in a Nullable<T>
+            Null = 0xfd,
         }
 
         public const byte Literal = 0b00;

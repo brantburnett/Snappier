@@ -19,7 +19,7 @@ namespace Snappier.Internal
 
         private readonly byte[] _scratch = new byte[ScratchBufferSize];
         private int _scratchLength;
-        private Constants.ChunkType? _chunkType;
+        private Constants.ChunkType _chunkType = Constants.ChunkType.Null;
         private int _chunkSize;
         private int _chunkBytesProcessed;
         private uint _expectedChunkCrc;
@@ -40,7 +40,7 @@ namespace Snappier.Internal
                 // ReSharper disable once SwitchStatementHandlesSomeKnownEnumValuesWithDefault
                 switch (_chunkType)
                 {
-                    case null:
+                    case Constants.ChunkType.Null:
                         // Not in a chunk, read the chunk type and size
 
                         uint rawChunkHeader = ReadChunkHeader(ref input);
@@ -106,7 +106,7 @@ namespace Snappier.Internal
                         if (_decompressor.EndOfFile)
                         {
                             // Completed reading the chunk
-                            _chunkType = null;
+                            _chunkType = Constants.ChunkType.Null;
 
                             uint crc = Crc32CAlgorithm.ApplyMask(_chunkCrc);
                             if (_expectedChunkCrc != crc)
@@ -149,7 +149,7 @@ namespace Snappier.Internal
                         if (_chunkBytesProcessed >= _chunkSize)
                         {
                             // Completed reading the chunk
-                            _chunkType = null;
+                            _chunkType = Constants.ChunkType.Null;
 
                             uint crc = Crc32CAlgorithm.ApplyMask(_chunkCrc);
                             if (_expectedChunkCrc != crc)
@@ -176,7 +176,7 @@ namespace Snappier.Internal
                         if (_chunkBytesProcessed >= _chunkSize)
                         {
                             // Completed reading the chunk
-                            _chunkType = null;
+                            _chunkType = Constants.ChunkType.Null;
                         }
 
                         break;
