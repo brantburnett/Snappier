@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Buffers.Binary;
 using System.Diagnostics;
-using System.IO;
-using System.Runtime.CompilerServices;
 
 namespace Snappier.Internal
 {
@@ -13,11 +11,30 @@ namespace Snappier.Internal
     {
         private const int ScratchBufferSize = 4;
 
+#if NET8_0_OR_GREATER
+#pragma warning disable IDE0051
+#pragma warning disable IDE0044
+#pragma warning disable CS0649 // Field is never assigned to, and will always have its default value
+        [System.Runtime.CompilerServices.InlineArray(ScratchBufferSize)]
+        private struct ScratchBuffer
+        {
+            private byte _element0;
+        }
+
+        private ScratchBuffer _scratch;
+#pragma warning restore CS0649 // Field is never assigned to, and will always have its default value
+#pragma warning restore IDE0044
+#pragma warning restore IDE0051
+#else
+        private readonly byte[] _scratch = new byte[ScratchBufferSize];
+#endif
+
+        private Span<byte> Scratch => _scratch;
+
         private SnappyDecompressor? _decompressor = new();
 
         private ReadOnlyMemory<byte> _input;
 
-        private readonly byte[] _scratch = new byte[ScratchBufferSize];
         private int _scratchLength;
         private Constants.ChunkType _chunkType = Constants.ChunkType.Null;
         private int _chunkSize;
@@ -196,14 +213,13 @@ namespace Snappier.Internal
             _input = input;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private uint ReadChunkHeader(ref ReadOnlySpan<byte> buffer)
         {
             if (_scratchLength > 0)
             {
                 int bytesToCopyToScratch = 4 - _scratchLength;
 
-                Span<byte> scratch = _scratch.AsSpan();
+                Span<byte> scratch = Scratch;
                 buffer.Slice(0, bytesToCopyToScratch).CopyTo(scratch.Slice(_scratchLength));
 
                 buffer = buffer.Slice(bytesToCopyToScratch);
@@ -223,7 +239,7 @@ namespace Snappier.Internal
             {
                 // Insufficient data
 
-                buffer.CopyTo(_scratch);
+                buffer.CopyTo(Scratch);
 
                 _scratchLength = buffer.Length;
                 buffer = default;
@@ -240,9 +256,8 @@ namespace Snappier.Internal
 
         /// <summary>
         /// Assuming that we're at the beginning of a chunk, reads the CRC. If partially read, stores the value in
-        /// _scratch for subsequent reads. Should not be called if chunkByteProcessed >= 4.
+        /// Scratch for subsequent reads. Should not be called if chunkByteProcessed >= 4.
         /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private bool ReadChunkCrc(ref ReadOnlySpan<byte> input)
         {
             Debug.Assert(_chunkBytesProcessed < 4);
@@ -259,14 +274,14 @@ namespace Snappier.Internal
 
             // Copy to scratch
             int crcBytesAvailable = Math.Min(input.Length, 4 - _chunkBytesProcessed);
-            input.Slice(0, crcBytesAvailable).CopyTo(_scratch.AsSpan(_scratchLength));
+            input.Slice(0, crcBytesAvailable).CopyTo(Scratch.Slice(_scratchLength));
             _scratchLength += crcBytesAvailable;
             input = input.Slice(crcBytesAvailable);
             _chunkBytesProcessed += crcBytesAvailable;
 
             if (_scratchLength >= 4)
             {
-                _expectedChunkCrc = BinaryPrimitives.ReadUInt32LittleEndian(_scratch);
+                _expectedChunkCrc = BinaryPrimitives.ReadUInt32LittleEndian(Scratch);
                 _scratchLength = 0;
                 return true;
             }
