@@ -9,7 +9,24 @@ namespace Snappier.Internal
 {
     internal sealed class SnappyDecompressor : IDisposable
     {
-        private byte[] _scratch = new byte[Constants.MaximumTagLength];
+#if NET8_0_OR_GREATER
+#pragma warning disable IDE0051
+#pragma warning disable IDE0044
+#pragma warning disable CS0649 // Field is never assigned to, and will always have its default value
+        [InlineArray(Constants.MaximumTagLength)]
+        private struct ScratchBuffer
+        {
+            private byte _element0;
+        }
+
+        private ScratchBuffer _scratch;
+#pragma warning restore CS0649 // Field is never assigned to, and will always have its default value
+#pragma warning restore IDE0044
+#pragma warning restore IDE0051
+#else
+        private readonly byte[] _scratch = new byte[Constants.MaximumTagLength];
+#endif
+
         private uint _scratchLength = 0;
 
         private int _remainingLiteral;
@@ -671,7 +688,12 @@ namespace Snappier.Internal
         internal void LoadScratchForTest(byte[] newScratch, uint newScratchLength)
         {
             ThrowHelper.ThrowIfNull(newScratch);
-            _scratch = newScratch;
+            if (newScratchLength > ((ReadOnlySpan<byte>)_scratch).Length)
+            {
+                ThrowHelper.ThrowArgumentOutOfRangeException(nameof(newScratchLength), "Scratch length exceeds limit");
+            }
+
+            newScratch.AsSpan(0, (int) newScratchLength).CopyTo(_scratch);
             _scratchLength = newScratchLength;
         }
 
