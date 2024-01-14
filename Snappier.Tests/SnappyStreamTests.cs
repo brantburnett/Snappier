@@ -151,5 +151,51 @@ namespace Snappier.Tests
             Assert.Equal(originalBytes.Length, decompressed.Length);
             Assert.Equal(originalBytes, decompressed.ToArray());
         }
+
+#if NET6_0_OR_GREATER
+
+        // Test case that we know was failing on decompress with the default 8192 byte chunk size
+        [Fact]
+        public void Known8192ByteChunkStressTest()
+        {
+            using Stream resource = typeof(SnappyStreamTests).Assembly.GetManifestResourceStream("Snappier.Tests.TestData.streamerrorsequence.txt")!;
+            byte[] originalBytes = ConvertFromHexStream(resource);
+
+            using var compressed = new MemoryStream();
+            using SnappyStream compressor = new(compressed, CompressionMode.Compress);
+
+            compressor.Write(originalBytes, 0, originalBytes.Length);
+            compressor.Flush();
+
+            compressed.Position = 0;
+
+            using SnappyStream decompressor = new(compressed, CompressionMode.Decompress);
+            using var decompressed = new MemoryStream();
+            decompressor.CopyTo(decompressed);
+
+            Assert.True(decompressed.GetBuffer().AsSpan(0, (int) decompressed.Length).SequenceEqual(originalBytes));
+        }
+
+        private static byte[] ConvertFromHexStream(Stream stream)
+        {
+            using var output = new MemoryStream();
+
+            using var textReader = new StreamReader(stream, Encoding.UTF8);
+
+            char[] buffer = new char[1024];
+
+            int charsRead = textReader.Read(buffer.AsSpan());
+            while (charsRead > 0)
+            {
+                byte[] bytes = Convert.FromHexString(buffer.AsSpan(0, charsRead));
+                output.Write(bytes.AsSpan());
+
+                charsRead = textReader.Read(buffer, 0, buffer.Length);
+            }
+
+            return output.ToArray();
+        }
+
+#endif
     }
 }

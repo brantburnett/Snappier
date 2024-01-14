@@ -104,13 +104,19 @@ namespace Snappier.Internal
                                     goto exit;
                                 }
 
-                                int availableChunkBytes = Math.Min(input.Length, _chunkSize - _chunkBytesProcessed);
-                                Debug.Assert(availableChunkBytes > 0);
-
-                                _decompressor.Decompress(input.Slice(0, availableChunkBytes));
-
-                                _chunkBytesProcessed += availableChunkBytes;
-                                input = input.Slice(availableChunkBytes);
+                                int availableChunkBytes = _chunkSize - _chunkBytesProcessed;
+                                if (availableChunkBytes > input.Length)
+                                {
+                                    _decompressor.Decompress(input);
+                                    _chunkBytesProcessed += input.Length;
+                                    input = default;
+                                }
+                                else
+                                {
+                                    _decompressor.Decompress(input.Slice(0, availableChunkBytes));
+                                    _chunkBytesProcessed += availableChunkBytes;
+                                    input = input.Slice(availableChunkBytes);
+                                }
                             }
 
                             int decompressedBytes = _decompressor.Read(buffer);
