@@ -213,9 +213,6 @@ namespace Snappier.Internal
                 ref byte bufferEnd = ref Unsafe.Add(ref buffer, _lookbackBuffer.Length);
                 ref byte op = ref Unsafe.Add(ref buffer, _lookbackPosition);
 
-                // Get a reference to the first byte in the scratch buffer, we'll reuse this so that we don't repeat range checks every time
-                ref byte scratch = ref _scratch[0];
-
                 if (_scratchLength > 0)
                 {
                     // Have partial tag remaining from a previous decompress run
@@ -227,7 +224,7 @@ namespace Snappier.Internal
                     // so that the stack size of this method is smaller and JIT can produce better results
 
                     (uint inputUsed, uint bytesWritten) =
-                        DecompressTagFromScratch(ref input, ref inputEnd, ref op, ref buffer, ref bufferEnd, ref scratch);
+                        DecompressTagFromScratch(ref input, ref inputEnd, ref op, ref buffer, ref bufferEnd);
                     op = ref Unsafe.Add(ref op, bytesWritten);
 
                     if (inputUsed == 0)
@@ -251,7 +248,7 @@ namespace Snappier.Internal
                 {
                     if (!Unsafe.IsAddressLessThan(ref input, ref inputLimitMinMaxTagLength))
                     {
-                        uint newScratchLength = RefillTag(ref input, ref inputEnd, ref scratch);
+                        uint newScratchLength = RefillTag(ref input, ref inputEnd);
                         if (newScratchLength == uint.MaxValue)
                         {
                             break;
@@ -260,7 +257,7 @@ namespace Snappier.Internal
                         if (newScratchLength > 0)
                         {
                             // Data has been moved to the scratch buffer
-                            input = ref scratch;
+                            input = ref _scratch[0];
                             inputEnd = ref Unsafe.Add(ref input, newScratchLength);
                             inputLimitMinMaxTagLength = ref Unsafe.Subtract(ref inputEnd,
                                 Math.Min(newScratchLength, Constants.MaximumTagLength - 1));
@@ -366,10 +363,10 @@ namespace Snappier.Internal
         // Some of the input may have been used if 0 is returned, but it isn't relevant because
         // DecompressAllTags will short circuit.
         private (uint inputUsed, uint bytesWritten) DecompressTagFromScratch(ref byte input, ref byte inputEnd, ref byte op,
-            ref byte buffer, ref byte bufferEnd, ref byte scratch)
+            ref byte buffer, ref byte bufferEnd)
         {
             // scratch will be the scratch buffer with only the tag if true is returned
-            uint inputUsed = RefillTagFromScratch(ref input, ref inputEnd, ref scratch);
+            uint inputUsed = RefillTagFromScratch(ref input, ref inputEnd);
             if (inputUsed == 0)
             {
                 return (0, 0);
@@ -379,8 +376,7 @@ namespace Snappier.Internal
             // No more scratch for next cycle, we have a full buffer we're about to use
             _scratchLength = 0;
 
-            byte c = scratch;
-            scratch = ref Unsafe.Add(ref scratch, 1);
+            byte c = _scratch[0];
 
             if ((c & 0x03) == Constants.Literal)
             {
@@ -389,7 +385,7 @@ namespace Snappier.Internal
                 {
                     // Long literal.
                     uint literalLengthLength = literalLength - 60;
-                    uint literalLengthTemp = Helpers.UnsafeReadUInt32(ref scratch);
+                    uint literalLengthTemp = Helpers.UnsafeReadUInt32(ref _scratch[1]);
 
                     literalLength = Helpers.ExtractLowBytes(literalLengthTemp,
                         (int) literalLengthLength) + 1;
@@ -412,7 +408,7 @@ namespace Snappier.Internal
             }
             else if ((c & 3) == Constants.Copy4ByteOffset)
             {
-                uint copyOffset = Helpers.UnsafeReadUInt32(ref scratch);
+                uint copyOffset = Helpers.UnsafeReadUInt32(ref _scratch[1]);
 
                 nint length = (c >> 2) + 1;
 
@@ -423,7 +419,7 @@ namespace Snappier.Internal
             else
             {
                 ushort entry = Constants.CharTable[c];
-                uint data = Helpers.UnsafeReadUInt32(ref scratch);
+                uint data = Helpers.UnsafeReadUInt32(ref _scratch[1]);
 
                 uint trailer = Helpers.ExtractLowBytes(data, c & 3);
                 nint length = entry & 0xff;
@@ -442,7 +438,7 @@ namespace Snappier.Internal
         // Returns the amount of the input used, 0 indicates there was insufficient data.
         // Some of the input may have been used if 0 is returned, but it isn't relevant because
         // DecompressAllTags will short circuit.
-        private uint RefillTagFromScratch(ref byte input, ref byte inputEnd, ref byte scratch)
+        private uint RefillTagFromScratch(ref byte input, ref byte inputEnd)
         {
             Debug.Assert(_scratchLength > 0);
 
@@ -452,11 +448,11 @@ namespace Snappier.Internal
             }
 
             // Read the tag character
-            uint entry = Constants.CharTable[scratch];
+            uint entry = Constants.CharTable[_scratch[0]];
             uint needed = (entry >> 11) + 1; // +1 byte for 'c'
 
             uint toCopy = Math.Min((uint)Unsafe.ByteOffset(ref input, ref inputEnd), needed - _scratchLength);
-            Unsafe.CopyBlockUnaligned(ref Unsafe.Add(ref scratch, _scratchLength), ref input, toCopy);
+            Unsafe.CopyBlockUnaligned(ref _scratch[(int)_scratchLength], ref input, toCopy);
 
             _scratchLength += toCopy;
 
@@ -478,7 +474,7 @@ namespace Snappier.Internal
         // Returns a small number if we have enough data for this tag but not enough to safely load preload without a buffer
         // overrun. In this case, further reads should be from scratch with a length up to the returned number. Scratch will
         // always have some extra bytes on the end so we don't risk buffer overruns.
-        private uint RefillTag(ref byte input, ref byte inputEnd, ref byte scratch)
+        private uint RefillTag(ref byte input, ref byte inputEnd)
         {
             if (!Unsafe.IsAddressLessThan(ref input, ref inputEnd))
             {
@@ -493,7 +489,7 @@ namespace Snappier.Internal
             if (inputLength < needed)
             {
                 // Data is insufficient, copy to scratch
-                Unsafe.CopyBlockUnaligned(ref scratch, ref input, inputLength);
+                Unsafe.CopyBlockUnaligned(ref _scratch[0], ref input, inputLength);
 
                 _scratchLength = inputLength;
                 return uint.MaxValue;
@@ -503,7 +499,7 @@ namespace Snappier.Internal
             {
                 // Have enough bytes, but copy to scratch so that we do not
                 // read past end of input
-                Unsafe.CopyBlockUnaligned(ref scratch, ref input, inputLength);
+                Unsafe.CopyBlockUnaligned(ref _scratch[0], ref input, inputLength);
 
                 return inputLength;
             }
