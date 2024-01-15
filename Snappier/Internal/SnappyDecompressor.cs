@@ -228,6 +228,8 @@ namespace Snappier.Internal
 
                     (uint inputUsed, uint bytesWritten) =
                         DecompressTagFromScratch(ref input, ref inputEnd, ref op, ref buffer, ref bufferEnd, ref scratch);
+                    op = ref Unsafe.Add(ref op, bytesWritten);
+
                     if (inputUsed == 0)
                     {
                         // There was insufficient data to read an entire tag. Some data was moved to scratch
@@ -235,8 +237,14 @@ namespace Snappier.Internal
                         return;
                     }
 
+                    if (_remainingLiteral > 0)
+                    {
+                        // The last tag was fully read by there is still literal content remaining that is
+                        // not yet available. Make sure we update _lookbackPosition on exit.
+                        goto exit;
+                    }
+
                     input = ref Unsafe.Add(ref input, inputUsed);
-                    op = ref Unsafe.Add(ref op, bytesWritten);
                 }
 
                 while (true)
@@ -348,6 +356,7 @@ namespace Snappier.Internal
                     }
                 }
 
+                exit:
                 // All input data is processed
                 _lookbackPosition = (int)Unsafe.ByteOffset(ref buffer, ref op);
             }
@@ -391,10 +400,8 @@ namespace Snappier.Internal
                 {
                     Append(ref op, ref bufferEnd, in input, inputRemaining);
                     _remainingLiteral = (int) (literalLength - inputRemaining);
-                    _lookbackPosition += (int)Unsafe.ByteOffset(ref buffer, ref op);
 
-                    // Insufficient data in this case as well, trigger a short circuit
-                    return (0, 0);
+                    return (inputUsed + (uint) inputRemaining, (uint) inputRemaining);
                 }
                 else
                 {
