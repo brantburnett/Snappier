@@ -136,11 +136,11 @@ public class Program
         // First, compression
         using var compressed = new MemoryStream();
 
-        using (var compressor = new SnappyStream(compressed, CompressionMode.Compress, false)) {
+        using (var compressor = new SnappyStream(compressed, CompressionMode.Compress, true)) {
             await fileStream.CopyToAsync(compressor);
 
             // Disposing the compressor also flushes the buffers to the inner stream
-            // We pass false to the constructor above so that it doesn't dispose the inner stream
+            // We pass true to the constructor above so that it doesn't close/dispose the inner stream
             // Alternatively, we could call compressor.Flush()
         }
 
