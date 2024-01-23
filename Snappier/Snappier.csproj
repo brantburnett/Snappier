@@ -11,7 +11,7 @@
     <Authors>btburnett3</Authors>
     <PackageTags>snappy;compression;fast;io</PackageTags>
     <!-- Copyright remains with Google since this is a direct port of the C++ source from https://github.com/google/snappy -->
-    <Copyright>Copyright 2011, Google Inc. All rights reserved.</Copyright>
+    <Copyright>Copyright 2011-2020, Google, Inc. and Snappier Authors</Copyright>
     <Description>
       A near-C++ performance implementation of the Snappy compression algorithm for .NET. Snappier is ported to C# directly
       from the official C++ implementation, with the addition of support for the framed stream format.
@@ -20,7 +20,8 @@
       by .NET Core. However, Snappier performs best in .NET Core 3.0 and later on little-endian x86/64 processors with the
       help of System.Runtime.Instrinsics.
     </Description>
-    <PackageLicenseFile>COPYING.txt</PackageLicenseFile>
+    <PackageLicenseExpression>BSD-3-Clause</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
@@ -38,7 +39,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Include="..\COPYING.txt" Pack="true" PackagePath="$(PackageLicenseFile)" />
+    <None Include="..\README.md" Pack="true" PackagePath="$(PackageReadmeFile)" />
   </ItemGroup>
 
   <ItemGroup Condition=" '$(TargetFramework)' == 'netstandard2.0' ">
