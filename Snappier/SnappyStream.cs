@@ -51,7 +51,7 @@ namespace Snappier
         /// </summary>
         /// <param name="stream">Source or destination stream.</param>
         /// <param name="mode">Compression or decompression mode.</param>
-        /// <param name="leaveOpen">If true, close the stream when the SnappyStream is closed.</param>
+        /// <param name="leaveOpen">If true, leave the inner stream open when the SnappyStream is closed.</param>
         /// <exception cref="ArgumentNullException"><paramref name="stream"/> is null.</exception>
         /// <exception cref="ArgumentException">Stream read/write capability doesn't match with <paramref name="mode"/>.</exception>
         /// <exception cref="ArgumentOutOfRangeException">Invalid <paramref name="mode"/>.</exception>
