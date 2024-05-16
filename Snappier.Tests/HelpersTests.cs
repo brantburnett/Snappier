@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using Snappier.Internal;
 using Xunit;
 
@@ -9,6 +8,39 @@ namespace Snappier.Tests
 {
     public class HelpersTests
     {
+        #region LeftShiftOverflows
+
+        [Theory]
+        [InlineData(2, 31)]
+        [InlineData(0xff, 25)]
+        public void LeftShiftOverflows_True(byte value, int shift)
+        {
+            // Act
+
+            var result = Helpers.LeftShiftOverflows(value, shift);
+
+            // Assert
+
+            Assert.True(result);
+        }
+
+        [Theory]
+        [InlineData(1, 31)]
+        [InlineData(0xff, 24)]
+        [InlineData(0, 31)]
+        public void LeftShiftOverflows_False(byte value, int shift)
+        {
+            // Act
+
+            var result = Helpers.LeftShiftOverflows(value, shift);
+
+            // Assert
+
+            Assert.False(result);
+        }
+
+        #endregion
+
         #region Log2FloorNonZero
 
         public static IEnumerable<object[]> Log2FloorNonZeroValues() =>
