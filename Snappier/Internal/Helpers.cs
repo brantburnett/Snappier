@@ -45,17 +45,12 @@ namespace Snappier.Internal
             return 32 + sourceBytes + sourceBytes / 6 + 1;
         }
 
-        private static ReadOnlySpan<byte> LeftShiftOverflowsMasks =>
-        [
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x80, 0xc0, 0xe0, 0xf0, 0xf8, 0xfc, 0xfe
-        ];
-
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static bool LeftShiftOverflows(byte value, int shift) =>
-            (value & LeftShiftOverflowsMasks[shift]) != 0;
+        public static bool LeftShiftOverflows(byte value, int shift)
+        {
+            Debug.Assert(shift < 32);
+            return (value & ~(0xffff_ffffu >>> shift)) != 0;
+        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static uint ExtractLowBytes(uint value, int numBytes)
