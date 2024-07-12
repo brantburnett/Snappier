@@ -613,24 +613,15 @@ namespace Snappier.Internal
 
         public int Read(Span<byte> destination)
         {
-            int unreadBytes = UnreadBytes;
-            if (unreadBytes == 0)
+            var bytesToRead = Math.Min(destination.Length, UnreadBytes);
+            if (bytesToRead <= 0)
             {
                 return 0;
             }
 
-            if (unreadBytes >= destination.Length)
-            {
-                _lookbackBuffer.Span.Slice(_readPosition, destination.Length).CopyTo(destination);
-                _readPosition += destination.Length;
-                return destination.Length;
-            }
-            else
-            {
-                _lookbackBuffer.Span.Slice(_readPosition, unreadBytes).CopyTo(destination);
-                _readPosition += unreadBytes;
-                return unreadBytes;
-            }
+            _lookbackBuffer.Span.Slice(_readPosition, bytesToRead).CopyTo(destination);
+            _readPosition += bytesToRead;
+            return bytesToRead;
         }
 
         /// <summary>
