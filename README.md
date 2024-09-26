@@ -11,12 +11,12 @@ Snappier is a pure C# port of Google's [Snappy](https://github.com/google/snappy
 The Snappier project aims to meet the following needs of the .NET community.
 
 - Cross-platform C# implementation for Linux and Windows, without P/Invoke or special OS installation requirements
-- Compatible with .NET 4.6.1 and later and .NET Core 2.0 and later
+- Compatible with .NET 4.6.1 and later and .NET 6 and later
 - Use .NET paradigms, including asynchronous stream support
 - Full compatibility with both block and stream formats
 - Near C++ level performance
-  - Note: This is only possible on .NET Core 3.0 and later with the aid of [Span&lt;T&gt;](https://docs.microsoft.com/en-us/dotnet/api/system.span-1?view=netcore-3.1) and [System.Runtime.Intrinsics](https://fiigii.com/2019/03/03/Hardware-intrinsic-in-NET-Core-3-0-Introduction/).
-  - .NET Core 2.1 is almost as good, .NET 4.6.1 is the slowest
+  - Note: This is only possible on .NET 6 and later with the aid of [Span&lt;T&gt;](https://docs.microsoft.com/en-us/dotnet/api/system.span-1?view=netcore-3.1) and [System.Runtime.Intrinsics](https://fiigii.com/2019/03/03/Hardware-intrinsic-in-NET-Core-3-0-Introduction/).
+  - .NET 4.6.1 is the slowest
 - Keep allocations and garbage collection to a minimum using buffer pools
 
 ## Installing
