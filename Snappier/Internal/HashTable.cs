@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Buffers;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
@@ -67,6 +68,7 @@ namespace Snappier.Internal
                 return MinHashTableSize;
             }
 
+            Debug.Assert(inputSize > 1);
             return 2 << Helpers.Log2Floor((uint)(inputSize - 1));
         }
 
