@@ -14,43 +14,35 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        framework: ["net6.0", "net8.0"]
+        framework: ["net6.0", "net8.0", "net9.0"]
         disable: ["HWIntrinsics", "SSSE3", "BMI2", "Noop"]
 
     steps:
     - uses: actions/checkout@v4
-    - name: Setup .NET 8
-      uses: actions/setup-dotnet@v3
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: '8.0.x'
-    - name: Setup .NET 6
-      if: matrix.framework == 'net6.0'
-      uses: actions/setup-dotnet@v3
-      with:
-        dotnet-version: '6.0.x'
+        dotnet-version: |
+          6.0.x
+          7.0.x
+          8.0.x
+          9.0.x
     # Cache packages for faster subsequent runs
-    - uses: actions/cache@v3
+    - uses: actions/cache@v4
       with:
         path: ~/.nuget/packages
-        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/*.props', '**/*.targets') }}
         restore-keys: |
           ${{ runner.os }}-nuget-
 
     - name: Install dependencies
       run: dotnet restore
     - name: Build
-      run: dotnet build --configuration Release --verbosity normal
+      run: dotnet build --no-restore --configuration Release --verbosity normal
     - name: Test
       run: |
         export COMPlus_Enable${{ matrix.disable }}=0 && \
-        dotnet test --no-build -f ${{ matrix.framework }} --configuration Release --verbosity normal --logger "trx;LogFileName=results.trx"
-
-    - name: Test Report
-      uses: actions/upload-artifact@v3
-      if: success() || failure() # run this step even if previous step failed
-      with:
-        name: test-results-${{ matrix.framework }}-${{ matrix.disable }}
-        path: "**/results.trx"
+        dotnet test --no-build -f ${{ matrix.framework }} --configuration Release --verbosity normal --logger "GitHubActions;summary.includePassedTests=true;summary.includeSkippedTests=true"
 
   test-windows:
 
@@ -58,15 +50,15 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    - name: Setup .NET 8
-      uses: actions/setup-dotnet@v3
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: '8.0.x'
+        dotnet-version: '9.0.x'
     # Cache packages for faster subsequent runs
-    - uses: actions/cache@v3
+    - uses: actions/cache@v4
       with:
         path: ~/.nuget/packages
-        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/*.props', '**/*.targets') }}
         restore-keys: |
           ${{ runner.os }}-nuget-
 
@@ -74,21 +66,8 @@ jobs:
       run: dotnet restore
     - name: Test
       run: |-
-        dotnet test --runtime win-x64 -f net48 --configuration Release --verbosity normal --logger "trx;LogFileName=results-x64.trx"
-        dotnet test --runtime win-x86 -f net48 --configuration Release --verbosity normal --logger "trx;LogFileName=results-x86.trx"
-
-    - name: Test Report x64
-      uses: actions/upload-artifact@v3
-      if: success() || failure() # run this step even if previous step failed
-      with:
-        name: test-results-windows-x64
-        path: "**/results-x64.trx"
-    - name: Test Report x86
-      uses: actions/upload-artifact@v3
-      if: success() || failure() # run this step even if previous step failed
-      with:
-        name: test-results-windows-x86
-        path: "**/results-x86.trx"
+        dotnet test --runtime win-x64 -f net48 --configuration Release --verbosity normal --logger "GitHubActions;summary.includePassedTests=true;summary.includeSkippedTests=true"
+        dotnet test --runtime win-x86 -f net48 --configuration Release --verbosity normal --logger "GitHubActions;summary.includePassedTests=true;summary.includeSkippedTests=true"
 
   publish:
 
@@ -100,16 +79,18 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    - name: Setup .NET 8
-      uses: actions/setup-dotnet@v3
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: '8.0.x'
+        dotnet-version: 9.0.x
 
     - name: Install dependencies
       run: dotnet restore
-    - run: echo "VERSION=${GITHUB_REF/refs\/tags\/release\//}" >> $GITHUB_ENV
+    - name: Get version
+      id: version
+      run: echo "version=${GITHUB_REF/refs\/tags\/release\//}" >> $GITHUB_OUTPUT
     - name: Pack
-      run: dotnet pack --configuration Release -p:Version=${{ env.VERSION }}
+      run: dotnet pack --configuration Release -p:Version=${{ steps.version.outputs.version }}
     - name: Push to NuGet.org
       run: |
         dotnet nuget push **/*.nupkg --api-key ${{ secrets.NUGET_API_KEY}} --source https://api.nuget.org/v3/index.json
