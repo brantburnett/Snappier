@@ -4,8 +4,8 @@ using System.Runtime.CompilerServices;
 #if NET6_0_OR_GREATER
 using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics;
+using System.Runtime.Intrinsics.Arm;
 using System.Runtime.Intrinsics.X86;
-using static System.Runtime.Intrinsics.X86.Ssse3;
 #endif
 
 namespace Snappier.Internal
@@ -78,7 +78,7 @@ namespace Snappier.Internal
             if (patternSize < 8)
             {
 #if NET6_0_OR_GREATER
-                if (Ssse3.IsSupported) // SSSE3
+                if (Ssse3.IsSupported || AdvSimd.Arm64.IsSupported) // We can perform a fast shuffle using intrinics
                 {
                     // Load the first eight bytes into an 128-bit XMM register, then use PSHUFB
                     // to permute the register's contents in-place into a repeating sequence of
@@ -103,7 +103,20 @@ namespace Snappier.Internal
                         Vector128<byte> srcPattern = Unsafe.ReadUnaligned<Vector128<byte>>(ref source);
 #endif
 
-                        Vector128<byte> pattern = Shuffle(srcPattern, shuffleMask);
+                        Vector128<byte> pattern;
+                        if (Ssse3.IsSupported)
+                        {
+                            pattern = Ssse3.Shuffle(srcPattern, shuffleMask);
+                        }
+                        else if (AdvSimd.Arm64.IsSupported)
+                        {
+                            pattern = AdvSimd.Arm64.VectorTableLookup(srcPattern, shuffleMask);
+                        }
+                        else
+                        {
+                            Debug.Fail("Unreachable");
+                            pattern = Vector128<byte>.Zero;
+                        }
 
                         // Get the new pattern size now that we've repeated it
                         patternSize = PatternSizeTable[patternSize];
