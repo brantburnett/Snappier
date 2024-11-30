@@ -27,10 +27,10 @@ namespace Snappier.Tests
             Assert.NotNull(resource);
 
             var input = new byte[resource.Length];
-            resource.Read(input, 0, input.Length);
+            var bytesRead = resource.Read(input, 0, input.Length);
 
-            var compressed = new byte[Snappy.GetMaxCompressedLength(input.Length)];
-            var compressedLength = Snappy.Compress(input, compressed);
+            var compressed = new byte[Snappy.GetMaxCompressedLength(bytesRead)];
+            var compressedLength = Snappy.Compress(input.AsSpan(0, bytesRead), compressed);
 
             var compressedSpan = compressed.AsSpan(0, compressedLength);
 
@@ -41,19 +41,18 @@ namespace Snappier.Tests
             Assert.Equal(input, output);
         }
 
-        public static IEnumerable<object[]> CompressAndDecompressStringCases()
-        {
-            yield return new object[] {""};
-            yield return new object[] {"a"};
-            yield return new object[] {"ab"};
-            yield return new object[] {"abc"};
-
-            yield return new object[] {"aaaaaaa" + new string('b', 16) + "aaaaaabc"};
-            yield return new object[] {"aaaaaaa" + new string('b', 256) + "aaaaaabc"};
-            yield return new object[] {"aaaaaaa" + new string('b', 2047) + "aaaaaabc"};
-            yield return new object[] {"aaaaaaa" + new string('b', 65536) + "aaaaaabc"};
-            yield return new object[] {"abcaaaaaaa" + new string('b', 65536) + "aaaaaabc"};
-        }
+        public static TheoryData<string> CompressAndDecompressStringCases() =>
+        [
+            "",
+            "a",
+            "ab",
+            "abc",
+            "aaaaaaa" + new string('b', 16) + "aaaaaabc",
+            "aaaaaaa" + new string('b', 256) + "aaaaaabc",
+            "aaaaaaa" + new string('b', 2047) + "aaaaaabc",
+            "aaaaaaa" + new string('b', 65536) + "aaaaaabc",
+            "abcaaaaaaa" + new string('b', 65536) + "aaaaaabc"
+        ];
 
         [Theory]
         [MemberData(nameof(CompressAndDecompressStringCases))]
@@ -139,15 +138,15 @@ namespace Snappier.Tests
             Assert.NotNull(resource);
 
             var input = new byte[resource.Length];
-            resource.Read(input, 0, input.Length);
+            var bytesRead = resource.Read(input, 0, input.Length);
 
             Assert.Throws<InvalidDataException>(() =>
             {
-                var length = Snappy.GetUncompressedLength(input);
+                var length = Snappy.GetUncompressedLength(input.AsSpan(0, bytesRead));
                 Assert.InRange(length, 0, 1 << 20);
 
                 var output = new byte[length];
-                Snappy.Decompress(input, output);
+                Snappy.Decompress(input.AsSpan(0, bytesRead), output);
             });
         }
 
@@ -159,17 +158,17 @@ namespace Snappier.Tests
             Assert.NotNull(resource);
 
             var input = new byte[resource.Length];
-            resource.Read(input, 0, input.Length);
+            var bytesRead = resource.Read(input, 0, input.Length);
 
-            var compressed = new byte[Snappy.GetMaxCompressedLength(input.Length)];
-            var compressedLength = Snappy.Compress(input, compressed);
+            var compressed = new byte[Snappy.GetMaxCompressedLength(bytesRead)];
+            var compressedLength = Snappy.Compress(input.AsSpan(0, bytesRead), compressed);
 
             var compressedSpan = compressed.AsSpan(0, compressedLength);
 
             using var output = Snappy.DecompressToMemory(compressedSpan);
 
-            Assert.Equal(input.Length, output.Memory.Length);
-            Assert.Equal(input, output.Memory.Span.ToArray());
+            Assert.Equal(bytesRead, output.Memory.Length);
+            Assert.True(input.AsSpan(0, bytesRead).SequenceEqual(output.Memory.Span));
         }
 
         [Fact]

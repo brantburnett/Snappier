@@ -1,0 +1,6 @@
+<Project>
+  <PropertyGroup>
+    <LangVersion>13</LangVersion>
+    <CheckEolTargetFramework>false</CheckEolTargetFramework>
+  </PropertyGroup>
+</Project>
