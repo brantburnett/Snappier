@@ -343,6 +343,7 @@ namespace Snappier.Internal
             }
             else
             {
+                Debug.Assert(n > 0);
                 int count = (Helpers.Log2Floor(n) >> 3) + 1;
 
                 Debug.Assert(count >= 1);

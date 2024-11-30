@@ -13,14 +13,15 @@ namespace Snappier.Benchmarks.Configuration
                 .WithRuntime(ClrRuntime.Net48));
             AddJob(baseJob
                 .WithRuntime(CoreRuntime.Core60));
-
-            var job80 = baseJob.WithRuntime(CoreRuntime.Core80);
-            AddJob(job80.WithPgo(false));
-            AddJob(job80.WithPgo(true));
+            AddJob(baseJob
+                .WithRuntime(CoreRuntime.Core80)
+                .WithPgo(true));
+            AddJob(baseJob
+                .WithRuntime(CoreRuntime.Core90)
+                .WithPgo(true));
 
             AddLogicalGroupRules(BenchmarkLogicalGroupRule.ByJob);
 
-            AddColumn(PgoColumn.Default);
             HideColumns(Column.EnvironmentVariables);
         }
     }

@@ -165,21 +165,11 @@ namespace Snappier.Internal
 #endif
 
         /// <summary>
-        /// Return floor(log2(n)) for positive integer n.  Returns -1 if n == 0.
+        /// Return floor(log2(n)) for positive integer n. Returns 0 for the special case n = 0.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static int Log2Floor(uint n) =>
-            n == 0 ? -1 : Log2FloorNonZero(n);
-
-
-        /// <summary>
-        /// Return floor(log2(n)) for positive integer n.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static int Log2FloorNonZero(uint n)
+        public static int Log2Floor(uint n)
         {
-            Debug.Assert(n != 0);
-
 #if NET6_0_OR_GREATER
             return BitOperations.Log2(n);
 #else

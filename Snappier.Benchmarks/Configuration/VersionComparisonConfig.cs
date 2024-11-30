@@ -20,27 +20,26 @@ namespace Snappier.Benchmarks.Configuration
 
             var jobBefore48 = jobBefore.WithRuntime(ClrRuntime.Net48).AsBaseline();
             var jobBefore60 = jobBefore.WithRuntime(CoreRuntime.Core60).AsBaseline();
-            var jobBefore80 = jobBefore.WithRuntime(CoreRuntime.Core80).AsBaseline();
-            var jobBefore80Pgo = jobBefore80.WithPgo();
+            var jobBefore80 = jobBefore.WithRuntime(CoreRuntime.Core80).WithPgo().AsBaseline();
+            var jobBefore90 = jobBefore.WithRuntime(CoreRuntime.Core90).WithPgo().AsBaseline();
 
             var jobAfter48 = baseJob.WithRuntime(ClrRuntime.Net48);
             var jobAfter60 = baseJob.WithRuntime(CoreRuntime.Core60);
-            var jobAfter80 = baseJob.WithRuntime(CoreRuntime.Core80);
-            var jobAfter80Pgo = jobAfter80.WithPgo();
+            var jobAfter80 = baseJob.WithRuntime(CoreRuntime.Core80).WithPgo();
+            var jobAfter90 = baseJob.WithRuntime(CoreRuntime.Core90).WithPgo();
 
             AddJob(jobBefore48);
             AddJob(jobBefore60);
             AddJob(jobBefore80);
-            AddJob(jobBefore80Pgo);
+            AddJob(jobBefore90);
 
             AddJob(jobAfter48);
             AddJob(jobAfter60);
             AddJob(jobAfter80);
-            AddJob(jobAfter80Pgo);
+            AddJob(jobAfter90);
 
             WithOrderer(VersionComparisonOrderer.Default);
 
-            AddColumn(PgoColumn.Default);
             HideColumns(Column.EnvironmentVariables, Column.Job);
         }
 

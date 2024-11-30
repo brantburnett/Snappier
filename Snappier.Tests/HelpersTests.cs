@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 using Snappier.Internal;
 using Xunit;
 
@@ -39,24 +37,34 @@ namespace Snappier.Tests
             Assert.False(result);
         }
 
-        #endregion
-
-        #region Log2FloorNonZero
-
-        public static IEnumerable<object[]> Log2FloorNonZeroValues() =>
-            Enumerable.Range(1, 31).Select(p => new object[] {p});
+        public static TheoryData<uint> Log2FloorValues() =>
+        [
+            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31
+        ];
 
         [Theory]
-        [MemberData(nameof(Log2FloorNonZeroValues))]
-        public void Log2FloorNonZero(uint value)
+        [MemberData(nameof(Log2FloorValues))]
+        public void Log2Floor(uint value)
         {
             // Act
 
-            var result = Helpers.Log2FloorNonZero(value);
+            var result = Helpers.Log2Floor(value);
 
             // Assert
 
             Assert.Equal((int) Math.Floor(Math.Log(value, 2)), result);
+        }
+
+        [Fact]
+        public void Log2Floor_Zero()
+        {
+            // Act
+
+            var result = Helpers.Log2Floor(0);
+
+            // Assert
+
+            Assert.Equal(0, result);
         }
 
         #endregion
