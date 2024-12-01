@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using Snappier.Internal;
 using Xunit;
 
@@ -23,38 +24,64 @@ namespace Snappier.Tests.Internal
                 { 0xFFFFFFFF, [ 0xFF, 0xFF, 0xFF, 0xFF, 0x0F ] },
             };
 
+        public static TheoryData<byte[]> IncompleteTestData() =>
+            new() {
+                { [ 0x80 ] },
+                { [ 0xD5 ] },
+                { [ 0xFF, 0xFF ] },
+                { [ 0xFF, 0xFF ] },
+                { [ 0XFF, 0xFF ] },
+                { [ 0x80, 0x80 ] },
+                { [ 0xD5, 0xAA ] },
+                { [ 0x80, 0xDE, 0xBF ] },
+                { [ 0x8D, 0xE0, 0xFB, 0xD7 ] },
+                { [ 0xFF, 0xFF, 0xFF, 0xFF ] },
+            };
+
         [Theory]
         [MemberData(nameof(TestData))]
-        public void Test_Read(uint expected, byte[] input)
+        public void Test_TryRead(uint expected, byte[] input)
         {
-            var length = VarIntEncoding.Read(input, out var result);
-            Assert.Equal(input.Length, length);
+            var status = VarIntEncoding.TryRead(input, out var result, out var bytesRead);
+            Assert.Equal(OperationStatus.Done, status);
+            Assert.Equal(input.Length, bytesRead);
             Assert.Equal(expected, result);
         }
 
         [Theory]
         [MemberData(nameof(TestData))]
-        public void Test_Read_ZeroPadding(uint expected, byte[] input)
+        public void Test_TryRead_ZeroPadding(uint expected, byte[] input)
         {
             var bytes = new byte[16];
             input.AsSpan().CopyTo(bytes);
 
-            var length = VarIntEncoding.Read(bytes, out var result);
-            Assert.Equal(input.Length, length);
+            var status = VarIntEncoding.TryRead(bytes, out var result, out var bytesRead);
+            Assert.Equal(OperationStatus.Done, status);
+            Assert.Equal(input.Length, bytesRead);
             Assert.Equal(expected, result);
         }
 
         [Theory]
         [MemberData(nameof(TestData))]
-        public void Test_Read_OnePadding(uint expected, byte[] input)
+        public void Test_TryRead_OnePadding(uint expected, byte[] input)
         {
             var bytes = new byte[16];
             bytes.AsSpan().Fill(0xff);
             input.AsSpan().CopyTo(bytes);
 
-            var length = VarIntEncoding.Read(bytes, out var result);
-            Assert.Equal(input.Length, length);
+            var status = VarIntEncoding.TryRead(bytes, out var result, out int bytesRead);
+            Assert.Equal(OperationStatus.Done, status);
+            Assert.Equal(input.Length, bytesRead);
             Assert.Equal(expected, result);
+        }
+
+        [Theory]
+        [MemberData(nameof(IncompleteTestData))]
+        public void Test_TryRead_Incomplete(byte[] input)
+        {
+            var status = VarIntEncoding.TryRead(input, out _, out var bytesRead);
+            Assert.Equal(OperationStatus.NeedMoreData, status);
+            Assert.Equal(0, bytesRead);
         }
     }
 }

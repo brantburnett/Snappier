@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 
 #if NET7_0_OR_GREATER
 using System.Buffers.Binary;
@@ -13,34 +14,43 @@ namespace Snappier.Internal
 {
     internal static partial class VarIntEncoding
     {
-        public static int Read(ReadOnlySpan<byte> input, out uint result)
+        public static uint Read(ReadOnlySpan<byte> input, out int bytesRead)
+        {
+            if (TryRead(input, out var result, out bytesRead) != OperationStatus.Done)
+            {
+                ThrowHelper.ThrowInvalidDataException("Invalid stream length");
+            }
+
+            return result;
+        }
+
+        public static OperationStatus TryRead(ReadOnlySpan<byte> input, out uint result, out int bytesRead)
         {
 #if NET7_0_OR_GREATER
             if (Sse2.IsSupported && Bmi2.IsSupported && BitConverter.IsLittleEndian && input.Length >= Vector128<byte>.Count)
             {
-                return ReadFast(input, out result);
+                return ReadFast(input, out result, out bytesRead);
             }
 #endif
 
-            return ReadSlow(input, out result);
+            return TryReadSlow(input, out result, out bytesRead);
         }
 
-        public static int ReadSlow(ReadOnlySpan<byte> input, out uint result)
+        private static OperationStatus TryReadSlow(ReadOnlySpan<byte> input, out uint result, out int bytesRead)
         {
             result = 0;
             int shift = 0;
             bool foundEnd = false;
 
-            int i = 0;
-            while (input.Length > 0)
+            bytesRead = 0;
+            while (input.Length > bytesRead)
             {
-                byte c = input[i];
-                i += 1;
+                byte c = input[bytesRead++];
 
                 int val = c & 0x7f;
                 if (Helpers.LeftShiftOverflows((byte) val, shift))
                 {
-                    ThrowHelper.ThrowInvalidDataException("Invalid stream length");
+                    return OperationStatus.InvalidData;
                 }
 
                 result |= (uint)(val << shift);
@@ -54,16 +64,17 @@ namespace Snappier.Internal
 
                 if (shift >= 32)
                 {
-                    ThrowHelper.ThrowInvalidDataException("Invalid stream length");
+                    return OperationStatus.InvalidData;
                 }
             }
 
             if (!foundEnd)
             {
-                ThrowHelper.ThrowInvalidDataException("Invalid stream length");
+                bytesRead = 0;
+                return OperationStatus.NeedMoreData;
             }
 
-            return shift / 7;
+            return OperationStatus.Done;
         }
 
 #if NET7_0_OR_GREATER
@@ -78,7 +89,7 @@ namespace Snappier.Internal
             0xffffffff
         ];
 
-        private static int ReadFast(ReadOnlySpan<byte> input, out uint result)
+        private static OperationStatus ReadFast(ReadOnlySpan<byte> input, out uint result, out int bytesRead)
         {
             Debug.Assert(Sse2.IsSupported);
             Debug.Assert(Bmi2.IsSupported);
@@ -86,7 +97,7 @@ namespace Snappier.Internal
             Debug.Assert(BitConverter.IsLittleEndian);
 
             var mask = ~Sse2.MoveMask(Vector128.LoadUnsafe(ref MemoryMarshal.GetReference(input)));
-            var bytesRead = BitOperations.TrailingZeroCount(mask) + 1;
+            bytesRead = BitOperations.TrailingZeroCount(mask) + 1;
 
             uint shuffledBits = Bmi2.X64.IsSupported
                 ? unchecked((uint)Bmi2.X64.ParallelBitExtract(BinaryPrimitives.ReadUInt64LittleEndian(input), 0x7F7F7F7F7Fu))
@@ -101,14 +112,13 @@ namespace Snappier.Internal
             {
                 // Currently, JIT doesn't optimize the bounds check away in the branch above,
                 // but we'll leave it written this way in case JIT improves in the future to avoid
-                // checking the bounds twice. We could just let it throw an IndexOutOfRangeException,
-                // but that would be inconsistent with the other code paths.
+                // checking the bounds twice.
 
-                ThrowHelper.ThrowInvalidDataException("Invalid stream length");
                 result = 0;
+                return OperationStatus.InvalidData;
             }
 
-            return bytesRead;
+            return OperationStatus.Done;
         }
 
 #endif
