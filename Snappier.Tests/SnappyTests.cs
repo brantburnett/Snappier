@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -170,6 +171,53 @@ namespace Snappier.Tests
             Assert.Equal(bytesRead, output.Memory.Length);
             Assert.True(input.AsSpan(0, bytesRead).SequenceEqual(output.Memory.Span));
         }
+
+        [Fact]
+        public void DecompressToMemory_FromSequence()
+        {
+            using var resource =
+                typeof(SnappyTests).Assembly.GetManifestResourceStream($"Snappier.Tests.TestData.alice29.txt");
+            Assert.NotNull(resource);
+
+            var input = new byte[resource.Length];
+            var bytesRead = resource.Read(input, 0, input.Length);
+
+            var compressed = new byte[Snappy.GetMaxCompressedLength(bytesRead)];
+            var compressedLength = Snappy.Compress(input.AsSpan(0, bytesRead), compressed);
+
+            var compressedSequence = SequenceHelpers.CreateSequence(compressed.AsMemory(0, compressedLength), 1024);
+
+            using var output = Snappy.DecompressToMemory(compressedSequence);
+
+            Assert.Equal(bytesRead, output.Memory.Length);
+            Assert.True(input.AsSpan(0, bytesRead).SequenceEqual(output.Memory.Span));
+        }
+
+#if NET6_0_OR_GREATER
+
+        [Fact]
+        public void DecompressToBufferWriter_FromSequence()
+        {
+            using var resource =
+                typeof(SnappyTests).Assembly.GetManifestResourceStream($"Snappier.Tests.TestData.alice29.txt");
+            Assert.NotNull(resource);
+
+            var input = new byte[resource.Length];
+            var bytesRead = resource.Read(input, 0, input.Length);
+
+            var compressed = new byte[Snappy.GetMaxCompressedLength(bytesRead)];
+            var compressedLength = Snappy.Compress(input.AsSpan(0, bytesRead), compressed);
+
+            var compressedSequence = SequenceHelpers.CreateSequence(compressed.AsMemory(0, compressedLength), 1024);
+
+            var writer = new ArrayBufferWriter<byte>();
+            Snappy.Decompress(compressedSequence, writer);
+
+            Assert.Equal(bytesRead, writer.WrittenCount);
+            Assert.True(input.AsSpan(0, bytesRead).SequenceEqual(writer.WrittenSpan));
+        }
+
+#endif
 
         [Fact]
         public void RandomData()

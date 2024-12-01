@@ -88,7 +88,7 @@ namespace Snappier
         /// <returns>The length of the uncompressed data in the block.</returns>
         /// <exception cref="InvalidDataException">The data in <paramref name="input"/> has an invalid length.</exception>
         /// <remarks>
-        /// This is useful for allocating a sufficient output buffer before calling <see cref="Decompress"/>.
+        /// This is useful for allocating a sufficient output buffer before calling <see cref="Decompress(ReadOnlySpan{byte}, Span{byte})"/>.
         /// </remarks>
         public static int GetUncompressedLength(ReadOnlySpan<byte> input) =>
             SnappyDecompressor.ReadUncompressedLength(input);
@@ -123,12 +123,26 @@ namespace Snappier
         }
 
         /// <summary>
+        /// Decompress a block of Snappy data. This must be an entire block.
+        /// </summary>
+        /// <param name="input">Data to decompress.</param>
+        /// <param name="output">Buffer writer to receive the decompressed data.</param>
+        /// <exception cref="InvalidDataException">Invalid Snappy block.</exception>
+        public static void Decompress(ReadOnlySequence<byte> input, IBufferWriter<byte> output)
+        {
+            using IMemoryOwner<byte> buffer = DecompressToMemory(input);
+
+            output.Write(buffer.Memory.Span);
+        }
+
+        /// <summary>
         /// Decompress a block of Snappy to a new memory buffer. This must be an entire block.
         /// </summary>
         /// <param name="input">Data to decompress.</param>
         /// <returns>An <see cref="IMemoryOwner{T}"/> with the decompressed data. The caller is responsible for disposing this object.</returns>
+        /// <exception cref="InvalidDataException">Incomplete Snappy block.</exception>
         /// <remarks>
-        /// Failing to dispose of the returned <see cref="IMemoryOwner{T}"/> may result in memory leaks.
+        /// Failing to dispose of the returned <see cref="IMemoryOwner{T}"/> may result in performance loss.
         /// </remarks>
         public static IMemoryOwner<byte> DecompressToMemory(ReadOnlySpan<byte> input)
         {
@@ -145,12 +159,39 @@ namespace Snappier
         }
 
         /// <summary>
+        /// Decompress a block of Snappy to a new memory buffer. This must be an entire block.
+        /// </summary>
+        /// <param name="input">Data to decompress.</param>
+        /// <returns>An <see cref="IMemoryOwner{T}"/> with the decompressed data. The caller is responsible for disposing this object.</returns>
+        /// <exception cref="InvalidDataException">Incomplete Snappy block.</exception>
+        /// <remarks>
+        /// Failing to dispose of the returned <see cref="IMemoryOwner{T}"/> may result in performance loss.
+        /// </remarks>
+        public static IMemoryOwner<byte> DecompressToMemory(ReadOnlySequence<byte> input)
+        {
+            using var decompressor = new SnappyDecompressor();
+
+            foreach (ReadOnlyMemory<byte> segment in input)
+            {
+                decompressor.Decompress(segment.Span);
+            }
+
+            if (!decompressor.AllDataDecompressed)
+            {
+                ThrowHelper.ThrowInvalidDataException("Incomplete Snappy block.");
+            }
+
+            return decompressor.ExtractData();
+        }
+
+        /// <summary>
         /// Decompress a block of Snappy to a new byte array. This must be an entire block.
         /// </summary>
         /// <param name="input">Data to decompress.</param>
         /// <returns>The decompressed data.</returns>
+        /// <exception cref="InvalidDataException">Invalid Snappy block.</exception>
         /// <remarks>
-        /// The resulting byte array is allocated on the heap. If possible, <see cref="DecompressToMemory"/> should
+        /// The resulting byte array is allocated on the heap. If possible, <see cref="DecompressToMemory(ReadOnlySpan{byte})"/> should
         /// be used instead since it uses a shared buffer pool.
         /// </remarks>
         public static byte[] DecompressToArray(ReadOnlySpan<byte> input)
