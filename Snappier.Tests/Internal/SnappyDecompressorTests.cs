@@ -7,6 +7,38 @@ namespace Snappier.Tests.Internal
 {
     public class SnappyDecompressorTests
     {
+        #region Decompress
+
+        [Fact]
+        public void Decompress_SplitLength_Succeeds()
+        {
+            // Arrange
+
+            using var decompressor = new SnappyDecompressor();
+
+            // Requires 3 bytes to varint encode the length
+            var data = new byte[65536];
+            using var compressed = Snappy.CompressToMemory(data);
+
+            // Act
+
+            decompressor.Decompress(compressed.Memory.Span.Slice(0, 1));
+            Assert.True(decompressor.NeedMoreData);
+            decompressor.Decompress(compressed.Memory.Span.Slice(1, 1));
+            Assert.True(decompressor.NeedMoreData);
+            decompressor.Decompress(compressed.Memory.Span.Slice(2));
+            Assert.False(decompressor.NeedMoreData);
+
+            using var result = decompressor.ExtractData();
+
+            // Assert
+
+            Assert.Equal(65536, result.Memory.Length);
+            Assert.True(result.Memory.Span.SequenceEqual(data));
+        }
+
+        #endregion
+
         #region DecompressAllTags
 
         [Fact]

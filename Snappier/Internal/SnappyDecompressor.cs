@@ -20,19 +20,20 @@ namespace Snappier.Internal
         }
 
         private ScratchBuffer _scratch;
+
+        private Span<byte> Scratch => _scratch;
 #pragma warning restore CS0649 // Field is never assigned to, and will always have its default value
 #pragma warning restore IDE0044
 #pragma warning restore IDE0051
 #else
         private readonly byte[] _scratch = new byte[Constants.MaximumTagLength];
+
+        private Span<byte> Scratch => _scratch.AsSpan();
 #endif
 
-        private uint _scratchLength = 0;
+        private int _scratchLength = 0;
 
         private int _remainingLiteral;
-
-        private int _uncompressedLengthShift;
-        private int _uncompressedLength;
 
         public bool NeedMoreData => !AllDataDecompressed && UnreadBytes == 0;
 
@@ -40,7 +41,6 @@ namespace Snappier.Internal
         /// Decompress a portion of the input.
         /// </summary>
         /// <param name="input">Input to process.</param>
-        /// <returns>Number of bytes processed from the input.</returns>
         /// <remarks>
         /// The first call to this method after construction or after a call to <see cref="Reset"/> start at the
         /// beginning of a new Snappy block, leading with the encoded block size. It may be called multiple times
@@ -51,16 +51,17 @@ namespace Snappier.Internal
         {
             if (!ExpectedLength.HasValue)
             {
-                int? readLength = ReadUncompressedLength(ref input);
-                if (readLength.HasValue)
+                OperationStatus status = TryReadUncompressedLength(input, out int bytesConsumed);
+                if (status == OperationStatus.InvalidData)
                 {
-                    ExpectedLength = readLength.GetValueOrDefault();
+                    ThrowHelper.ThrowInvalidOperationException("Invalid stream length");
                 }
-                else
+                else if (status != OperationStatus.Done)
                 {
-                    // Not enough data yet to process the length
                     return;
                 }
+
+                input = input.Slice(bytesConsumed);
             }
 
             // Process any input into the write buffer
@@ -88,62 +89,74 @@ namespace Snappier.Internal
             _scratchLength = 0;
             _remainingLiteral = 0;
 
-            _uncompressedLength = 0;
-            _uncompressedLengthShift = 0;
-
             _lookbackPosition = 0;
             _readPosition = 0;
             ExpectedLength = null;
         }
 
-        /// <summary>
-        /// Read the uncompressed length stored at the start of the compressed data.
-        /// </summary>
-        /// <param name="input">Input data, which should begin with the varint encoded uncompressed length.</param>
-        /// <returns>The length of the compressed data, or null if the length is not yet complete.</returns>
-        /// <remarks>
-        /// This variant is used when reading a stream, and will pause if there aren't enough bytes available
-        /// in the input. Subsequent calls with more data will resume processing.
-        /// </remarks>
-        private int? ReadUncompressedLength(ref ReadOnlySpan<byte> input)
+        private OperationStatus TryReadUncompressedLength(ReadOnlySpan<byte> input, out int bytesConsumed)
         {
-            int result = _uncompressedLength;
-            int shift = _uncompressedLengthShift;
-            bool foundEnd = false;
+            OperationStatus status;
 
-            int i = 0;
-            while (input.Length > i)
+            if (_scratchLength > 0)
             {
-                byte c = input[i];
-                i += 1;
+                // We have a partial length in the scratch buffer, so we need to finish reading that first
+                // The maximum tag length of 5 bytes is also the maximum varint length, so we can reuse _scratch
 
-                int val = c & 0x7f;
-                if (Helpers.LeftShiftOverflows((byte) val, shift))
+                // Copy the remaining bytes from the input to the scratch buffer
+                Span<byte> scratch = Scratch;
+                int toCopy = Math.Min(input.Length, scratch.Length - _scratchLength);
+                input.Slice(0, toCopy).CopyTo(scratch.Slice(_scratchLength));
+
+                status = VarIntEncoding.TryRead(scratch.Slice(0, _scratchLength + toCopy), out uint length, out int scratchBytesConsumed);
+
+                switch (status)
                 {
-                    ThrowHelper.ThrowInvalidOperationException("Invalid stream length");
+                    case OperationStatus.Done:
+                        ExpectedLength = (int)length;
+
+                        // The number of bytes consumed from the input is the number of bytes used by VarIntEncoding.TryRead
+                        // less the number of bytes previously found in the scratch buffer
+                        bytesConsumed = scratchBytesConsumed - _scratchLength;
+
+                        // Reset scratch buffer
+                        _scratchLength = 0;
+                        break;
+
+                    case OperationStatus.NeedMoreData:
+                        // We consumed all the input, but still need more data to finish reading the length
+                        bytesConsumed = toCopy;
+                        _scratchLength += toCopy;
+
+                        Debug.Assert(_scratchLength < scratch.Length);
+                        break;
+
+                    default:
+                        bytesConsumed = 0;
+                        break;
                 }
+            }
+            else
+            {
+                // No data in the scratch buffer, try to read directly from the input
+                status = VarIntEncoding.TryRead(input, out uint length, out bytesConsumed);
 
-                result |= val << shift;
-
-                if (c < 128)
+                switch (status)
                 {
-                    foundEnd = true;
-                    break;
-                }
+                    case OperationStatus.Done:
+                        ExpectedLength = (int)length;
+                        break;
 
-                shift += 7;
-
-                if (shift >= 32)
-                {
-                    ThrowHelper.ThrowInvalidOperationException("Invalid stream length");
+                    case OperationStatus.NeedMoreData:
+                        // Copy all of the input to the scratch buffer
+                        input.CopyTo(Scratch);
+                        _scratchLength = input.Length;
+                        bytesConsumed = input.Length;
+                        break;
                 }
             }
 
-            input = input.Slice(i);
-            _uncompressedLength = result;
-            _uncompressedLengthShift = shift;
-
-            return foundEnd ? result : null;
+            return status;
         }
 
         /// <summary>
@@ -152,47 +165,8 @@ namespace Snappier.Internal
         /// <param name="input">Input data, which should begin with the varint encoded uncompressed length.</param>
         /// <returns>The length of the uncompressed data.</returns>
         /// <exception cref="InvalidDataException">Invalid stream length</exception>
-        public static int ReadUncompressedLength(ReadOnlySpan<byte> input)
-        {
-            int result = 0;
-            int shift = 0;
-            bool foundEnd = false;
-
-            int i = 0;
-            while (input.Length > 0)
-            {
-                byte c = input[i];
-                i += 1;
-
-                int val = c & 0x7f;
-                if (Helpers.LeftShiftOverflows((byte) val, shift))
-                {
-                    ThrowHelper.ThrowInvalidDataException("Invalid stream length");
-                }
-
-                result |= val << shift;
-
-                if (c < 128)
-                {
-                    foundEnd = true;
-                    break;
-                }
-
-                shift += 7;
-
-                if (shift >= 32)
-                {
-                    ThrowHelper.ThrowInvalidDataException("Invalid stream length");
-                }
-            }
-
-            if (!foundEnd)
-            {
-                ThrowHelper.ThrowInvalidDataException("Invalid stream length");
-            }
-
-            return result;
-        }
+        public static int ReadUncompressedLength(ReadOnlySpan<byte> input) =>
+            (int) VarIntEncoding.Read(input, out _);
 
         internal void DecompressAllTags(ReadOnlySpan<byte> inputSpan)
         {
@@ -451,10 +425,10 @@ namespace Snappier.Internal
             uint entry = Constants.CharTable[_scratch[0]];
             uint needed = (entry >> 11) + 1; // +1 byte for 'c'
 
-            uint toCopy = Math.Min((uint)Unsafe.ByteOffset(ref input, ref inputEnd), needed - _scratchLength);
+            uint toCopy = Math.Min((uint)Unsafe.ByteOffset(ref input, ref inputEnd), needed - (uint) _scratchLength);
             Unsafe.CopyBlockUnaligned(ref _scratch[(int)_scratchLength], ref input, toCopy);
 
-            _scratchLength += toCopy;
+            _scratchLength += (int) toCopy;
 
             if (_scratchLength < needed)
             {
@@ -491,7 +465,7 @@ namespace Snappier.Internal
                 // Data is insufficient, copy to scratch
                 Unsafe.CopyBlockUnaligned(ref _scratch[0], ref input, inputLength);
 
-                _scratchLength = inputLength;
+                _scratchLength = (int) inputLength;
                 return uint.MaxValue;
             }
 
@@ -679,7 +653,7 @@ namespace Snappier.Internal
         /// <summary>
         /// Load a byte array into _scratch, only used for testing.
         /// </summary>
-        internal void LoadScratchForTest(byte[] newScratch, uint newScratchLength)
+        internal void LoadScratchForTest(byte[] newScratch, int newScratchLength)
         {
             ThrowHelper.ThrowIfNull(newScratch);
             if (newScratchLength > ((ReadOnlySpan<byte>)_scratch).Length)
