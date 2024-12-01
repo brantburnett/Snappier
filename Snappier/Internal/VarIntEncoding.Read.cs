@@ -50,6 +50,7 @@ namespace Snappier.Internal
                 int val = c & 0x7f;
                 if (Helpers.LeftShiftOverflows((byte) val, shift))
                 {
+                    bytesRead = 0;
                     return OperationStatus.InvalidData;
                 }
 
@@ -64,6 +65,7 @@ namespace Snappier.Internal
 
                 if (shift >= 32)
                 {
+                    bytesRead = 0;
                     return OperationStatus.InvalidData;
                 }
             }
@@ -115,6 +117,7 @@ namespace Snappier.Internal
                 // checking the bounds twice.
 
                 result = 0;
+                bytesRead = 0;
                 return OperationStatus.InvalidData;
             }
 

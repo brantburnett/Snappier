@@ -83,6 +83,14 @@ namespace Snappier.Tests.Internal
             Assert.Equal(OperationStatus.NeedMoreData, status);
             Assert.Equal(0, bytesRead);
         }
+
+        [Fact]
+        public void Test_TryRead_BadData()
+        {
+            var status = VarIntEncoding.TryRead([0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF], out _, out var bytesRead);
+            Assert.Equal(OperationStatus.InvalidData, status);
+            Assert.Equal(0, bytesRead);
+        }
     }
 }
 
