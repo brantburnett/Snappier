@@ -43,6 +43,8 @@
     <Compile Remove="FindMatchLength.cs" />
     <Compile Remove="IncrementalCopy.cs" />
     <Compile Remove="Unaligned*.cs" />
+    <Compile Remove="Internal\VarIntEncodingReadTests.cs" />
+    <Compile Remove="Internal\VarIntEncodingWriteTests.cs" />
   </ItemGroup>
 
 </Project>
