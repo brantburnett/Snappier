@@ -18,18 +18,10 @@ namespace Snappier.Benchmarks
             VarIntEncoding.Write(_source, Value);
         }
 
-        [Benchmark(Baseline = true)]
-        public (int, uint) Previous()
-        {
-            var length = VarIntEncoding.ReadSlow(_source, out var result);
-
-            return (length, result);
-        }
-
         [Benchmark]
-        public (int, uint) New()
+        public (int, uint) TryRead()
         {
-            var length = VarIntEncoding.Read(_source, out var result);
+            _ = VarIntEncoding.TryRead(_source, out var result, out var length);
 
             return (length, result);
         }
