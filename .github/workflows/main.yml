@@ -72,8 +72,8 @@ jobs:
       run: dotnet restore
     - name: Test
       run: |-
-        dotnet test --runtime win-x64 -f net48 --configuration Release --verbosity normal --logger "GitHubActions;summary.includePassedTests=true;summary.includeSkippedTests=true" --collect:"XPlat Code Coverage"
-        dotnet test --runtime win-x86 -f net48 --configuration Release --verbosity normal --logger "GitHubActions;summary.includePassedTests=true;summary.includeSkippedTests=true" --collect:"XPlat Code Coverage"
+        dotnet test --runtime win-x64 -f net48 --configuration Release --verbosity normal --logger "GitHubActions;summary.includePassedTests=true;summary.includeSkippedTests=true" --collect:"XPlat Code Coverage" -- RunConfiguration.DisableAppDomain=true
+        dotnet test --runtime win-x86 -f net48 --configuration Release --verbosity normal --logger "GitHubActions;summary.includePassedTests=true;summary.includeSkippedTests=true" --collect:"XPlat Code Coverage" -- RunConfiguration.DisableAppDomain=true
     - name: Collect Coverage
       uses: actions/upload-artifact@v4
       with:
