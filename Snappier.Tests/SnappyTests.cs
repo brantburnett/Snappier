@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Buffers;
-using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 using Xunit;
 
@@ -41,6 +41,89 @@ namespace Snappier.Tests
             Assert.Equal(input.Length, outputLength);
             Assert.Equal(input, output);
         }
+
+        [Fact]
+        public void CompressAndDecompressFile_LimitedOutputBuffer()
+        {
+            // Covers the branch where the output buffer is too small to hold the maximum compressed length
+            // but is larger than the actual compressed length
+
+            using var resource =
+                typeof(SnappyTests).Assembly.GetManifestResourceStream($"Snappier.Tests.TestData.alice29.txt");
+            Assert.NotNull(resource);
+
+            var input = new byte[65536];
+            var bytesRead = resource.Read(input, 0, input.Length);
+
+            var compressed = new byte[Snappy.GetMaxCompressedLength(bytesRead) - 5];
+            var compressedLength = Snappy.Compress(input.AsSpan(0, bytesRead), compressed);
+
+            var compressedSpan = compressed.AsSpan(0, compressedLength);
+
+            var output = new byte[Snappy.GetUncompressedLength(compressedSpan)];
+            var outputLength = Snappy.Decompress(compressedSpan, output);
+
+            Assert.Equal(input.Length, outputLength);
+            Assert.Equal(input, output);
+        }
+
+#if NET6_0_OR_GREATER
+
+        [Theory]
+        [InlineData("alice29.txt")]
+        [InlineData("asyoulik.txt")]
+        [InlineData("fireworks.jpeg")]
+        [InlineData("geo.protodata")]
+        [InlineData("html")]
+        [InlineData("html_x_4")]
+        [InlineData("kppkn.gtb")]
+        [InlineData("lcet10.txt")]
+        [InlineData("paper-100k.pdf")]
+        [InlineData("plrabn12.txt")]
+        [InlineData("urls.10K")]
+        public void CompressAndDecompressFile_ViaBufferWriter(string filename)
+        {
+            using var resource =
+                typeof(SnappyTests).Assembly.GetManifestResourceStream($"Snappier.Tests.TestData.{filename}");
+            Assert.NotNull(resource);
+
+            var input = new byte[resource.Length];
+            var bytesRead = resource.Read(input, 0, input.Length);
+
+            var compressed = new ArrayBufferWriter<byte>();
+            Snappy.Compress(new ReadOnlySequence<byte>(input).Slice(0, bytesRead), compressed);
+
+            var output = new ArrayBufferWriter<byte>(); // new byte[Snappy.GetUncompressedLength(compressedSpan)];
+            Snappy.Decompress(new ReadOnlySequence<byte>(compressed.WrittenMemory), output);
+
+            Assert.Equal(input.Length, output.WrittenCount);
+            Assert.True(input.AsSpan().SequenceEqual(output.WrittenSpan));
+        }
+
+        [Theory]
+        [InlineData(16384)]
+        [InlineData(32768)]
+        [InlineData(65536)]
+        public void CompressAndDecompressFile_ViaBufferWriter_SplitInput(int maxSegmentSize)
+        {
+            using var resource =
+                typeof(SnappyTests).Assembly.GetManifestResourceStream($"Snappier.Tests.TestData.alice29.txt");
+            Assert.NotNull(resource);
+
+            var input = new byte[resource.Length];
+            var bytesRead = resource.Read(input, 0, input.Length);
+
+            var compressed = new ArrayBufferWriter<byte>();
+            Snappy.Compress(SequenceHelpers.CreateSequence(input.AsMemory(0, bytesRead), maxSegmentSize), compressed);
+
+            var output = new ArrayBufferWriter<byte>(); // new byte[Snappy.GetUncompressedLength(compressedSpan)];
+            Snappy.Decompress(SequenceHelpers.CreateSequence(compressed.WrittenMemory, maxSegmentSize), output);
+
+            Assert.Equal(input.Length, output.WrittenCount);
+            Assert.True(input.AsSpan().SequenceEqual(output.WrittenSpan));
+        }
+
+#endif
 
         public static TheoryData<string> CompressAndDecompressStringCases() =>
         [
