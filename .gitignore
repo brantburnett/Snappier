@@ -21,3 +21,4 @@ Couchbase.snk
 *.nupkg
 BenchmarkDotNet.Artifacts/
 test-results/
+TestResults/
