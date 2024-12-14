@@ -31,6 +31,9 @@ namespace Snappier.Internal
 
                 if (output.Length >= maxOutput)
                 {
+                    // The output span is large enough to hold the maximum possible compressed output,
+                    // compress directly to that span.
+
                     int written = CompressFragment(fragment, output, hashTable);
 
                     output = output.Slice(written);
@@ -38,6 +41,9 @@ namespace Snappier.Internal
                 }
                 else
                 {
+                    // The output span is too small to hold the maximum possible compressed output,
+                    // compress to a temporary buffer and copy the compressed data to the output span.
+
                     byte[] scratch = ArrayPool<byte>.Shared.Rent(maxOutput);
                     try
                     {
@@ -63,6 +69,69 @@ namespace Snappier.Internal
             return bytesWritten;
         }
 
+        public void Compress(ReadOnlySequence<byte> input, IBufferWriter<byte> bufferWriter)
+        {
+            ThrowHelper.ThrowIfNull(bufferWriter);
+            if (input.Length > uint.MaxValue)
+            {
+                ThrowHelper.ThrowArgumentException($"{nameof(input)} is larger than the maximum size of {uint.MaxValue} bytes.", nameof(input));
+            }
+            if (_workingMemory is null)
+            {
+                ThrowHelper.ThrowObjectDisposedException(nameof(SnappyCompressor));
+            }
+
+            _workingMemory.EnsureCapacity(input.Length);
+
+            Span<byte> sizeBuffer = bufferWriter.GetSpan(VarIntEncoding.MaxLength);
+            int bytesWritten = VarIntEncoding.Write(sizeBuffer, (uint)input.Length);
+            bufferWriter.Advance(bytesWritten);
+
+            while (input.Length > 0)
+            {
+                SequencePosition position = input.GetPosition(Math.Min(input.Length, Constants.BlockSize));
+                ReadOnlySequence<byte> fragment = input.Slice(0, position);
+
+                if (fragment.IsSingleSegment || fragment.First.Length >= (Constants.BlockSize / 2))
+                {
+                    // Either this fragment is contiguous, or the first segment in the fragment is at least 32KB.
+                    // In either case, compress the first (and possibly only) segment.
+
+#if NET6_0_OR_GREATER
+                    ReadOnlySpan<byte> fragmentSpan = fragment.FirstSpan;
+#else
+                    ReadOnlySpan<byte> fragmentSpan = fragment.First.Span;
+#endif
+
+                    CompressFragment(fragmentSpan, bufferWriter);
+
+                    // Advance the length of the processed segment of the fragment
+                    input = input.Slice(fragmentSpan.Length);
+                }
+                else
+                {
+                    // This fragment is split and the first segment is <32KB, copy the entire fragment to a single
+                    // buffer before compressing.
+
+                    int fragmentLength = (int)fragment.Length;
+                    byte[] scratch = ArrayPool<byte>.Shared.Rent(fragmentLength);
+                    try
+                    {
+                        fragment.CopyTo(scratch);
+
+                        CompressFragment(scratch.AsSpan(0, fragmentLength), bufferWriter);
+
+                        // Advance the length of the entire fragment
+                        input = input.Slice(position);
+                    }
+                    finally
+                    {
+                        ArrayPool<byte>.Shared.Return(scratch);
+                    }
+                }
+            }
+        }
+
         public void Dispose()
         {
             _workingMemory?.Dispose();
@@ -70,6 +139,19 @@ namespace Snappier.Internal
         }
 
         #region CompressFragment
+
+        private void CompressFragment(ReadOnlySpan<byte> fragment, IBufferWriter<byte> bufferWriter)
+        {
+            Debug.Assert(_workingMemory is not null);
+
+            Span<ushort> hashTable = _workingMemory.GetHashTable(fragment.Length);
+
+            int maxOutput = Helpers.MaxCompressedLength(fragment.Length);
+
+            Span<byte> fragmentBuffer = bufferWriter.GetSpan(maxOutput);
+            int bytesWritten = CompressFragment(fragment, fragmentBuffer, hashTable);
+            bufferWriter.Advance(bytesWritten);
+        }
 
         private static int CompressFragment(ReadOnlySpan<byte> input, Span<byte> output, Span<ushort> tableSpan)
         {

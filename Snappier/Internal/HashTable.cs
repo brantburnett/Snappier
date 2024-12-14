@@ -21,9 +21,9 @@ namespace Snappier.Internal
 
         private ushort[]? _buffer;
 
-        public void EnsureCapacity(int inputSize)
+        public void EnsureCapacity(long inputSize)
         {
-            int maxFragmentSize = Math.Min(inputSize, (int) Constants.BlockSize);
+            int maxFragmentSize = (int) Math.Min(inputSize, Constants.BlockSize);
             int tableSize = CalculateTableSize(maxFragmentSize);
 
             if (_buffer is null || tableSize > _buffer.Length)

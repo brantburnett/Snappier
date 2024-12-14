@@ -17,10 +17,13 @@ namespace Snappier
         /// <param name="inputLength">Length of the input data, in bytes.</param>
         /// <returns>The maximum potential size of the compressed output.</returns>
         /// <remarks>
-        /// This is useful for allocating a sufficient output buffer before calling <see cref="Compress"/>.
+        /// This is useful for allocating a sufficient output buffer before calling <see cref="Compress(ReadOnlySpan{byte}, Span{byte})"/>.
         /// </remarks>
         public static int GetMaxCompressedLength(int inputLength) =>
-            Helpers.MaxCompressedLength(inputLength);
+            // When used to allocate a precise buffer for compression, we need to also pad for the length encoding.
+            // Failure to do so will cause the compression process to think the buffer may not be large enough after the
+            // length is encoded and use a temporary buffer for compression which must then be copied.
+            Helpers.MaxCompressedLength(inputLength) + VarIntEncoding.MaxLength;
 
         /// <summary>
         /// Compress a block of Snappy data.
@@ -42,9 +45,25 @@ namespace Snappier
         /// Compress a block of Snappy data.
         /// </summary>
         /// <param name="input">Data to compress.</param>
-        /// <returns>An <see cref="IMemoryOwner{T}"/> with the decompressed data. The caller is responsible for disposing this object.</returns>
+        /// <param name="output">Buffer writer to receive the compressed data.</param>
         /// <remarks>
-        /// Failing to dispose of the returned <see cref="IMemoryOwner{T}"/> may result in memory leaks.
+        /// For the best performance the input sequence should be comprised of segments some multiple of 64KB
+        /// in size or a single <see cref="ReadOnlySpan{T}"/> wrapped in a sequence.
+        /// </remarks>
+        public static void Compress(ReadOnlySequence<byte> input, IBufferWriter<byte> output)
+        {
+            using var compressor = new SnappyCompressor();
+
+            compressor.Compress(input, output);
+        }
+
+        /// <summary>
+        /// Compress a block of Snappy data.
+        /// </summary>
+        /// <param name="input">Data to compress.</param>
+        /// <returns>An <see cref="IMemoryOwner{T}"/> with the compressed data. The caller is responsible for disposing this object.</returns>
+        /// <remarks>
+        /// Failing to dispose of the returned <see cref="IMemoryOwner{T}"/> may result in performance loss.
         /// </remarks>
         public static IMemoryOwner<byte> CompressToMemory(ReadOnlySpan<byte> input)
         {
