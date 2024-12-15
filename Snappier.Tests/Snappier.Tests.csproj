@@ -16,6 +16,7 @@
   <ItemGroup>
     <None Remove="TestData/*" />
     <EmbeddedResource Include="TestData/*" />
+    <None Remove="TestResults/**/*" />
   </ItemGroup>
 
   <ItemGroup>

@@ -42,7 +42,13 @@ jobs:
     - name: Test
       run: |
         export COMPlus_Enable${{ matrix.disable }}=0 && \
-        dotnet test --no-build -f ${{ matrix.framework }} --configuration Release --verbosity normal --logger "GitHubActions;summary.includePassedTests=true;summary.includeSkippedTests=true"
+        dotnet test --no-build -f ${{ matrix.framework }} --configuration Release --verbosity normal --logger "GitHubActions;summary.includePassedTests=true;summary.includeSkippedTests=true" --collect:"XPlat Code Coverage"
+    - name: Collect Coverage
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-${{ matrix.framework }}-${{ matrix.disable }}
+        path: Snappier.Tests/TestResults/**/*.xml
+
 
   test-windows:
 
@@ -66,8 +72,46 @@ jobs:
       run: dotnet restore
     - name: Test
       run: |-
-        dotnet test --runtime win-x64 -f net48 --configuration Release --verbosity normal --logger "GitHubActions;summary.includePassedTests=true;summary.includeSkippedTests=true"
-        dotnet test --runtime win-x86 -f net48 --configuration Release --verbosity normal --logger "GitHubActions;summary.includePassedTests=true;summary.includeSkippedTests=true"
+        dotnet test --runtime win-x64 -f net48 --configuration Release --verbosity normal --logger "GitHubActions;summary.includePassedTests=true;summary.includeSkippedTests=true" --collect:"XPlat Code Coverage" -- RunConfiguration.DisableAppDomain=true
+        dotnet test --runtime win-x86 -f net48 --configuration Release --verbosity normal --logger "GitHubActions;summary.includePassedTests=true;summary.includeSkippedTests=true" --collect:"XPlat Code Coverage" -- RunConfiguration.DisableAppDomain=true
+    - name: Collect Coverage
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-net4
+        path: Snappier.Tests/TestResults/**/*.xml
+
+  coverage-report:
+
+    name: Coverage Report
+    runs-on: ubuntu-latest
+    needs:
+      - test
+      - test-windows
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+    - name: Download Coverage
+      uses: actions/download-artifact@v4
+      with:
+        pattern: coverage-*
+        path: Snappier.Tests/TestResults
+    - name: ReportGenerator
+      uses: danielpalme/ReportGenerator-GitHub-Action@v5
+      with:
+        reports: 'Snappier.Tests/TestResults/**/*.xml'
+        targetdir: 'artifacts/coveragereport'
+        reporttypes: 'Html'
+        classfilters: '-System.Diagnostics.*;-System.Runtime.*;-Snappier.Internal.ThrowHelper'
+        license: ${{ secrets.REPORT_GENERATOR_LICENSE }}
+    - name: Collect Report
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report
+        path: artifacts/coveragereport
 
   publish:
 
