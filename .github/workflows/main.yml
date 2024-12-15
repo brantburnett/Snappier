@@ -106,6 +106,7 @@ jobs:
         targetdir: 'artifacts/coveragereport'
         reporttypes: 'Html'
         classfilters: '-System.Diagnostics.*;-System.Runtime.*;-Snappier.Internal.ThrowHelper'
+        license: ${{ secrets.REPORT_GENERATOR_LICENSE }}
     - name: Collect Report
       uses: actions/upload-artifact@v4
       with:
