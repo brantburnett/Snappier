@@ -105,6 +105,7 @@ jobs:
         reports: 'Snappier.Tests/TestResults/**/*.xml'
         targetdir: 'artifacts/coveragereport'
         reporttypes: 'Html'
+        classfilters: '-System.Diagnostics.*;-System.Runtime.*;-Snappier.Internal.ThrowHelper'
     - name: Collect Report
       uses: actions/upload-artifact@v4
       with:
