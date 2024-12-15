@@ -1,4 +1,5 @@
-﻿using BenchmarkDotNet.Columns;
+﻿using System;
+using BenchmarkDotNet.Columns;
 using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Environments;
 using BenchmarkDotNet.Jobs;
@@ -9,8 +10,14 @@ namespace Snappier.Benchmarks.Configuration
     {
         public FrameworkCompareConfig(Job baseJob)
         {
-            AddJob(baseJob
-                .WithRuntime(ClrRuntime.Net48));
+            #if NET6_0_OR_GREATER  // OperatingSystem check is only available in .NET 6.0 or later, but the runner itself won't be .NET 4 anyway
+            if (OperatingSystem.IsWindows())
+            {
+                AddJob(baseJob
+                    .WithRuntime(ClrRuntime.Net48));
+            }
+            #endif
+
             AddJob(baseJob
                 .WithRuntime(CoreRuntime.Core60));
             AddJob(baseJob

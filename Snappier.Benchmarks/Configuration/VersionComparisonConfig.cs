@@ -18,25 +18,31 @@ namespace Snappier.Benchmarks.Configuration
         {
             var jobBefore = baseJob.WithCustomBuildConfiguration("Previous");
 
-            var jobBefore48 = jobBefore.WithRuntime(ClrRuntime.Net48).AsBaseline();
             var jobBefore60 = jobBefore.WithRuntime(CoreRuntime.Core60).AsBaseline();
             var jobBefore80 = jobBefore.WithRuntime(CoreRuntime.Core80).WithPgo().AsBaseline();
             var jobBefore90 = jobBefore.WithRuntime(CoreRuntime.Core90).WithPgo().AsBaseline();
 
-            var jobAfter48 = baseJob.WithRuntime(ClrRuntime.Net48);
             var jobAfter60 = baseJob.WithRuntime(CoreRuntime.Core60);
             var jobAfter80 = baseJob.WithRuntime(CoreRuntime.Core80).WithPgo();
             var jobAfter90 = baseJob.WithRuntime(CoreRuntime.Core90).WithPgo();
 
-            AddJob(jobBefore48);
             AddJob(jobBefore60);
             AddJob(jobBefore80);
             AddJob(jobBefore90);
-
-            AddJob(jobAfter48);
             AddJob(jobAfter60);
             AddJob(jobAfter80);
             AddJob(jobAfter90);
+
+            #if NET6_0_OR_GREATER // OperatingSystem check is only available in .NET 6.0 or later, but the runner itself won't be .NET 4 anyway
+            if (OperatingSystem.IsWindows())
+            {
+                var jobBefore48 = jobBefore.WithRuntime(ClrRuntime.Net48).AsBaseline();
+                var jobAfter48 = baseJob.WithRuntime(ClrRuntime.Net48);
+
+                AddJob(jobBefore48);
+                AddJob(jobAfter48);
+            }
+            #endif
 
             WithOrderer(VersionComparisonOrderer.Default);
 
