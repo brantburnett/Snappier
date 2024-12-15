@@ -80,6 +80,9 @@ namespace Snappier.Tests
 
             using var output = new MemoryStream();
 
+#if NET6_0_OR_GREATER
+            await
+#endif
             using (var compressor = new SnappyStream(output, CompressionMode.Compress, true))
             {
                 await resource.CopyToAsync(compressor);
@@ -87,6 +90,9 @@ namespace Snappier.Tests
 
             output.Position = 0;
 
+#if NET6_0_OR_GREATER
+            await
+#endif
             using var decompressor = new SnappyStream(output, CompressionMode.Decompress, true);
 
             using var streamReader = new StreamReader(decompressor, Encoding.UTF8);
