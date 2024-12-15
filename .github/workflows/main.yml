@@ -47,7 +47,7 @@ jobs:
       with:
         name: coverage-${{ matrix.framework }}-${{ matrix.disable }}
         path: Snappier.Tests/TestResults/**/*.xml
-
+        retention-days: 1
 
   test-windows:
 
@@ -78,6 +78,7 @@ jobs:
       with:
         name: coverage-net4
         path: Snappier.Tests/TestResults/**/*.xml
+        retention-days: 1
 
   coverage-report:
 
@@ -97,13 +98,17 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         pattern: coverage-*
-        path: Snappier.Tests/TestResults
+        path: TestResults
+    - name: Cleanup Windows Coverage
+      run: |
+        find ./TestResults/coverage-net4 -type f -name '*.xml' | xargs sed -i 's|[A-Z]:.*\\Snappier\\Snappier\\Snappier\\|${{ github.workspace }}/Snappier/|g'
+      shell: bash
     - name: ReportGenerator
       uses: danielpalme/ReportGenerator-GitHub-Action@v5
       with:
-        reports: 'Snappier.Tests/TestResults/**/*.xml'
+        reports: 'TestResults/**/*.xml'
         targetdir: 'artifacts/coveragereport'
-        reporttypes: 'Html'
+        reporttypes: 'Html;MarkdownSummaryGithub'
         classfilters: '-System.Diagnostics.*;-System.Runtime.*;-Snappier.Internal.ThrowHelper'
         license: ${{ secrets.REPORT_GENERATOR_LICENSE }}
     - name: Collect Report
@@ -111,6 +116,9 @@ jobs:
       with:
         name: coverage-report
         path: artifacts/coveragereport
+    - name: Add to Build Summary
+      run: cat artifacts/coveragereport/SummaryGithub.md >> $GITHUB_STEP_SUMMARY # Adjust path and filename if necessary
+      shell: bash
 
   publish:
 
