@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -49,6 +50,11 @@ namespace Snappier.Internal
         /// </remarks>
         public void Decompress(ReadOnlySpan<byte> input)
         {
+            if (AllDataDecompressed)
+            {
+                ThrowHelper.ThrowInvalidOperationException("All data has been decompressed");
+            }
+
             if (!ExpectedLength.HasValue)
             {
                 OperationStatus status = TryReadUncompressedLength(input, out int bytesConsumed);
@@ -82,6 +88,15 @@ namespace Snappier.Internal
                     DecompressAllTags(input);
                 }
             }
+
+            if (BufferWriter is not null && AllDataDecompressed)
+            {
+                // Advance the buffer writer to the end of the data
+                BufferWriter.Advance(_lookbackPosition);
+
+                // Release the lookback buffer
+                _lookbackBuffer = default;
+            }
         }
 
         public void Reset()
@@ -92,6 +107,12 @@ namespace Snappier.Internal
             _lookbackPosition = 0;
             _readPosition = 0;
             ExpectedLength = null;
+
+            if (BufferWriter is not null)
+            {
+                // Don't reuse the lookback buffer when it came from a BufferWriter
+                _lookbackBuffer = default;
+            }
         }
 
         private OperationStatus TryReadUncompressedLength(ReadOnlySpan<byte> input, out int bytesConsumed)
@@ -483,6 +504,11 @@ namespace Snappier.Internal
 
         #region Loopback Writer
 
+        /// <summary>
+        /// Buffer writer for the output data. Incompatible with <see cref="ExtractData"/> and <see cref="Read"/>.
+        /// </summary>
+        public IBufferWriter<byte>? BufferWriter { get; init; }
+
         private byte[]? _lookbackBufferArray;
         private Memory<byte> _lookbackBuffer;
         private int _lookbackPosition = 0;
@@ -503,8 +529,15 @@ namespace Snappier.Internal
                         ArrayPool<byte>.Shared.Return(_lookbackBufferArray);
                     }
 
-                    _lookbackBufferArray = ArrayPool<byte>.Shared.Rent(value.GetValueOrDefault());
-                    _lookbackBuffer = _lookbackBufferArray.AsMemory(0, _lookbackBufferArray.Length);
+                    if (BufferWriter is not null)
+                    {
+                        _lookbackBuffer = BufferWriter.GetMemory(value.GetValueOrDefault());
+                    }
+                    else
+                    {
+                        _lookbackBufferArray = ArrayPool<byte>.Shared.Rent(value.GetValueOrDefault());
+                        _lookbackBuffer = _lookbackBufferArray.AsMemory(0, _lookbackBufferArray.Length);
+                    }
                 }
             }
         }
@@ -587,6 +620,11 @@ namespace Snappier.Internal
 
         public int Read(Span<byte> destination)
         {
+            if (BufferWriter is not null)
+            {
+                ThrowCannotUseWithBufferWriter(nameof(Read));
+            }
+
             var bytesToRead = Math.Min(destination.Length, UnreadBytes);
             if (bytesToRead <= 0)
             {
@@ -609,6 +647,11 @@ namespace Snappier.Internal
         /// </remarks>
         public IMemoryOwner<byte> ExtractData()
         {
+            if (BufferWriter is not null)
+            {
+                ThrowCannotUseWithBufferWriter(nameof(ExtractData));
+            }
+
             byte[]? data = _lookbackBufferArray;
             if (!ExpectedLength.HasValue)
             {
@@ -635,6 +678,15 @@ namespace Snappier.Internal
             Reset();
 
             return returnBuffer;
+        }
+
+        [DoesNotReturn]
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void ThrowCannotUseWithBufferWriter(string method)
+        {
+            // This is intentionally not inlined to keep the size of Read and ExtractData smaller,
+            // making it more likely they may be inlined.
+            ThrowHelper.ThrowNotSupportedException($"Cannot use {method} when using a BufferWriter.");
         }
 
         #endregion

@@ -52,6 +52,8 @@ namespace Snappier
         /// </remarks>
         public static void Compress(ReadOnlySequence<byte> input, IBufferWriter<byte> output)
         {
+            ThrowHelper.ThrowIfNull(output);
+
             using var compressor = new SnappyCompressor();
 
             compressor.Compress(input, output);
@@ -149,9 +151,22 @@ namespace Snappier
         /// <exception cref="InvalidDataException">Invalid Snappy block.</exception>
         public static void Decompress(ReadOnlySequence<byte> input, IBufferWriter<byte> output)
         {
-            using IMemoryOwner<byte> buffer = DecompressToMemory(input);
+            ThrowHelper.ThrowIfNull(output);
 
-            output.Write(buffer.Memory.Span);
+            using var decompressor = new SnappyDecompressor()
+            {
+                BufferWriter = output
+            };
+
+            foreach (ReadOnlyMemory<byte> segment in input)
+            {
+                decompressor.Decompress(segment.Span);
+            }
+
+            if (!decompressor.AllDataDecompressed)
+            {
+                ThrowHelper.ThrowInvalidDataException("Incomplete Snappy block.");
+            }
         }
 
         /// <summary>

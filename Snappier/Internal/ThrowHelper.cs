@@ -41,8 +41,8 @@ namespace Snappier.Internal
             throw new InvalidOperationException(message);
 
         [DoesNotReturn]
-        public static void ThrowNotSupportedException() =>
-            throw new NotSupportedException();
+        public static void ThrowNotSupportedException(string? message = null) =>
+            throw new NotSupportedException(message);
 
         [DoesNotReturn]
         public static void ThrowObjectDisposedException(string? objectName) =>
