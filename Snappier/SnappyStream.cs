@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.IO.Compression;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Snappier.Internal;
@@ -180,8 +181,18 @@ namespace Snappier
         public override int Read(byte[] buffer, int offset, int count) => ReadCore(buffer.AsSpan(offset, count));
 
         #if !NETSTANDARD2_0
+
         /// <inheritdoc />
         public override int Read(Span<byte> buffer) => ReadCore(buffer);
+
+        /// <inheritdoc />
+        public override int ReadByte()
+        {
+            byte b = 0;
+            int r = ReadCore(MemoryMarshal.CreateSpan(ref b, 1));
+            return r == 0 ? -1 : b;
+        }
+
         #endif
 
         private int ReadCore(Span<byte> buffer)
@@ -350,8 +361,13 @@ namespace Snappier
             WriteCore(buffer.AsSpan(offset, count));
 
         #if !NETSTANDARD2_0
+
         /// <inheritdoc />
         public override void Write(ReadOnlySpan<byte> buffer) => WriteCore(buffer);
+
+        /// <inheritdoc />
+        public override void WriteByte(byte value) => WriteCore(MemoryMarshal.CreateReadOnlySpan(ref value, 1));
+
         #endif
 
         private void WriteCore(ReadOnlySpan<byte> buffer)
