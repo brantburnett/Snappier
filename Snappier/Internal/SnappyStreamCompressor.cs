@@ -207,28 +207,61 @@ namespace Snappier.Internal
             Debug.Assert(_compressor != null);
             Debug.Assert(input.Length <= Constants.BlockSize);
 
+            const int headerSize = 8; // 1 byte for chunk type, 3 bytes for block size, 4 bytes for CRC
+
             Span<byte> output = _outputBuffer.AsSpan(_outputBufferSize);
 
             // Make room for the header and CRC
-            Span<byte> compressionOutput = output.Slice(8);
+            Span<byte> blockBody = output.Slice(headerSize);
 
-            int bytesWritten = _compressor.Compress(input, compressionOutput);
+            int bytesWritten = _compressor.Compress(input, blockBody);
 
-            // Write the header
+            if (bytesWritten < input.Length)
+            {
+                // Compression resulted in a smaller size, write the header
 
-            WriteCompressedBlockHeader(input, output, bytesWritten);
+                WriteCompressedBlockHeader(input, output, bytesWritten);
 
-            _outputBufferSize += bytesWritten + 8;
+                _outputBufferSize += bytesWritten + headerSize;
+            }
+            else
+            {
+                // Compression resulted in growth, switch to an uncompressed block,
+                // overwriting the compressed data in the output buffer
+
+                WriteUncompressedBlockHeader(input, output);
+                input.CopyTo(blockBody);
+
+                _outputBufferSize += input.Length + headerSize;
+            }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void WriteCompressedBlockHeader(ReadOnlySpan<byte> input, Span<byte> output, int compressedSize)
         {
+            // Write block size to bytes 1-3
             int blockSize = compressedSize + 4; // CRC
+            BinaryPrimitives.WriteInt32LittleEndian(output, blockSize << 8);
 
-            BinaryPrimitives.WriteInt32LittleEndian(output.Slice(1), blockSize);
+            // Overwrite byte 1 with the chunk type
             output[0] = (byte) Constants.ChunkType.CompressedData;
 
+            // Write masked CRC to bytes 5-8
+            uint crc = Crc32CAlgorithm.Compute(input);
+            crc = Crc32CAlgorithm.ApplyMask(crc);
+            BinaryPrimitives.WriteUInt32LittleEndian(output.Slice(4), crc);
+        }
+
+        private static void WriteUncompressedBlockHeader(ReadOnlySpan<byte> input, Span<byte> output)
+        {
+            // Write block size to bytes 1-3
+            int blockSize = input.Length + 4; // CRC
+            BinaryPrimitives.WriteInt32LittleEndian(output, blockSize << 8);
+
+            // Overwrite byte 1 with the chunk type
+            output[0] = (byte)Constants.ChunkType.UncompressedData;
+
+            // Write masked CRC to bytes 5-8
             uint crc = Crc32CAlgorithm.Compute(input);
             crc = Crc32CAlgorithm.ApplyMask(crc);
             BinaryPrimitives.WriteUInt32LittleEndian(output.Slice(4), crc);
