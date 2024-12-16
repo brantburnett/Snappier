@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.IO.Compression;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Xunit;
@@ -236,5 +237,29 @@ namespace Snappier.Tests
         }
 
 #endif
+
+        // Test case that we know was failing on decompress with the default 8192 byte chunk size
+        [Fact]
+        public void UncompressedBlock()
+        {
+            byte[] originalBytes = Enumerable.Range(0, 256).Select(p => (byte)p).ToArray();
+
+            using var compressed = new MemoryStream();
+            using SnappyStream compressor = new(compressed, CompressionMode.Compress);
+
+            compressor.Write(originalBytes, 0, originalBytes.Length);
+            compressor.Flush();
+
+            // Snappy header + block header + uncompressed data
+            Assert.Equal(10 + 8 + originalBytes.Length, compressed.Length);
+
+            compressed.Position = 0;
+
+            using SnappyStream decompressor = new(compressed, CompressionMode.Decompress);
+            using var decompressed = new MemoryStream();
+            decompressor.CopyTo(decompressed);
+
+            Assert.True(decompressed.GetBuffer().AsSpan(0, (int)decompressed.Length).SequenceEqual(originalBytes));
+        }
     }
 }
