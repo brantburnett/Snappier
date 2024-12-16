@@ -60,6 +60,39 @@ namespace Snappier.Tests
             Assert.Equal(sourceText, decompressedText);
         }
 
+        [Fact]
+        public void CompressAndDecompress_SingleByte()
+        {
+            using var resource =
+                typeof(SnappyStreamTests).Assembly.GetManifestResourceStream($"Snappier.Tests.TestData.alice29.txt");
+            Assert.NotNull(resource);
+
+            var inBuffer = new byte[128];
+            var readBytes = resource.Read(inBuffer, 0, inBuffer.Length);
+
+            using var output = new MemoryStream();
+
+            using (var compressor = new SnappyStream(output, CompressionMode.Compress, true))
+            {
+                for (var i = 0; i < readBytes; i++)
+                {
+                    compressor.WriteByte(inBuffer[i]);
+                }
+            }
+
+            output.Position = 0;
+
+            using var decompressor = new SnappyStream(output, CompressionMode.Decompress, true);
+
+            var outBuffer = new byte[128];
+            for (var i = 0; i < readBytes; i++)
+            {
+                outBuffer[i] = (byte)decompressor.ReadByte();
+            }
+
+            Assert.Equal(inBuffer, outBuffer);
+        }
+
         [Theory]
         [InlineData("alice29.txt")]
         [InlineData("asyoulik.txt")]
@@ -80,6 +113,9 @@ namespace Snappier.Tests
 
             using var output = new MemoryStream();
 
+#if NET6_0_OR_GREATER
+            await
+#endif
             using (var compressor = new SnappyStream(output, CompressionMode.Compress, true))
             {
                 await resource.CopyToAsync(compressor);
@@ -87,6 +123,9 @@ namespace Snappier.Tests
 
             output.Position = 0;
 
+#if NET6_0_OR_GREATER
+            await
+#endif
             using var decompressor = new SnappyStream(output, CompressionMode.Decompress, true);
 
             using var streamReader = new StreamReader(decompressor, Encoding.UTF8);
