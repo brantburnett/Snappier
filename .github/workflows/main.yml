@@ -52,6 +52,9 @@ jobs:
   test-windows:
 
     runs-on: windows-latest
+    strategy:
+      matrix:
+        arch: ["x64", "x86"]
 
     steps:
     - uses: actions/checkout@v4
@@ -68,15 +71,14 @@ jobs:
           ${{ runner.os }}-nuget-
 
     - name: Install dependencies
-      run: dotnet restore
+      run: dotnet restore --runtime win-${{ matrix.arch }}
     - name: Test
       run: |-
-        dotnet test --runtime win-x64 -f net48 --configuration Release --verbosity normal --logger "GitHubActions;summary.includePassedTests=true;summary.includeSkippedTests=true" --collect:"XPlat Code Coverage" -- RunConfiguration.DisableAppDomain=true
-        dotnet test --runtime win-x86 -f net48 --configuration Release --verbosity normal --logger "GitHubActions;summary.includePassedTests=true;summary.includeSkippedTests=true" --collect:"XPlat Code Coverage" -- RunConfiguration.DisableAppDomain=true
+        dotnet test --no-restore --runtime win-${{ matrix.arch }} -f net48 --configuration Release --verbosity normal --logger "GitHubActions;summary.includePassedTests=true;summary.includeSkippedTests=true" --collect:"XPlat Code Coverage" -- RunConfiguration.DisableAppDomain=true
     - name: Collect Coverage
       uses: actions/upload-artifact@v4
       with:
-        name: coverage-net4
+        name: coverage-net4-${{ matrix.arch }}
         path: Snappier.Tests/TestResults/**/*.xml
         retention-days: 1
 
@@ -101,7 +103,8 @@ jobs:
         path: TestResults
     - name: Cleanup Windows Coverage
       run: |
-        find ./TestResults/coverage-net4 -type f -name '*.xml' | xargs sed -i 's|[A-Z]:.*\\Snappier\\Snappier\\Snappier\\|${{ github.workspace }}/Snappier/|g'
+        find ./TestResults/coverage-net4-x86 -type f -name '*.xml' | xargs sed -i 's|[A-Z]:.*\\Snappier\\Snappier\\Snappier\\|${{ github.workspace }}/Snappier/|g'
+        find ./TestResults/coverage-net4-x64 -type f -name '*.xml' | xargs sed -i 's|[A-Z]:.*\\Snappier\\Snappier\\Snappier\\|${{ github.workspace }}/Snappier/|g'
       shell: bash
     - name: ReportGenerator
       uses: danielpalme/ReportGenerator-GitHub-Action@v5
