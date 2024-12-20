@@ -149,6 +149,13 @@ namespace Snappier.Internal
             int maxOutput = Helpers.MaxCompressedLength(fragment.Length);
 
             Span<byte> fragmentBuffer = bufferWriter.GetSpan(maxOutput);
+
+            // Validate proper implementation of bufferWriter to prevent buffer overflows
+            if (fragmentBuffer.Length < maxOutput)
+            {
+                ThrowHelper.ThrowInvalidOperationException("IBufferWriter<byte> did not return a sufficient span");
+            }
+
             int bytesWritten = CompressFragment(fragment, fragmentBuffer, hashTable);
             bufferWriter.Advance(bytesWritten);
         }
