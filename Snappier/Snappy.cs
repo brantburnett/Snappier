@@ -31,14 +31,39 @@ namespace Snappier
         /// <param name="input">Data to compress.</param>
         /// <param name="output">Buffer to receive the compressed data.</param>
         /// <returns>Number of bytes written to <paramref name="output"/>.</returns>
+        /// <exception cref="ArgumentException">Output buffer is too small.</exception>
         /// <remarks>
         /// The output buffer must be large enough to contain the compressed output.
         /// </remarks>
         public static int Compress(ReadOnlySpan<byte> input, Span<byte> output)
         {
+            if (!TryCompress(input, output, out var bytesWritten))
+            {
+                ThrowHelper.ThrowArgumentExceptionInsufficientOutputBuffer(nameof(output));
+            }
+
+            return bytesWritten;
+        }
+
+        /// <summary>
+        /// Attempt to compress the input data into the output buffer.
+        /// </summary>
+        /// <param name="input">Data to compress.</param>
+        /// <param name="output">Buffer to receive the compressed data.</param>
+        /// <param name="bytesWritten">Number of bytes written to the <paramref name="output"/>.</param>
+        /// <returns><c>true</c> if the compression was successful, <c>false</c> if the output buffer is too small.</returns>
+        public static bool TryCompress(ReadOnlySpan<byte> input, Span<byte> output, out int bytesWritten)
+        {
+            if (output.IsEmpty)
+            {
+                // Minimum of 1 byte is required to store a zero-length block, short circuit.
+                bytesWritten = 0;
+                return false;
+            }
+
             using var compressor = new SnappyCompressor();
 
-            return compressor.Compress(input, output);
+            return compressor.TryCompress(input, output, out bytesWritten);
         }
 
         /// <summary>
@@ -46,9 +71,13 @@ namespace Snappier
         /// </summary>
         /// <param name="input">Data to compress.</param>
         /// <param name="output">Buffer writer to receive the compressed data.</param>
+        /// <exception cref="ArgumentNullException"><paramref name="output"/> is null.</exception>
+        /// <exception cref="ArgumentException"><paramref name="input"/> is larger than the maximum of 4,294,967,295 bytes.</exception>
         /// <remarks>
-        /// For the best performance the input sequence should be comprised of segments some multiple of 64KB
-        /// in size or a single <see cref="ReadOnlySpan{T}"/> wrapped in a sequence.
+        ///     <para>
+        ///     For the best performance, sequences with more than one segement should be comprised of segments some multiple of 64KB
+        ///     in size (i.e. 64KB or 128KB or 256KB each) with only the final segment varying.
+        ///     </para>
         /// </remarks>
         public static void Compress(ReadOnlySequence<byte> input, IBufferWriter<byte> output)
         {
@@ -73,7 +102,11 @@ namespace Snappier
 
             try
             {
-                int length = Compress(input, buffer);
+                if (!TryCompress(input, buffer, out int length))
+                {
+                    // Should be unreachable since we're allocating a buffer of the correct size.
+                    ThrowHelper.ThrowInvalidOperationException();
+                }
 
                 return new ByteArrayPoolMemoryOwner(buffer, length);
             }
@@ -124,23 +157,37 @@ namespace Snappier
         /// <exception cref="ArgumentException">Output buffer is too small.</exception>
         public static int Decompress(ReadOnlySpan<byte> input, Span<byte> output)
         {
+            bool result = TryDecompress(input, output, out int bytesWritten);
+            if (!result)
+            {
+                ThrowHelper.ThrowArgumentExceptionInsufficientOutputBuffer(nameof(output));
+            }
+
+            return bytesWritten;
+        }
+
+        /// <summary>
+        /// Decompress a block of Snappy data. This must be an entire block.
+        /// </summary>
+        /// <param name="input">Data to decompress.</param>
+        /// <param name="output">Buffer to receive the decompressed data.</param>
+        /// <param name="bytesWritten">Number of bytes written to the <paramref name="output"/>.</param>
+        /// <returns><c>true</c> if the compression was successful, <c>false</c> if the output buffer is too small.</returns>
+        /// <exception cref="InvalidDataException">Invalid Snappy block.</exception>
+        public static bool TryDecompress(ReadOnlySpan<byte> input, Span<byte> output, out int bytesWritten)
+        {
             using var decompressor = new SnappyDecompressor();
 
             decompressor.Decompress(input);
 
             if (!decompressor.AllDataDecompressed)
             {
-                ThrowHelper.ThrowInvalidDataException("Incomplete Snappy block.");
+                ThrowHelper.ThrowInvalidDataExceptionIncompleteSnappyBlock();
             }
 
-            int read = decompressor.Read(output);
+            bytesWritten = decompressor.Read(output);
 
-            if (!decompressor.EndOfFile)
-            {
-                ThrowHelper.ThrowArgumentException("Output buffer is too small.", nameof(output));
-            }
-
-            return read;
+            return decompressor.EndOfFile;
         }
 
         /// <summary>
@@ -165,7 +212,7 @@ namespace Snappier
 
             if (!decompressor.AllDataDecompressed)
             {
-                ThrowHelper.ThrowInvalidDataException("Incomplete Snappy block.");
+                ThrowHelper.ThrowInvalidDataExceptionIncompleteSnappyBlock();
             }
         }
 
@@ -186,7 +233,7 @@ namespace Snappier
 
             if (!decompressor.AllDataDecompressed)
             {
-                ThrowHelper.ThrowInvalidDataException("Incomplete Snappy block.");
+                ThrowHelper.ThrowInvalidDataExceptionIncompleteSnappyBlock();
             }
 
             return decompressor.ExtractData();
@@ -212,7 +259,7 @@ namespace Snappier
 
             if (!decompressor.AllDataDecompressed)
             {
-                ThrowHelper.ThrowInvalidDataException("Incomplete Snappy block.");
+                ThrowHelper.ThrowInvalidDataExceptionIncompleteSnappyBlock();
             }
 
             return decompressor.ExtractData();

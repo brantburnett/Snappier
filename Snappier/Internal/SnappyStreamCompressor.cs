@@ -214,7 +214,11 @@ namespace Snappier.Internal
             // Make room for the header and CRC
             Span<byte> blockBody = output.Slice(headerSize);
 
-            int bytesWritten = _compressor.Compress(input, blockBody);
+            if (!_compressor.TryCompress(input, blockBody, out int bytesWritten))
+            {
+                // Should be unreachable since we're allocating a buffer of the correct size.
+                ThrowHelper.ThrowInvalidOperationException();
+            }
 
             if (bytesWritten < input.Length)
             {

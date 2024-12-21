@@ -9,7 +9,18 @@ namespace Snappier.Internal
     {
         private HashTable? _workingMemory = new();
 
+        [Obsolete("Retained for benchmark comparisons to previous versions")]
         public int Compress(ReadOnlySpan<byte> input, Span<byte> output)
+        {
+            if (!TryCompress(input, output, out int bytesWritten))
+            {
+                ThrowHelper.ThrowArgumentExceptionInsufficientOutputBuffer(nameof(output));
+            }
+
+            return bytesWritten;
+        }
+
+        public bool TryCompress(ReadOnlySpan<byte> input, Span<byte> output, out int bytesWritten)
         {
             if (_workingMemory == null)
             {
@@ -18,7 +29,7 @@ namespace Snappier.Internal
 
             _workingMemory.EnsureCapacity(input.Length);
 
-            int bytesWritten = VarIntEncoding.Write(output, (uint)input.Length);
+            bytesWritten = VarIntEncoding.Write(output, (uint)input.Length);
             output = output.Slice(bytesWritten);
 
             while (input.Length > 0)
@@ -29,15 +40,13 @@ namespace Snappier.Internal
 
                 int maxOutput = Helpers.MaxCompressedLength(fragment.Length);
 
+                int written;
                 if (output.Length >= maxOutput)
                 {
                     // The output span is large enough to hold the maximum possible compressed output,
                     // compress directly to that span.
 
-                    int written = CompressFragment(fragment, output, hashTable);
-
-                    output = output.Slice(written);
-                    bytesWritten += written;
+                    written = CompressFragment(fragment, output, hashTable);
                 }
                 else
                 {
@@ -47,15 +56,14 @@ namespace Snappier.Internal
                     byte[] scratch = ArrayPool<byte>.Shared.Rent(maxOutput);
                     try
                     {
-                        int written = CompressFragment(fragment, scratch.AsSpan(), hashTable);
+                        written = CompressFragment(fragment, scratch.AsSpan(), hashTable);
                         if (output.Length < written)
                         {
-                            ThrowHelper.ThrowArgumentException("Insufficient output buffer", nameof(output));
+                            bytesWritten = 0;
+                            return false;
                         }
 
                         scratch.AsSpan(0, written).CopyTo(output);
-                        output = output.Slice(written);
-                        bytesWritten += written;
                     }
                     finally
                     {
@@ -63,10 +71,13 @@ namespace Snappier.Internal
                     }
                 }
 
+                output = output.Slice(written);
+                bytesWritten += written;
+
                 input = input.Slice(fragment.Length);
             }
 
-            return bytesWritten;
+            return true;
         }
 
         public void Compress(ReadOnlySequence<byte> input, IBufferWriter<byte> bufferWriter)

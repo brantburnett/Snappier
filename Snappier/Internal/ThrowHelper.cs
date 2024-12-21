@@ -33,11 +33,21 @@ namespace Snappier.Internal
 #endif
 
         [DoesNotReturn]
+        [MethodImpl(MethodImplOptions.NoInlining)] // Avoid inlining to reduce code size for a cold path
+        public static void ThrowArgumentExceptionInsufficientOutputBuffer(string? paramName) =>
+            ThrowArgumentException("Output buffer is too small.", paramName);
+
+        [DoesNotReturn]
         public static void ThrowInvalidDataException(string? message) =>
             throw new InvalidDataException(message);
 
         [DoesNotReturn]
-        public static void ThrowInvalidOperationException(string? message) =>
+        [MethodImpl(MethodImplOptions.NoInlining)] // Avoid inlining to reduce code size for a cold path
+        public static void ThrowInvalidDataExceptionIncompleteSnappyBlock() =>
+            throw new InvalidDataException("Incomplete Snappy block.");
+
+        [DoesNotReturn]
+        public static void ThrowInvalidOperationException(string? message = null) =>
             throw new InvalidOperationException(message);
 
         [DoesNotReturn]
