@@ -67,6 +67,60 @@ namespace Snappier.Tests
             Assert.Equal(input, output);
         }
 
+        [Fact]
+        public void Compress_InsufficientOutputBuffer()
+        {
+            using var resource =
+                typeof(SnappyTests).Assembly.GetManifestResourceStream($"Snappier.Tests.TestData.alice29.txt");
+            Assert.NotNull(resource);
+
+            var input = new byte[65536];
+            var bytesRead = resource.Read(input, 0, input.Length);
+
+            var compressed = new byte[1024];
+            Assert.Throws<ArgumentException>(() => Snappy.Compress(input.AsSpan(0, bytesRead), compressed));
+        }
+
+        [Fact]
+        public void TryCompressAndDecompress()
+        {
+            using var resource =
+                typeof(SnappyTests).Assembly.GetManifestResourceStream($"Snappier.Tests.TestData.alice29.txt");
+            Assert.NotNull(resource);
+
+            var input = new byte[65536];
+            var bytesRead = resource.Read(input, 0, input.Length);
+
+            var compressed = new byte[Snappy.GetMaxCompressedLength(bytesRead)];
+            var result  = Snappy.TryCompress(input.AsSpan(0, bytesRead), compressed, out var compressedLength);
+            Assert.True(result);
+
+            var compressedSpan = compressed.AsSpan(0, compressedLength);
+
+            var output = new byte[Snappy.GetUncompressedLength(compressedSpan)];
+            result = Snappy.TryDecompress(compressedSpan, output, out var outputLength);
+            Assert.True(result);
+
+            Assert.Equal(input.Length, outputLength);
+            Assert.Equal(input, output);
+        }
+
+        [Fact]
+        public void TryCompress_InsufficientOutputBuffer()
+        {
+            using var resource =
+                typeof(SnappyTests).Assembly.GetManifestResourceStream($"Snappier.Tests.TestData.alice29.txt");
+            Assert.NotNull(resource);
+
+            var input = new byte[65536];
+            var bytesRead = resource.Read(input, 0, input.Length);
+
+            var compressed = new byte[1024];
+            var result = Snappy.TryCompress(input.AsSpan(0, bytesRead), compressed, out _);
+
+            Assert.False(result);
+        }
+
 #if NET6_0_OR_GREATER
 
         [Theory]
@@ -168,6 +222,21 @@ namespace Snappier.Tests
         }
 
         [Fact]
+        public void TryDecompress_InsufficentOutputBuffer_ReturnsFalse()
+        {
+            var input = new byte[100000];
+            ArrayFill(input, (byte)'A');
+
+            var compressed = new byte[Snappy.GetMaxCompressedLength(input.Length)];
+            var compressedLength = Snappy.Compress(input, compressed);
+
+            var output = new byte[100];
+            var result = Snappy.TryDecompress(compressed.AsSpan(0, compressedLength), output, out _);
+
+            Assert.False(result);
+        }
+
+        [Fact]
         public void BadData_SimpleCorruption_ThrowsInvalidDataException()
         {
             var input = Encoding.UTF8.GetBytes("making sure we don't crash with corrupted input");
@@ -231,6 +300,29 @@ namespace Snappier.Tests
 
                 var output = new byte[length];
                 Snappy.Decompress(input.AsSpan(0, bytesRead), output);
+            });
+        }
+
+        [Theory]
+        [InlineData("baddata1.snappy")]
+        [InlineData("baddata2.snappy")]
+        [InlineData("baddata3.snappy")]
+        public void BadData_TryDecompress_ThrowsInvalidDataException(string filename)
+        {
+            using var resource =
+                typeof(SnappyTests).Assembly.GetManifestResourceStream($"Snappier.Tests.TestData.{filename}");
+            Assert.NotNull(resource);
+
+            var input = new byte[resource.Length];
+            var bytesRead = resource.Read(input, 0, input.Length);
+
+            Assert.Throws<InvalidDataException>(() =>
+            {
+                var length = Snappy.GetUncompressedLength(input.AsSpan(0, bytesRead));
+                Assert.InRange(length, 0, 1 << 20);
+
+                var output = new byte[length];
+                Snappy.TryDecompress(input.AsSpan(0, bytesRead), output, out _);
             });
         }
 

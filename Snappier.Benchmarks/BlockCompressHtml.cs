@@ -27,7 +27,9 @@ namespace Snappier.Benchmarks
         {
             using var compressor = new SnappyCompressor();
 
+#pragma warning disable CS0618 // Type or member is obsolete
             return compressor.Compress(_input.Span, _output.Span);
+#pragma warning restore CS0618 // Type or member is obsolete
         }
     }
 }
