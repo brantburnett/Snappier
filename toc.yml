@@ -1,0 +1,8 @@
+- name: Documentation
+  href: docs/
+- name: API
+  href: api/
+- name: Contributing
+  href: contributing.md
+- name: GitHub
+  href: https://github.com/brantburnett/Snappier

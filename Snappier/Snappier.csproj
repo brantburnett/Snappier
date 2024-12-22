@@ -26,6 +26,7 @@
     <PackageLicenseExpression>BSD-3-Clause</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>icon.png</PackageIcon>
+    <PackageProjectUrl>https://brantburnett.github.io/Snappier/</PackageProjectUrl>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
@@ -44,7 +45,7 @@
 
   <ItemGroup>
     <None Include="..\README.md" Pack="true" PackagePath="$(PackageReadmeFile)" />
-    <None Include="..\icon.png" Pack="true" PackagePath="$(PackageIcon)" />
+    <None Include="..\images\icon.png" Pack="true" PackagePath="$(PackageIcon)" />
   </ItemGroup>
 
   <ItemGroup Condition=" '$(TargetFramework)' == 'netstandard2.0' ">

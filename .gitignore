@@ -24,3 +24,4 @@ BenchmarkDotNet.Artifacts/
 test-results/
 TestResults/
 .DS_Store
+/api/
