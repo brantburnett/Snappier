@@ -206,6 +206,14 @@ namespace Snappier.Tests
         }
 
         [Fact]
+        public void Compress_OverlappingBuffers_InvalidOperationException()
+        {
+            var input = new byte[1024];
+
+            Assert.Throws<InvalidOperationException>(() => Snappy.Compress(input, input.AsSpan(input.Length - 1)));
+        }
+
+        [Fact]
         public void BadData_InsufficentOutputBuffer_ThrowsArgumentException()
         {
             var input = new byte[100000];
