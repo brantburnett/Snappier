@@ -8,6 +8,9 @@
     <SignAssembly>true</SignAssembly>
     <AssemblyOriginatorKeyFile>..\Snappier.snk</AssemblyOriginatorKeyFile>
 
+    <EnablePackageValidation>true</EnablePackageValidation>
+    <PackageValidationBaselineVersion>1.1.6</PackageValidationBaselineVersion>
+
     <Authors>btburnett3</Authors>
     <PackageTags>snappy;compression;fast;io</PackageTags>
     <!-- Copyright remains with Google since this is a direct port of the C++ source from https://github.com/google/snappy -->
@@ -22,6 +25,7 @@
     </Description>
     <PackageLicenseExpression>BSD-3-Clause</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
@@ -40,6 +44,7 @@
 
   <ItemGroup>
     <None Include="..\README.md" Pack="true" PackagePath="$(PackageReadmeFile)" />
+    <None Include="..\icon.png" Pack="true" PackagePath="$(PackageIcon)" />
   </ItemGroup>
 
   <ItemGroup Condition=" '$(TargetFramework)' == 'netstandard2.0' ">
