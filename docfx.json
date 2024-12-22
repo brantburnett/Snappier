@@ -1,0 +1,54 @@
+{
+  "$schema": "https://raw.githubusercontent.com/dotnet/docfx/main/schemas/docfx.schema.json",
+  "metadata": [
+    {
+      "src": [
+        {
+          "src": "./Snappier",
+          "files": [
+            "**/*.csproj"
+          ]
+        }
+      ],
+      "dest": "api",
+      "properties": {
+        "TargetFramework": "net8.0"
+      }
+    }
+  ],
+  "build": {
+    "content": [
+      {
+        "files": [
+          "**/*.{md,yml}"
+        ],
+        "exclude": [
+          "_site/**",
+          "artifacts/**",
+          "**/BenchmarkDotNet.Artifacts/**"
+        ]
+      }
+    ],
+    "resource": [
+      {
+        "files": [
+          "images/**"
+        ]
+      }
+    ],
+    "output": "artifacts/_site",
+    "template": [
+      "default",
+      "material/material"
+    ],
+    "globalMetadata": {
+      "_appName": "Snappier",
+      "_appTitle": "Snappier",
+      "_appLogoPath": "images/icon-48.png",
+      "_disableContribution": true,
+      "_enableSearch": true,
+      "pdf": false
+    },
+    "postProcessors": ["ExtractSearchIndex"]
+  }
+}

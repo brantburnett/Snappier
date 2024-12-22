@@ -1,0 +1,6 @@
+- name: Getting Started
+  href: getting-started.md
+- name: Block Compression
+  href: block.md
+- name: Stream Compression
+  href: stream.md
