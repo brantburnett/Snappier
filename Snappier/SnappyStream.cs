@@ -494,7 +494,7 @@ namespace Snappier
                             _buffer = null;
                             if (!AsyncOperationIsActive)
                             {
-                                ArrayPool<byte>.Shared.Return(buffer);
+                                ArrayPool<byte>.Shared.Return(buffer, clearArray: true);
                             }
                         }
 
@@ -545,7 +545,7 @@ namespace Snappier
                             _buffer = null;
                             if (!AsyncOperationIsActive)
                             {
-                                ArrayPool<byte>.Shared.Return(buffer);
+                                ArrayPool<byte>.Shared.Return(buffer, clearArray: true);
                             }
                         }
                     }

@@ -526,7 +526,8 @@ namespace Snappier.Internal
                 {
                     if (_lookbackBufferArray is not null)
                     {
-                        ArrayPool<byte>.Shared.Return(_lookbackBufferArray);
+                        // Clear the used portion of the lookback buffer before returning
+                        Helpers.ClearAndReturn(_lookbackBufferArray, _lookbackPosition);
                     }
 
                     if (BufferWriter is not null)
@@ -731,7 +732,9 @@ namespace Snappier.Internal
         {
             if (_lookbackBufferArray is not null)
             {
-                ArrayPool<byte>.Shared.Return(_lookbackBufferArray);
+                // Clear the used portion of the lookback buffer before returning
+                Helpers.ClearAndReturn(_lookbackBufferArray, _lookbackPosition);
+
                 _lookbackBufferArray = null;
                 _lookbackBuffer = default;
             }

@@ -1,8 +1,10 @@
 ﻿using System;
+using System.Buffers;
 using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+
 #if NET6_0_OR_GREATER
 using System.Numerics;
 using System.Runtime.Intrinsics;
@@ -43,6 +45,23 @@ namespace Snappier.Internal
             // This last factor dominates the blowup, so the final estimate is:
 
             return 32 + sourceBytes + sourceBytes / 6 + 1;
+        }
+
+        // Constant for MaxCompressedLength when passed Constants.BlockSize, keep this in sync with the above method
+        public const int MaxBlockCompressedLength = (int)(32 + Constants.BlockSize + Constants.BlockSize / 6 + 1);
+
+        /// <summary>
+        /// Clears the array and returns it to the pool, clearing only the used portion of the array.
+        /// This is a minor performance optimization to avoid clearing the entire array.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void ClearAndReturn(byte[] array, int usedLength)
+        {
+            Debug.Assert(array is not null);
+            Debug.Assert(usedLength >= 0);
+
+            array.AsSpan(0, usedLength).Clear();
+            ArrayPool<byte>.Shared.Return(array);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
