@@ -102,21 +102,16 @@ namespace Snappier
         {
             byte[] buffer = ArrayPool<byte>.Shared.Rent(GetMaxCompressedLength(input.Length));
 
-            try
+            if (!TryCompress(input, buffer, out int length))
             {
-                if (!TryCompress(input, buffer, out int length))
-                {
-                    // Should be unreachable since we're allocating a buffer of the correct size.
-                    ThrowHelper.ThrowInvalidOperationException();
-                }
+                // The amount of data written is unknown, so clear the entire buffer when returning
+                ArrayPool<byte>.Shared.Return(buffer, clearArray: true);
 
-                return new ByteArrayPoolMemoryOwner(buffer, length);
+                // Should be unreachable since we're allocating a buffer of the correct size.
+                ThrowHelper.ThrowInvalidOperationException();
             }
-            catch
-            {
-                ArrayPool<byte>.Shared.Return(buffer);
-                throw;
-            }
+
+            return new ByteArrayPoolMemoryOwner(buffer, length);
         }
 
         /// <summary>

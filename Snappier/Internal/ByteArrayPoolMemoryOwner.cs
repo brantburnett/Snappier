@@ -45,6 +45,9 @@ namespace Snappier.Internal
             byte[]? innerArray = _innerArray;
             if (innerArray is not null)
             {
+                // Clear the used portion of the array before returning it to the pool
+                Memory.Span.Clear();
+
                 _innerArray = null;
                 Memory = default;
                 ArrayPool<byte>.Shared.Return(innerArray);

@@ -60,21 +60,18 @@ namespace Snappier.Internal
                     // compress to a temporary buffer and copy the compressed data to the output span.
 
                     byte[] scratch = ArrayPool<byte>.Shared.Rent(maxOutput);
-                    try
+                    written = CompressFragment(fragment, scratch.AsSpan(), hashTable);
+                    if (output.Length < written)
                     {
-                        written = CompressFragment(fragment, scratch.AsSpan(), hashTable);
-                        if (output.Length < written)
-                        {
-                            bytesWritten = 0;
-                            return false;
-                        }
+                        Helpers.ClearAndReturn(scratch, written);
+                        bytesWritten = 0;
+                        return false;
+                    }
 
-                        scratch.AsSpan(0, written).CopyTo(output);
-                    }
-                    finally
-                    {
-                        ArrayPool<byte>.Shared.Return(scratch);
-                    }
+                    Span<byte> writtenScratch = scratch.AsSpan(0, written);
+                    writtenScratch.CopyTo(output);
+                    writtenScratch.Clear();
+                    ArrayPool<byte>.Shared.Return(scratch);
                 }
 
                 output = output.Slice(written);
@@ -132,19 +129,17 @@ namespace Snappier.Internal
 
                     int fragmentLength = (int)fragment.Length;
                     byte[] scratch = ArrayPool<byte>.Shared.Rent(fragmentLength);
-                    try
-                    {
-                        fragment.CopyTo(scratch);
 
-                        CompressFragment(scratch.AsSpan(0, fragmentLength), bufferWriter);
+                    Span<byte> usedScratch = scratch.AsSpan(0, fragmentLength);
+                    fragment.CopyTo(usedScratch);
 
-                        // Advance the length of the entire fragment
-                        input = input.Slice(position);
-                    }
-                    finally
-                    {
-                        ArrayPool<byte>.Shared.Return(scratch);
-                    }
+                    CompressFragment(usedScratch, bufferWriter);
+
+                    usedScratch.Clear();
+                    ArrayPool<byte>.Shared.Return(scratch);
+
+                    // Advance the length of the entire fragment
+                    input = input.Slice(position);
                 }
             }
         }

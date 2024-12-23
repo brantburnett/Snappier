@@ -276,7 +276,7 @@ namespace Snappier.Internal
         {
             // Allocate enough room for the stream header and block headers
             _outputBuffer ??=
-                ArrayPool<byte>.Shared.Rent(Helpers.MaxCompressedLength((int) Constants.BlockSize) + 8 + SnappyHeader.Length);
+                ArrayPool<byte>.Shared.Rent(Helpers.MaxBlockCompressedLength + 8 + SnappyHeader.Length);
 
             // Allocate enough room for the stream header and block headers
             _inputBuffer ??= ArrayPool<byte>.Shared.Rent((int) Constants.BlockSize);
@@ -289,12 +289,12 @@ namespace Snappier.Internal
 
             if (_outputBuffer is not null)
             {
-                ArrayPool<byte>.Shared.Return(_outputBuffer);
+                ArrayPool<byte>.Shared.Return(_outputBuffer, clearArray: true);
                 _outputBuffer = null;
             }
             if (_inputBuffer is not null)
             {
-                ArrayPool<byte>.Shared.Return(_inputBuffer);
+                ArrayPool<byte>.Shared.Return(_inputBuffer, clearArray: true);
                 _inputBuffer = null;
             }
         }
