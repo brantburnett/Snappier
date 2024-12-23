@@ -26,6 +26,10 @@ namespace Snappier.Internal
             {
                 ThrowHelper.ThrowObjectDisposedException(nameof(SnappyCompressor));
             }
+            if (input.Overlaps(output))
+            {
+                ThrowHelper.ThrowInvalidOperationException("Input and output spans must not overlap.");
+            }
 
             _workingMemory.EnsureCapacity(input.Length);
 

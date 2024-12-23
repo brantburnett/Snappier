@@ -32,6 +32,7 @@ namespace Snappier
         /// <param name="output">Buffer to receive the compressed data.</param>
         /// <returns>Number of bytes written to <paramref name="output"/>.</returns>
         /// <exception cref="ArgumentException">Output buffer is too small.</exception>
+        /// <exception cref="InvalidOperationException">Input and output spans must not overlap.</exception>
         /// <remarks>
         /// The output buffer must be large enough to contain the compressed output.
         /// </remarks>
@@ -51,6 +52,7 @@ namespace Snappier
         /// <param name="input">Data to compress.</param>
         /// <param name="output">Buffer to receive the compressed data.</param>
         /// <param name="bytesWritten">Number of bytes written to the <paramref name="output"/>.</param>
+        /// <exception cref="InvalidOperationException">Input and output spans must not overlap.</exception>
         /// <returns><c>true</c> if the compression was successful, <c>false</c> if the output buffer is too small.</returns>
         public static bool TryCompress(ReadOnlySpan<byte> input, Span<byte> output, out int bytesWritten)
         {

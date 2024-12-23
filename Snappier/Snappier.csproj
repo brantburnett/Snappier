@@ -20,7 +20,7 @@
       from the official C++ implementation, with the addition of support for the framed stream format.
 
       By avoiding P/Invoke, Snappier is fully cross-platform and works on both Linux and Windows and against any CPU supported
-      by .NET Core. However, Snappier performs best in .NET Core 3.0 and later on little-endian x86/64 processors with the
+      by .NET. However, Snappier performs best in .NET 6 and later on little-endian x86/64 processors with the
       help of System.Runtime.Instrinsics.
     </Description>
     <PackageLicenseExpression>BSD-3-Clause</PackageLicenseExpression>
