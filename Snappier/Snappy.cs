@@ -219,7 +219,7 @@ namespace Snappier
         }
 
         /// <summary>
-        /// Decompress a block of Snappy to a new memory buffer. This must be an entire block.
+        /// Decompress a block of Snappy data to a new memory buffer. This must be an entire block.
         /// </summary>
         /// <param name="input">Data to decompress.</param>
         /// <returns>An <see cref="IMemoryOwner{T}"/> with the decompressed data. The caller is responsible for disposing this object.</returns>
@@ -242,7 +242,7 @@ namespace Snappier
         }
 
         /// <summary>
-        /// Decompress a block of Snappy to a new memory buffer. This must be an entire block.
+        /// Decompress a block of Snappy data to a new memory buffer. This must be an entire block.
         /// </summary>
         /// <param name="input">Data to decompress.</param>
         /// <returns>An <see cref="IMemoryOwner{T}"/> with the decompressed data. The caller is responsible for disposing this object.</returns>

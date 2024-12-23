@@ -4,7 +4,7 @@
 
 Snappier is a pure C# port of Google's [Snappy](https://github.com/google/snappy) compression algorithm. It is designed with speed as the primary goal, rather than compression ratio, and is ideal for compressing network traffic. Please see [the Snappy README file](https://github.com/google/snappy/blob/master/README.md) for more details on Snappy.
 
-Complete documentation is available at (https://brantburnett.github.io/Snappier/).
+Complete documentation is available at https://brantburnett.github.io/Snappier/.
 
 ## Project Goals
 
@@ -15,7 +15,7 @@ The Snappier project aims to meet the following needs of the .NET community.
 - Use .NET paradigms, including asynchronous stream support
 - Full compatibility with both block and stream formats
 - Near C++ level performance
-  - Note: This is only possible on .NET 6 and later with the aid of [Span&lt;T&gt;](https://docs.microsoft.com/en-us/dotnet/api/system.span-1?view=netcore-3.1) and [System.Runtime.Intrinsics](https://fiigii.com/2019/03/03/Hardware-intrinsic-in-NET-Core-3-0-Introduction/).
+  - Note: This is only possible on .NET 6 and later with the aid of [Span&lt;T&gt;](https://docs.microsoft.com/en-us/dotnet/api/system.span-1?view=net-9.0) and [System.Runtime.Intrinsics](https://devblogs.microsoft.com/dotnet/dotnet-8-hardware-intrinsics/)
   - .NET 4.6.1 is the slowest
 - Keep allocations and garbage collection to a minimum using buffer pools
 
@@ -111,5 +111,5 @@ public class Program
 
 There are other projects available for C#/.NET which implement Snappy compression.
 
-- [Snappy.NET](https://snappy.machinezoo.com/) - Uses P/Invoke to C++ for great performance. However, it only works on Windows, and is a bit heap allocation heavy in some cases. It also hasn't been updated since 2014 (as of 10/2020). This project may still be the best choice if your project is on the legacy .NET Framework on Windows, where Snappier is much less performant.
-- [IronSnappy](https://github.com/aloneguid/IronSnappy) - Another pure C# port, based on the Golang implementation instead of the C++ implementation.
+- [Snappy.NET](https://snappy.machinezoo.com/) - Uses P/Invoke to C++ for great performance. However, it only works on Windows, is a bit heap allocation heavy in some cases, and is a deprecated project. This project may still be the best choice if your project is on the legacy .NET Framework on Windows, where Snappier is much less performant.
+- [IronSnappy](https://www.nuget.org/packages/IronSnappy) - Another pure C# port, based on the Golang implementation instead of the C++ implementation.
