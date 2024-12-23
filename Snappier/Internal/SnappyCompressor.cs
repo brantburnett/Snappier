@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
 namespace Snappier.Internal
@@ -10,6 +11,7 @@ namespace Snappier.Internal
         private HashTable? _workingMemory = new();
 
         [Obsolete("Retained for benchmark comparisons to previous versions")]
+        [ExcludeFromCodeCoverage]
         public int Compress(ReadOnlySpan<byte> input, Span<byte> output)
         {
             if (!TryCompress(input, output, out int bytesWritten))

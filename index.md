@@ -15,7 +15,7 @@ The Snappier project aims to meet the following needs of the .NET community.
 - Use .NET paradigms, including asynchronous stream support
 - Full compatibility with both block and stream formats
 - Near C++ level performance
-  - Note: This is only possible on .NET 6 and later with the aid of [Span&lt;T&gt;](https://docs.microsoft.com/en-us/dotnet/api/system.span-1?view=netcore-3.1) and [System.Runtime.Intrinsics](https://fiigii.com/2019/03/03/Hardware-intrinsic-in-NET-Core-3-0-Introduction/).
+  - Note: This is only possible on .NET 6 and later with the aid of [Span&lt;T&gt;](https://docs.microsoft.com/en-us/dotnet/api/system.span-1?view=net-9.0) and [System.Runtime.Intrinsics](https://devblogs.microsoft.com/dotnet/dotnet-8-hardware-intrinsics/)
   - .NET 4.6.1 is the slowest
 - Keep allocations and garbage collection to a minimum using buffer pools
 
