@@ -30,9 +30,9 @@ jobs:
     - uses: actions/cache@v4
       with:
         path: ~/.nuget/packages
-        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/*.props', '**/*.targets') }}
+        key: ${{ runner.os }}-${{ runner.arch }}-nuget-${{ hashFiles('**/*.csproj', '**/*.props', '**/*.targets') }}
         restore-keys: |
-          ${{ runner.os }}-nuget-
+          ${{ runner.os }}-${{ runner.arch }}-nuget-
 
     - name: Install dependencies
       run: dotnet restore
@@ -45,7 +45,44 @@ jobs:
     - name: Collect Coverage
       uses: actions/upload-artifact@v4
       with:
-        name: coverage-${{ matrix.framework }}-${{ matrix.disable }}
+        name: coverage-${{ matrix.framework }}-${{ runner.arch }}-${{ matrix.disable }}
+        path: Snappier.Tests/TestResults/**/*.xml
+        retention-days: 1
+
+  test-arm:
+
+    runs-on: ubuntu-24.04-arm
+    strategy:
+      matrix:
+        framework: ["net8.0", "net9.0"]
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: |
+          8.0.x
+          9.0.x
+    # Cache packages for faster subsequent runs
+    - uses: actions/cache@v4
+      with:
+        path: ~/.nuget/packages
+        key: ${{ runner.os }}-${{ runner.arch }}-nuget-${{ hashFiles('**/*.csproj', '**/*.props', '**/*.targets') }}
+        restore-keys: |
+          ${{ runner.os }}-${{ runner.arch }}-nuget-
+
+    - name: Install dependencies
+      run: dotnet restore
+    - name: Build
+      run: dotnet build --no-restore --configuration Release --verbosity normal
+    - name: Test
+      run: |
+        dotnet test --no-build -f ${{ matrix.framework }} --configuration Release --verbosity normal --logger "GitHubActions;summary.includePassedTests=true;summary.includeSkippedTests=true" --collect:"XPlat Code Coverage"
+    - name: Collect Coverage
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-${{ matrix.framework }}-${{ runner.arch }}
         path: Snappier.Tests/TestResults/**/*.xml
         retention-days: 1
 
@@ -66,9 +103,9 @@ jobs:
     - uses: actions/cache@v4
       with:
         path: ~/.nuget/packages
-        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/*.props', '**/*.targets') }}
+        key: ${{ runner.os }}-${{ runner.arch }}-nuget-${{ hashFiles('**/*.csproj', '**/*.props', '**/*.targets') }}
         restore-keys: |
-          ${{ runner.os }}-nuget-
+          ${{ runner.os }}-${{ runner.arch }}-nuget-
 
     - name: Install dependencies
       run: dotnet restore --runtime win-${{ matrix.arch }}
