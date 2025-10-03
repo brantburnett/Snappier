@@ -58,7 +58,7 @@ namespace Snappier
         /// <exception cref="ArgumentOutOfRangeException">Invalid <paramref name="mode"/>.</exception>
         public SnappyStream(Stream stream, CompressionMode mode, bool leaveOpen)
         {
-            ThrowHelper.ThrowIfNull(stream);
+            ArgumentNullException.ThrowIfNull(stream);
             _stream = stream;
             _mode = mode;
             _leaveOpen = leaveOpen;
@@ -559,10 +559,7 @@ namespace Snappier
         [MemberNotNull(nameof(_stream))]
         private void EnsureNotDisposed()
         {
-            if (_stream == null)
-            {
-                ThrowHelper.ThrowObjectDisposedException(nameof(SnappyStream));
-            }
+            ObjectDisposedException.ThrowIf(_stream is null, this);
         }
 
         private void EnsureDecompressionMode()

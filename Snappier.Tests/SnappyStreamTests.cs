@@ -5,7 +5,6 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace Snappier.Tests
 {
@@ -115,12 +114,16 @@ namespace Snappier.Tests
             using var output = new MemoryStream();
 
 #if NET6_0_OR_GREATER
-            await
-#endif
+            await using (var compressor = new SnappyStream(output, CompressionMode.Compress, true))
+            {
+                await resource.CopyToAsync(compressor, TestContext.Current.CancellationToken);
+            }
+#else
             using (var compressor = new SnappyStream(output, CompressionMode.Compress, true))
             {
                 await resource.CopyToAsync(compressor);
             }
+#endif
 
             output.Position = 0;
 
@@ -130,7 +133,11 @@ namespace Snappier.Tests
             using var decompressor = new SnappyStream(output, CompressionMode.Decompress, true);
 
             using var streamReader = new StreamReader(decompressor, Encoding.UTF8);
+#if NET6_0_OR_GREATER
+            var decompressedText = await streamReader.ReadToEndAsync(TestContext.Current.CancellationToken);
+#else
             var decompressedText = await streamReader.ReadToEndAsync();
+#endif
 
             _outputHelper.WriteLine(decompressedText);
 
@@ -138,7 +145,11 @@ namespace Snappier.Tests
             Assert.NotNull(sourceResource);
 
             using var streamReader2 = new StreamReader(sourceResource, Encoding.UTF8);
+#if NET6_0_OR_GREATER
+            var sourceText = await streamReader2.ReadToEndAsync(TestContext.Current.CancellationToken);
+#else
             var sourceText = await streamReader2.ReadToEndAsync();
+#endif
 
             Assert.Equal(sourceText, decompressedText);
         }

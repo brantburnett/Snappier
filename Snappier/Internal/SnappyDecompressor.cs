@@ -11,9 +11,6 @@ namespace Snappier.Internal
     internal sealed class SnappyDecompressor : IDisposable
     {
 #if NET8_0_OR_GREATER
-#pragma warning disable IDE0051
-#pragma warning disable IDE0044
-#pragma warning disable CS0649 // Field is never assigned to, and will always have its default value
         [InlineArray(Constants.MaximumTagLength)]
         private struct ScratchBuffer
         {
@@ -23,9 +20,6 @@ namespace Snappier.Internal
         private ScratchBuffer _scratch;
 
         private Span<byte> Scratch => _scratch;
-#pragma warning restore CS0649 // Field is never assigned to, and will always have its default value
-#pragma warning restore IDE0044
-#pragma warning restore IDE0051
 #else
         private readonly byte[] _scratch = new byte[Constants.MaximumTagLength];
 
@@ -134,7 +128,7 @@ namespace Snappier.Internal
                 switch (status)
                 {
                     case OperationStatus.Done:
-                        ExpectedLength = (int)length;
+                ExpectedLength = (int)length;
 
                         // The number of bytes consumed from the input is the number of bytes used by VarIntEncoding.TryRead
                         // less the number of bytes previously found in the scratch buffer
@@ -514,13 +508,12 @@ namespace Snappier.Internal
         private int _lookbackPosition = 0;
         private int _readPosition = 0;
 
-        private int? _expectedLength;
         private int? ExpectedLength
         {
-            get => _expectedLength;
+            get;
             set
             {
-                _expectedLength = value;
+                field = value;
 
                 if (value.HasValue && _lookbackBuffer.Length < value.GetValueOrDefault())
                 {
@@ -626,7 +619,7 @@ namespace Snappier.Internal
                 ThrowCannotUseWithBufferWriter(nameof(Read));
             }
 
-            var bytesToRead = Math.Min(destination.Length, UnreadBytes);
+            int bytesToRead = Math.Min(destination.Length, UnreadBytes);
             if (bytesToRead <= 0)
             {
                 return 0;
@@ -708,7 +701,7 @@ namespace Snappier.Internal
         /// </summary>
         internal void LoadScratchForTest(byte[] newScratch, int newScratchLength)
         {
-            ThrowHelper.ThrowIfNull(newScratch);
+            ArgumentNullException.ThrowIfNull(newScratch);
             if (newScratchLength > ((ReadOnlySpan<byte>)_scratch).Length)
             {
                 ThrowHelper.ThrowArgumentOutOfRangeException(nameof(newScratchLength), "Scratch length exceeds limit");
