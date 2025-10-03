@@ -33,7 +33,7 @@ namespace Snappier.Internal
         /// <param name="length">The length of the array to return from <see cref="Memory"/>.</param>
         public ByteArrayPoolMemoryOwner(byte[] innerArray, int length)
         {
-            ThrowHelper.ThrowIfNull(innerArray);
+            ArgumentNullException.ThrowIfNull(innerArray);
 
             _innerArray = innerArray;
             Memory = innerArray.AsMemory(0, length); // Also validates length

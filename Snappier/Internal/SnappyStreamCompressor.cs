@@ -42,11 +42,8 @@ namespace Snappier.Internal
         /// <returns>A block of memory with compressed data (if any). Must be used before any subsequent call to Write.</returns>
         public void Write(ReadOnlySpan<byte> input, Stream stream)
         {
-            ThrowHelper.ThrowIfNull(stream);
-            if (_compressor == null)
-            {
-                ThrowHelper.ThrowObjectDisposedException(nameof(SnappyStreamCompressor));
-            }
+            ArgumentNullException.ThrowIfNull(stream);
+            ObjectDisposedException.ThrowIf(_compressor is null, this);
 
             EnsureBuffer();
             EnsureStreamHeaderWritten();
@@ -70,11 +67,8 @@ namespace Snappier.Internal
         /// <returns>A block of memory with compressed data (if any). Must be used before any subsequent call to Write.</returns>
         public async ValueTask WriteAsync(ReadOnlyMemory<byte> input, Stream stream, CancellationToken cancellationToken = default)
         {
-            ThrowHelper.ThrowIfNull(stream);
-            if (_compressor == null)
-            {
-                ThrowHelper.ThrowObjectDisposedException(nameof(SnappyStreamCompressor));
-            }
+            ArgumentNullException.ThrowIfNull(stream);
+            ObjectDisposedException.ThrowIf(_compressor is null, this);
 
             EnsureBuffer();
             EnsureStreamHeaderWritten();
@@ -90,11 +84,8 @@ namespace Snappier.Internal
 
         public void Flush(Stream stream)
         {
-            ThrowHelper.ThrowIfNull(stream);
-            if (_compressor == null)
-            {
-                ThrowHelper.ThrowObjectDisposedException(nameof(SnappyStreamCompressor));
-            }
+            ArgumentNullException.ThrowIfNull(stream);
+            ObjectDisposedException.ThrowIf(_compressor is null, this);
 
             EnsureBuffer();
             EnsureStreamHeaderWritten();
@@ -110,11 +101,8 @@ namespace Snappier.Internal
 
         public async ValueTask FlushAsync(Stream stream, CancellationToken cancellationToken = default)
         {
-            ThrowHelper.ThrowIfNull(stream);
-            if (_compressor == null)
-            {
-                ThrowHelper.ThrowObjectDisposedException(nameof(SnappyStreamCompressor));
-            }
+            ArgumentNullException.ThrowIfNull(stream);
+            ObjectDisposedException.ThrowIf(_compressor is null, this);
 
             EnsureBuffer();
             EnsureStreamHeaderWritten();

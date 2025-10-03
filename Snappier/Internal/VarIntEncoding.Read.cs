@@ -16,7 +16,7 @@ namespace Snappier.Internal
     {
         public static uint Read(ReadOnlySpan<byte> input, out int bytesRead)
         {
-            if (TryRead(input, out var result, out bytesRead) != OperationStatus.Done)
+            if (TryRead(input, out uint result, out bytesRead) != OperationStatus.Done)
             {
                 ThrowHelper.ThrowInvalidDataException("Invalid stream length");
             }
@@ -98,7 +98,7 @@ namespace Snappier.Internal
             Debug.Assert(input.Length >= Vector128<byte>.Count);
             Debug.Assert(BitConverter.IsLittleEndian);
 
-            var mask = ~Sse2.MoveMask(Vector128.LoadUnsafe(ref MemoryMarshal.GetReference(input)));
+            int mask = ~Sse2.MoveMask(Vector128.LoadUnsafe(ref MemoryMarshal.GetReference(input)));
             bytesRead = BitOperations.TrailingZeroCount(mask) + 1;
 
             uint shuffledBits = Bmi2.X64.IsSupported

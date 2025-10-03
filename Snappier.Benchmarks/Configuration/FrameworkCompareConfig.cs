@@ -19,12 +19,13 @@ namespace Snappier.Benchmarks.Configuration
             #endif
 
             AddJob(baseJob
-                .WithRuntime(CoreRuntime.Core60));
-            AddJob(baseJob
                 .WithRuntime(CoreRuntime.Core80)
                 .WithPgo(true));
             AddJob(baseJob
                 .WithRuntime(CoreRuntime.Core90)
+                .WithPgo(true));
+            AddJob(baseJob
+                .WithRuntime(CoreRuntime.Core10_0)
                 .WithPgo(true));
 
             AddLogicalGroupRules(BenchmarkLogicalGroupRule.ByJob);

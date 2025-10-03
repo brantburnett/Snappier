@@ -24,10 +24,7 @@ namespace Snappier.Internal
 
         public bool TryCompress(ReadOnlySpan<byte> input, Span<byte> output, out int bytesWritten)
         {
-            if (_workingMemory == null)
-            {
-                ThrowHelper.ThrowObjectDisposedException(nameof(SnappyCompressor));
-            }
+            ObjectDisposedException.ThrowIf(_workingMemory is null, this);
             if (input.Overlaps(output))
             {
                 ThrowHelper.ThrowInvalidOperationException("Input and output spans must not overlap.");
@@ -85,15 +82,12 @@ namespace Snappier.Internal
 
         public void Compress(ReadOnlySequence<byte> input, IBufferWriter<byte> bufferWriter)
         {
-            ThrowHelper.ThrowIfNull(bufferWriter);
+            ArgumentNullException.ThrowIfNull(bufferWriter);
             if (input.Length > uint.MaxValue)
             {
                 ThrowHelper.ThrowArgumentException($"{nameof(input)} is larger than the maximum size of {uint.MaxValue} bytes.", nameof(input));
             }
-            if (_workingMemory is null)
-            {
-                ThrowHelper.ThrowObjectDisposedException(nameof(SnappyCompressor));
-            }
+            ObjectDisposedException.ThrowIf(_workingMemory is null, this);
 
             _workingMemory.EnsureCapacity(input.Length);
 
@@ -227,7 +221,7 @@ namespace Snappier.Internal
                         // number of bytes to move ahead for each iteration.
                         int skip = 32;
 
-                        ref byte candidate = ref Unsafe.NullRef<byte>();
+                        scoped ref byte candidate = ref Unsafe.NullRef<byte>();
                         if (Unsafe.ByteOffset(ref ip, ref ipLimit) >= (nint) 16)
                         {
                             nint delta = Unsafe.ByteOffset(ref inputStart, ref ip);

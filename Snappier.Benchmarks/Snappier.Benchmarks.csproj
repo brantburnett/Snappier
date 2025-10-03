@@ -2,11 +2,11 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFrameworks>net48;net6.0;net7.0;net8.0;net9.0</TargetFrameworks>
+    <TargetFrameworks>net48;net8.0;net9.0;net10.0</TargetFrameworks>
     <PlatformTarget>AnyCPU</PlatformTarget>
 
     <IsPackable>false</IsPackable>
-    <LangVersion>12</LangVersion>
+    <LangVersion>14</LangVersion>
     <SignAssembly>true</SignAssembly>
     <AssemblyOriginatorKeyFile>..\Snappier.snk</AssemblyOriginatorKeyFile>
     <NoWarn>$(NoWarn);8002</NoWarn> <!-- Don't nag about Snappy.NET not being strong named -->
@@ -21,8 +21,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="BenchmarkDotNet" Version="0.14.0" />
-    <PackageReference Include="BenchmarkDotNet.Diagnostics.Windows" Version="0.14.0" />
+    <PackageReference Include="BenchmarkDotNet" Version="0.15.2" />
+    <PackageReference Include="BenchmarkDotNet.Diagnostics.Windows" Version="0.15.2" />
   </ItemGroup>
 
   <ItemGroup Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net48'))">
@@ -30,15 +30,15 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="System.Collections.Immutable" Version="8.0.0" />
-    <PackageReference Include="System.Reflection.Metadata" Version="8.0.0" />
+    <PackageReference Include="System.Collections.Immutable" Version="9.0.0" />
+    <PackageReference Include="System.Reflection.Metadata" Version="9.0.0" />
   </ItemGroup>
 
   <ItemGroup Condition=" '$(Configuration)' != 'Previous' ">
     <ProjectReference Include="..\Snappier\Snappier.csproj" />
   </ItemGroup>
   <ItemGroup Condition=" '$(Configuration)' == 'Previous' ">
-    <PackageReference Include="Snappier" Version="1.1.6" />
+    <PackageReference Include="Snappier" Version="1.2.0" />
 
     <Compile Remove="FindMatchLength.cs" />
     <Compile Remove="IncrementalCopy.cs" />

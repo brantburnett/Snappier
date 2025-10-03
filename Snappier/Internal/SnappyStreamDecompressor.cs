@@ -12,9 +12,6 @@ namespace Snappier.Internal
         private const int ScratchBufferSize = 4;
 
 #if NET8_0_OR_GREATER
-#pragma warning disable IDE0051
-#pragma warning disable IDE0044
-#pragma warning disable CS0649 // Field is never assigned to, and will always have its default value
         [System.Runtime.CompilerServices.InlineArray(ScratchBufferSize)]
         private struct ScratchBuffer
         {
@@ -22,9 +19,6 @@ namespace Snappier.Internal
         }
 
         private ScratchBuffer _scratch;
-#pragma warning restore CS0649 // Field is never assigned to, and will always have its default value
-#pragma warning restore IDE0044
-#pragma warning restore IDE0051
 #else
         private readonly byte[] _scratch = new byte[ScratchBufferSize];
 #endif
