@@ -10,7 +10,7 @@ public class IncrementalCopy
     public void Fast()
     {
         ref byte buffer = ref _buffer[0];
-        CopyHelpers.IncrementalCopy(ref buffer, ref Unsafe.Add(ref buffer, 2), ref Unsafe.Add(ref buffer, 18),
+        CopyHelpers.IncrementalCopy(in buffer, ref Unsafe.Add(ref buffer, 2), ref Unsafe.Add(ref buffer, 18),
             ref Unsafe.Add(ref buffer, _buffer.Length - 1));
     }
 

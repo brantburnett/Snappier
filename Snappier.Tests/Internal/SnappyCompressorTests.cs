@@ -85,11 +85,11 @@ public class SnappyCompressorTests
                                                      + new string('\0', Math.Max(0, length - s2String.Length)));
 
         ulong data = 0;
-        ref byte s1 = ref array[0];
-        ref byte s2 = ref Unsafe.Add(ref s1, s1String.Length);
+        ref readonly byte s1 = ref array[0];
+        ref readonly byte s2 = ref Unsafe.Add(in s1, s1String.Length);
 
         (int matchLength, bool matchLengthLessThan8) =
-            SnappyCompressor.FindMatchLength(ref s1, ref s2, ref Unsafe.Add(ref s2, length), ref data);
+            SnappyCompressor.FindMatchLength(in s1, in s2, in Unsafe.Add(in s2, length), ref data);
 
         Assert.Equal(matchLength < 8, matchLengthLessThan8);
         Assert.Equal(expectedResult, matchLength);

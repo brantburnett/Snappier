@@ -174,23 +174,23 @@ internal class SnappyCompressor : IDisposable
 
             uint mask = (uint)(2 * (tableSpan.Length - 1));
 
-            ref byte inputStart = ref Unsafe.AsRef(in input[0]);
-            ref byte inputEnd = ref Unsafe.Add(ref inputStart, input.Length);
-            ref byte ip = ref inputStart;
+            ref readonly byte inputStart = ref input[0];
+            ref readonly byte inputEnd = ref Unsafe.Add(in inputStart, input.Length);
+            ref readonly byte ip = ref inputStart;
 
             ref byte op = ref output[0];
             ref ushort table = ref tableSpan[0];
 
             if (input.Length >= Constants.InputMarginBytes)
             {
-                ref byte ipLimit = ref Unsafe.Subtract(ref inputEnd, Constants.InputMarginBytes);
+                ref readonly byte ipLimit = ref Unsafe.Subtract(in inputEnd, Constants.InputMarginBytes);
 
-                for (uint preload = Helpers.UnsafeReadUInt32(in Unsafe.Add(ref ip, 1));;)
+                for (uint preload = Helpers.UnsafeReadUInt32(in Unsafe.Add(in ip, 1));;)
                 {
                     // Bytes in [nextEmit, ip) will be emitted as literal bytes.  Or
                     // [nextEmit, ipEnd) after the main loop.
-                    ref byte nextEmit = ref ip;
-                    ip = ref Unsafe.Add(ref ip, 1);
+                    ref readonly byte nextEmit = ref ip;
+                    ip = ref Unsafe.Add(in ip, 1);
                     ulong data = Helpers.UnsafeReadUInt64(in ip);
 
                     // The body of this loop calls EmitLiteral once and then EmitCopy one or
@@ -220,89 +220,89 @@ internal class SnappyCompressor : IDisposable
                     // number of bytes to move ahead for each iteration.
                     int skip = 32;
 
-                    scoped ref byte candidate = ref Unsafe.NullRef<byte>();
-                    if (Unsafe.ByteOffset(ref ip, ref ipLimit) >= (nint) 16)
+                    scoped ref readonly byte candidate = ref Unsafe.NullRef<byte>();
+                    if (Unsafe.ByteOffset(in ip, in ipLimit) >= (nint) 16)
                     {
-                        nint delta = Unsafe.ByteOffset(ref inputStart, ref ip);
+                        nint delta = Unsafe.ByteOffset(in inputStart, in ip);
                         for (int j = 0; j < 16; j += 4)
                         {
                             // Manually unroll this loop into chunks of 4
 
                             uint dword = j == 0 ? preload : (uint) data;
-                            Debug.Assert(dword == Helpers.UnsafeReadUInt32(in Unsafe.Add(ref ip, j)));
+                            Debug.Assert(dword == Helpers.UnsafeReadUInt32(in Unsafe.Add(in ip, j)));
                             ref ushort tableEntry = ref HashTable.TableEntry(ref table, dword, mask);
-                            candidate = ref Unsafe.Add(ref inputStart, tableEntry);
-                            Debug.Assert(!Unsafe.IsAddressLessThan(ref candidate, ref inputStart));
-                            Debug.Assert(Unsafe.IsAddressLessThan(ref candidate, ref Unsafe.Add(ref ip, j)));
+                            candidate = ref Unsafe.Add(in inputStart, tableEntry);
+                            Debug.Assert(!Unsafe.IsAddressLessThan(in candidate, in inputStart));
+                            Debug.Assert(Unsafe.IsAddressLessThan(in candidate, in Unsafe.Add(in ip, j)));
                             tableEntry = (ushort) (delta + j);
 
                             if (Helpers.UnsafeReadUInt32(in candidate) == dword)
                             {
                                 op = (byte) (Constants.Literal | (j << 2));
                                 CopyHelpers.UnalignedCopy128(in nextEmit, ref Unsafe.Add(ref op,  1));
-                                ip = ref Unsafe.Add(ref ip, j);
+                                ip = ref Unsafe.Add(in ip, j);
                                 op = ref Unsafe.Add(ref op, j + 2);
                                 goto emit_match;
                             }
 
                             int i1 = j + 1;
                             dword = (uint)(data >> 8);
-                            Debug.Assert(dword == Helpers.UnsafeReadUInt32(in Unsafe.Add(ref ip, i1)));
+                            Debug.Assert(dword == Helpers.UnsafeReadUInt32(in Unsafe.Add(in ip, i1)));
                             tableEntry = ref HashTable.TableEntry(ref table, dword, mask);
-                            candidate = ref Unsafe.Add(ref inputStart, tableEntry);
-                            Debug.Assert(!Unsafe.IsAddressLessThan(ref candidate, ref inputStart));
-                            Debug.Assert(Unsafe.IsAddressLessThan(ref candidate, ref Unsafe.Add(ref ip, i1)));
+                            candidate = ref Unsafe.Add(in inputStart, tableEntry);
+                            Debug.Assert(!Unsafe.IsAddressLessThan(in candidate, in inputStart));
+                            Debug.Assert(Unsafe.IsAddressLessThan(in candidate, in Unsafe.Add(in ip, i1)));
                             tableEntry = (ushort) (delta + i1);
 
                             if (Helpers.UnsafeReadUInt32(in candidate) == dword)
                             {
                                 op = (byte) (Constants.Literal | (i1 << 2));
                                 CopyHelpers.UnalignedCopy128(in nextEmit, ref Unsafe.Add(ref op, 1));
-                                ip = ref Unsafe.Add(ref ip, i1);
+                                ip = ref Unsafe.Add(in ip, i1);
                                 op = ref Unsafe.Add(ref op, i1 + 2);
                                 goto emit_match;
                             }
 
                             int i2 = j + 2;
                             dword = (uint)(data >> 16);
-                            Debug.Assert(dword == Helpers.UnsafeReadUInt32(in Unsafe.Add(ref ip, i2)));
+                            Debug.Assert(dword == Helpers.UnsafeReadUInt32(in Unsafe.Add(in ip, i2)));
                             tableEntry = ref HashTable.TableEntry(ref table, dword, mask);
-                            candidate = ref Unsafe.Add(ref inputStart, tableEntry);
-                            Debug.Assert(!Unsafe.IsAddressLessThan(ref candidate, ref inputStart));
-                            Debug.Assert(Unsafe.IsAddressLessThan(ref candidate, ref Unsafe.Add(ref ip, i2)));
+                            candidate = ref Unsafe.Add(in inputStart, tableEntry);
+                            Debug.Assert(!Unsafe.IsAddressLessThan(in candidate, in inputStart));
+                            Debug.Assert(Unsafe.IsAddressLessThan(in candidate, in Unsafe.Add(in ip, i2)));
                             tableEntry = (ushort) (delta + i2);
 
                             if (Helpers.UnsafeReadUInt32(in candidate) == dword)
                             {
                                 op = (byte) (Constants.Literal | (i2 << 2));
                                 CopyHelpers.UnalignedCopy128(in nextEmit, ref Unsafe.Add(ref op, 1));
-                                ip = ref Unsafe.Add(ref ip, i2);
+                                ip = ref Unsafe.Add(in ip, i2);
                                 op = ref Unsafe.Add(ref op, i2 + 2);
                                 goto emit_match;
                             }
 
                             int i3 = j + 3;
                             dword = (uint)(data >> 24);
-                            Debug.Assert(dword == Helpers.UnsafeReadUInt32(in Unsafe.Add(ref ip, i3)));
+                            Debug.Assert(dword == Helpers.UnsafeReadUInt32(in Unsafe.Add(in ip, i3)));
                             tableEntry = ref HashTable.TableEntry(ref table, dword, mask);
-                            candidate = ref Unsafe.Add(ref inputStart, tableEntry);
-                            Debug.Assert(!Unsafe.IsAddressLessThan(ref candidate, ref inputStart));
-                            Debug.Assert(Unsafe.IsAddressLessThan(ref candidate, ref Unsafe.Add(ref ip, i3)));
+                            candidate = ref Unsafe.Add(in inputStart, tableEntry);
+                            Debug.Assert(!Unsafe.IsAddressLessThan(in candidate, in inputStart));
+                            Debug.Assert(Unsafe.IsAddressLessThan(in candidate, in Unsafe.Add(in ip, i3)));
                             tableEntry = (ushort) (delta + i3);
 
                             if (Helpers.UnsafeReadUInt32(in candidate) == dword)
                             {
                                 op = (byte) (Constants.Literal | (i3 << 2));
                                 CopyHelpers.UnalignedCopy128(in nextEmit, ref Unsafe.Add(ref op, 1));
-                                ip = ref Unsafe.Add(ref ip, i3);
+                                ip = ref Unsafe.Add(in ip, i3);
                                 op = ref Unsafe.Add(ref op, i3 + 2);
                                 goto emit_match;
                             }
 
-                            data = Helpers.UnsafeReadUInt64(in Unsafe.Add(ref ip, j + 4));
+                            data = Helpers.UnsafeReadUInt64(in Unsafe.Add(in ip, j + 4));
                         }
 
-                        ip = ref Unsafe.Add(ref ip, 16);
+                        ip = ref Unsafe.Add(in ip, 16);
                         skip += 16;
                     }
 
@@ -313,18 +313,18 @@ internal class SnappyCompressor : IDisposable
                         int bytesBetweenHashLookups = skip >> 5;
                         skip += bytesBetweenHashLookups;
 
-                        ref byte nextIp = ref Unsafe.Add(ref ip, bytesBetweenHashLookups);
-                        if (Unsafe.IsAddressGreaterThan(ref nextIp, ref ipLimit))
+                        ref readonly byte nextIp = ref Unsafe.Add(in ip, bytesBetweenHashLookups);
+                        if (Unsafe.IsAddressGreaterThan(in nextIp, in ipLimit))
                         {
                             ip = ref nextEmit;
                             goto emit_remainder;
                         }
 
-                        candidate = ref Unsafe.Add(ref inputStart, tableEntry);
-                        Debug.Assert(!Unsafe.IsAddressLessThan(ref candidate, ref inputStart));
-                        Debug.Assert(Unsafe.IsAddressLessThan(ref candidate, ref ip));
+                        candidate = ref Unsafe.Add(in inputStart, tableEntry);
+                        Debug.Assert(!Unsafe.IsAddressLessThan(in candidate, in inputStart));
+                        Debug.Assert(Unsafe.IsAddressLessThan(in candidate, in ip));
 
-                        tableEntry = (ushort) Unsafe.ByteOffset(ref inputStart, ref ip);
+                        tableEntry = (ushort)Unsafe.ByteOffset(in inputStart, in ip);
                         if ((uint) data == Helpers.UnsafeReadUInt32(in candidate))
                         {
                             break;
@@ -337,8 +337,8 @@ internal class SnappyCompressor : IDisposable
                     // Step 2: A 4-byte match has been found.  We'll later see if more
                     // than 4 bytes match.  But, prior to the match, input
                     // bytes [next_emit, ip) are unmatched.  Emit them as "literal bytes."
-                    Debug.Assert(!Unsafe.IsAddressGreaterThan(ref Unsafe.Add(ref nextEmit, 16), ref inputEnd));
-                    op = ref EmitLiteralFast(ref op, ref nextEmit, (uint) Unsafe.ByteOffset(ref nextEmit, ref ip));
+                    Debug.Assert(!Unsafe.IsAddressGreaterThan(in Unsafe.Add(in nextEmit, 16), in inputEnd));
+                    op = ref EmitLiteralFast(ref op, in nextEmit, (uint)Unsafe.ByteOffset(in nextEmit, in ip));
 
                     // Step 3: Call EmitCopy, and then see if another EmitCopy could
                     // be our next move.  Repeat until we find no match for the
@@ -354,15 +354,15 @@ internal class SnappyCompressor : IDisposable
                     {
                         // We have a 4-byte match at ip, and no need to emit any
                         // "literal bytes" prior to ip.
-                        ref byte emitBase = ref ip;
+                        ref readonly byte emitBase = ref ip;
 
                         (int matchLength, bool matchLengthLessThan8) =
-                            FindMatchLength(ref Unsafe.Add(ref candidate, 4), ref Unsafe.Add(ref ip, 4), ref inputEnd, ref data);
+                            FindMatchLength(in Unsafe.Add(in candidate, 4), in Unsafe.Add(in ip, 4), in inputEnd, ref data);
 
                         int matched = 4 + matchLength;
-                        ip = ref Unsafe.Add(ref ip, matched);
+                        ip = ref Unsafe.Add(in ip, matched);
 
-                        nint offset = Unsafe.ByteOffset(ref candidate, ref emitBase);
+                        nint offset = Unsafe.ByteOffset(in candidate, in emitBase);
                         if (matchLengthLessThan8)
                         {
                             op = ref EmitCopyLenLessThan12(ref op, offset, matched);
@@ -372,7 +372,7 @@ internal class SnappyCompressor : IDisposable
                             op = ref EmitCopyLenGreaterThanOrEqualTo12(ref op, offset, matched);
                         }
 
-                        if (!Unsafe.IsAddressLessThan(ref ip, ref ipLimit))
+                        if (!Unsafe.IsAddressLessThan(in ip, in ipLimit))
                         {
                             goto emit_remainder;
                         }
@@ -384,11 +384,11 @@ internal class SnappyCompressor : IDisposable
                         // We are now looking for a 4-byte match again.  We read
                         // table[Hash(ip, mask)] for that.  To improve compression,
                         // we also update table[Hash(ip - 1, mask)] and table[Hash(ip, mask)].
-                        HashTable.TableEntry(ref table, Helpers.UnsafeReadUInt32(in Unsafe.Subtract(ref ip, 1)), mask) =
-                            (ushort) (Unsafe.ByteOffset(ref inputStart, ref ip) - 1);
+                        HashTable.TableEntry(ref table, Helpers.UnsafeReadUInt32(in Unsafe.Subtract(in ip, 1)), mask) =
+                            (ushort) (Unsafe.ByteOffset(in inputStart, in ip) - 1);
                         ref ushort tableEntry = ref HashTable.TableEntry(ref table, (uint) data, mask);
-                        candidate = ref Unsafe.Add(ref inputStart, tableEntry);
-                        tableEntry = (ushort) Unsafe.ByteOffset(ref inputStart, ref ip);
+                        candidate = ref Unsafe.Add(in inputStart, tableEntry);
+                        tableEntry = (ushort)Unsafe.ByteOffset(in inputStart, in ip);
                     } while ((uint) data == Helpers.UnsafeReadUInt32(in candidate));
 
                     // Because the least significant 5 bytes matched, we can utilize data
@@ -399,9 +399,9 @@ internal class SnappyCompressor : IDisposable
 
             emit_remainder:
             // Emit the remaining bytes as a literal
-            if (Unsafe.IsAddressLessThan(ref ip, ref inputEnd))
+            if (Unsafe.IsAddressLessThan(in ip, in inputEnd))
             {
-                op = ref EmitLiteralSlow(ref op, ref ip, (uint) Unsafe.ByteOffset(ref ip, ref inputEnd));
+                op = ref EmitLiteralSlow(ref op, in ip, (uint) Unsafe.ByteOffset(in ip, in inputEnd));
             }
 
             return (int) Unsafe.ByteOffset(ref output[0], ref op);
@@ -409,7 +409,7 @@ internal class SnappyCompressor : IDisposable
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static ref byte EmitLiteralFast(ref byte op, ref byte literal, uint length)
+    private static ref byte EmitLiteralFast(ref byte op, ref readonly byte literal, uint length)
     {
         Debug.Assert(length > 0);
 
@@ -423,11 +423,11 @@ internal class SnappyCompressor : IDisposable
             return ref Unsafe.Add(ref op, length);
         }
 
-        return ref EmitLiteralSlow(ref op, ref literal, length);
+        return ref EmitLiteralSlow(ref op, in literal, length);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static ref byte EmitLiteralSlow(ref byte op, ref byte literal, uint length)
+    private static ref byte EmitLiteralSlow(ref byte op, ref readonly byte literal, uint length)
     {
         uint n = length - 1;
         if (n < 60)
@@ -453,7 +453,7 @@ internal class SnappyCompressor : IDisposable
             op = ref Unsafe.Add(ref op, count);
         }
 
-        Unsafe.CopyBlockUnaligned(ref op, ref literal, length);
+        Unsafe.CopyBlockUnaligned(ref op, in literal, length);
         return ref Unsafe.Add(ref op,  length);
     }
 
@@ -554,42 +554,42 @@ internal class SnappyCompressor : IDisposable
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static (int matchLength, bool matchLengthLessThan8) FindMatchLength(
-        ref byte s1, ref byte s2, ref byte s2Limit, ref ulong data)
+        ref readonly byte s1, ref readonly byte s2, ref readonly byte s2Limit, ref ulong data)
     {
-        Debug.Assert(!Unsafe.IsAddressLessThan(ref s2Limit, ref s2));
+        Debug.Assert(!Unsafe.IsAddressLessThan(in s2Limit, in s2));
 
         if (BitConverter.IsLittleEndian && IntPtr.Size == 8)
         {
             // Special implementation for 64-bit little endian processors (i.e. Intel/AMD x64)
-            return FindMatchLengthX64(ref s1, ref s2, ref s2Limit, ref data);
+            return FindMatchLengthX64(in s1, in s2, in s2Limit, ref data);
         }
 
         int matched = 0;
 
-        while (Unsafe.ByteOffset(ref s2, ref s2Limit) >= (nint)4
-               && Helpers.UnsafeReadUInt32(in s2) == Helpers.UnsafeReadUInt32(in Unsafe.Add(ref s1, matched)))
+        while (Unsafe.ByteOffset(in s2, in s2Limit) >= (nint)4
+               && Helpers.UnsafeReadUInt32(in s2) == Helpers.UnsafeReadUInt32(in Unsafe.Add(in s1, matched)))
         {
-            s2 = ref Unsafe.Add(ref s2, 4);
+            s2 = ref Unsafe.Add(in s2, 4);
             matched += 4;
         }
 
-        if (BitConverter.IsLittleEndian && Unsafe.ByteOffset(ref s2, ref s2Limit) >= (nint)4)
+        if (BitConverter.IsLittleEndian && Unsafe.ByteOffset(in s2, in s2Limit) >= (nint)4)
         {
-            uint x = Helpers.UnsafeReadUInt32(in s2) ^ Helpers.UnsafeReadUInt32(in Unsafe.Add(ref s1, matched));
+            uint x = Helpers.UnsafeReadUInt32(in s2) ^ Helpers.UnsafeReadUInt32(in Unsafe.Add(in s1, matched));
             int matchingBits = Helpers.FindLsbSetNonZero(x);
             matched += matchingBits >> 3;
-            s2 = ref Unsafe.Add(ref s2, matchingBits >> 3);
+            s2 = ref Unsafe.Add(in s2, matchingBits >> 3);
         }
         else
         {
-            while (Unsafe.IsAddressLessThan(ref s2, ref s2Limit) && Unsafe.Add(ref s1, matched) == s2)
+            while (Unsafe.IsAddressLessThan(in s2, in s2Limit) && Unsafe.Add(in s1, matched) == s2)
             {
-                s2 = ref Unsafe.Add(ref s2, 1);
+                s2 = ref Unsafe.Add(in s2, 1);
                 ++matched;
             }
         }
 
-        if (Unsafe.ByteOffset(ref s2, ref s2Limit) >= (nint)8)
+        if (Unsafe.ByteOffset(in s2, in s2Limit) >= (nint)8)
         {
             data = Helpers.UnsafeReadUInt64(in s2);
         }
@@ -599,7 +599,7 @@ internal class SnappyCompressor : IDisposable
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static (int matchLength, bool matchLengthLessThan8) FindMatchLengthX64(
-        ref byte s1, ref byte s2, ref byte s2Limit, ref ulong data)
+        ref readonly byte s1, ref readonly byte s2, ref readonly byte s2Limit, ref ulong data)
     {
         nint matched = 0;
 
@@ -607,7 +607,7 @@ internal class SnappyCompressor : IDisposable
         // immediately.  As an optimization though, it is useful.  It creates some not
         // uncommon code paths that determine, without extra effort, whether the match
         // length is less than 8.
-        if (Unsafe.ByteOffset(ref s2, ref s2Limit) >= (nint)16)
+        if (Unsafe.ByteOffset(in s2, in s2Limit) >= (nint)16)
         {
             ulong a1 = Helpers.UnsafeReadUInt64(in s1);
             ulong a2 = Helpers.UnsafeReadUInt64(in s2);
@@ -618,7 +618,7 @@ internal class SnappyCompressor : IDisposable
                 int shift = Helpers.FindLsbSetNonZero(xorval);
                 int matchedBytes = shift >> 3;
 
-                ulong a3 = Helpers.UnsafeReadUInt64(in Unsafe.Add(ref s2, 4));
+                ulong a3 = Helpers.UnsafeReadUInt64(in Unsafe.Add(in s2, 4));
                 a2 = unchecked((uint)xorval) == 0 ? a3 : a2;
 
                 data = a2 >> (shift & (3 * 8));
@@ -627,7 +627,7 @@ internal class SnappyCompressor : IDisposable
             else
             {
                 matched = 8;
-                s2 = ref Unsafe.Add(ref s2, 8);
+                s2 = ref Unsafe.Add(in s2, 8);
             }
         }
 
@@ -635,13 +635,13 @@ internal class SnappyCompressor : IDisposable
         // time until we find a 64-bit block that doesn't match; then we find
         // the first non-matching bit and use that to calculate the total
         // length of the match.
-        while (Unsafe.ByteOffset(ref s2, ref s2Limit) >= (nint)16)
+        while (Unsafe.ByteOffset(in s2, in s2Limit) >= (nint)16)
         {
-            ulong a1 = Helpers.UnsafeReadUInt64(in Unsafe.Add(ref s1, matched));
+            ulong a1 = Helpers.UnsafeReadUInt64(in Unsafe.Add(in s1, matched));
             ulong a2 = Helpers.UnsafeReadUInt64(in s2);
             if (a1 == a2)
             {
-                s2 = ref Unsafe.Add(ref s2, 8);
+                s2 = ref Unsafe.Add(in s2, 8);
                 matched += 8;
             }
             else
@@ -650,7 +650,7 @@ internal class SnappyCompressor : IDisposable
                 int shift = Helpers.FindLsbSetNonZero(xorval);
                 int matchedBytes = shift >> 3;
 
-                ulong a3 = Helpers.UnsafeReadUInt64(in Unsafe.Add(ref s2, 4));
+                ulong a3 = Helpers.UnsafeReadUInt64(in Unsafe.Add(in s2, 4));
                 a2 = unchecked((uint)xorval) == 0 ? a3 : a2;
 
                 data = a2 >> (shift & (3 * 8));
@@ -660,16 +660,16 @@ internal class SnappyCompressor : IDisposable
             }
         }
 
-        while (Unsafe.IsAddressLessThan(ref s2, ref s2Limit))
+        while (Unsafe.IsAddressLessThan(in s2, in s2Limit))
         {
-            if (Unsafe.Add(ref s1, matched) == s2)
+            if (Unsafe.Add(in s1, matched) == s2)
             {
-                s2 = ref Unsafe.Add(ref s2, 1);
+                s2 = ref Unsafe.Add(in s2, 1);
                 matched++;
             }
             else
             {
-                if (Unsafe.ByteOffset(ref s2, ref s2Limit) >= (nint)8)
+                if (Unsafe.ByteOffset(in s2, in s2Limit) >= (nint)8)
                 {
                     data = Helpers.UnsafeReadUInt64(in s2);
                 }
