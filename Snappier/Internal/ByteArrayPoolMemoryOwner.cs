@@ -1,57 +1,55 @@
-﻿using System;
-using System.Buffers;
+﻿using System.Buffers;
 
-namespace Snappier.Internal
+namespace Snappier.Internal;
+
+/// <summary>
+/// Wraps an inner byte array from <see cref="ArrayPool{T}.Shared"/>"/> with a limited length.
+/// </summary>
+/// <remarks>
+/// We use this instead of the built-in <see cref="MemoryPool{T}"/> because we want to slice the array without
+/// allocating another wrapping class on the heap.
+/// </remarks>
+internal sealed class ByteArrayPoolMemoryOwner : IMemoryOwner<byte>
 {
+    private byte[]? _innerArray;
+
+    /// <inheritdoc />
+    public Memory<byte> Memory { get; private set; }
+
     /// <summary>
-    /// Wraps an inner byte array from <see cref="ArrayPool{T}.Shared"/>"/> with a limited length.
+    /// Create an empty ByteArrayPoolMemoryOwner.
     /// </summary>
-    /// <remarks>
-    /// We use this instead of the built-in <see cref="MemoryPool{T}"/> because we want to slice the array without
-    /// allocating another wrapping class on the heap.
-    /// </remarks>
-    internal sealed class ByteArrayPoolMemoryOwner : IMemoryOwner<byte>
+    public ByteArrayPoolMemoryOwner()
     {
-        private byte[]? _innerArray;
+        // _innerArray will be null and Memory will be a default empty Memory<byte>
+    }
 
-        /// <inheritdoc />
-        public Memory<byte> Memory { get; private set; }
+    /// <summary>
+    /// Given a byte array from <see cref="ArrayPool{T}.Shared"/>, create a ByteArrayPoolMemoryOwner
+    /// which wraps it until disposed and slices it to <paramref name="length"/>.
+    /// </summary>
+    /// <param name="innerArray">An array from the <see cref="ArrayPool{T}.Shared"/>.</param>
+    /// <param name="length">The length of the array to return from <see cref="Memory"/>.</param>
+    public ByteArrayPoolMemoryOwner(byte[] innerArray, int length)
+    {
+        ArgumentNullException.ThrowIfNull(innerArray);
 
-        /// <summary>
-        /// Create an empty ByteArrayPoolMemoryOwner.
-        /// </summary>
-        public ByteArrayPoolMemoryOwner()
+        _innerArray = innerArray;
+        Memory = innerArray.AsMemory(0, length); // Also validates length
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        byte[]? innerArray = _innerArray;
+        if (innerArray is not null)
         {
-            // _innerArray will be null and Memory will be a default empty Memory<byte>
-        }
+            // Clear the used portion of the array before returning it to the pool
+            Memory.Span.Clear();
 
-        /// <summary>
-        /// Given a byte array from <see cref="ArrayPool{T}.Shared"/>, create a ByteArrayPoolMemoryOwner
-        /// which wraps it until disposed and slices it to <paramref name="length"/>.
-        /// </summary>
-        /// <param name="innerArray">An array from the <see cref="ArrayPool{T}.Shared"/>.</param>
-        /// <param name="length">The length of the array to return from <see cref="Memory"/>.</param>
-        public ByteArrayPoolMemoryOwner(byte[] innerArray, int length)
-        {
-            ArgumentNullException.ThrowIfNull(innerArray);
-
-            _innerArray = innerArray;
-            Memory = innerArray.AsMemory(0, length); // Also validates length
-        }
-
-        /// <inheritdoc />
-        public void Dispose()
-        {
-            byte[]? innerArray = _innerArray;
-            if (innerArray is not null)
-            {
-                // Clear the used portion of the array before returning it to the pool
-                Memory.Span.Clear();
-
-                _innerArray = null;
-                Memory = default;
-                ArrayPool<byte>.Shared.Return(innerArray);
-            }
+            _innerArray = null;
+            Memory = default;
+            ArrayPool<byte>.Shared.Return(innerArray);
         }
     }
 }
