@@ -27,7 +27,7 @@ jobs:
       - name: Install docfX
         run: dotnet tool restore
       - name: Build documentation
-        run: docfx docfx.json
+        run: dotnet docfx docfx.json
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v4
