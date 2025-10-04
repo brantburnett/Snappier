@@ -3,21 +3,20 @@ using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Exporters;
 using BenchmarkDotNet.Loggers;
 
-namespace Snappier.Benchmarks.Configuration
+namespace Snappier.Benchmarks.Configuration;
+
+public class StandardConfig : ManualConfig
 {
-    public class StandardConfig : ManualConfig
+    public StandardConfig()
     {
-        public StandardConfig()
-        {
-            AddColumnProvider(DefaultColumnProviders.Instance);
-            AddColumn(RankColumn.Arabic);
+        AddColumnProvider(DefaultColumnProviders.Instance);
+        AddColumn(RankColumn.Arabic);
 
-            AddExporter(DefaultExporters.CsvMeasurements);
-            AddExporter(DefaultExporters.Csv);
-            AddExporter(DefaultExporters.Markdown);
-            AddExporter(DefaultExporters.Html);
+        AddExporter(DefaultExporters.CsvMeasurements);
+        AddExporter(DefaultExporters.Csv);
+        AddExporter(DefaultExporters.Markdown);
+        AddExporter(DefaultExporters.Html);
 
-            AddLogger(ConsoleLogger.Default);
-        }
+        AddLogger(ConsoleLogger.Default);
     }
 }

@@ -1,12 +1,11 @@
 ﻿using BenchmarkDotNet.Jobs;
 
-namespace Snappier.Benchmarks.Configuration
+namespace Snappier.Benchmarks.Configuration;
+
+public class BasicConfig : StandardConfig
 {
-    public class BasicConfig : StandardConfig
+    public BasicConfig(Job baseJob)
     {
-        public BasicConfig(Job baseJob)
-        {
-            AddJob(baseJob);
-        }
+        AddJob(baseJob);
     }
 }

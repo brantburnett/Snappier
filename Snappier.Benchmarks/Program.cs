@@ -1,7 +1,4 @@
-﻿using System;
-using BenchmarkDotNet.Jobs;
-using BenchmarkDotNet.Running;
-using Snappier.Benchmarks;
+﻿using BenchmarkDotNet.Running;
 using Snappier.Benchmarks.Configuration;
 
 Console.WriteLine("Select configuration:");
@@ -20,7 +17,7 @@ Console.Write("Selection: ");
 string input = Console.ReadLine();
 Console.WriteLine();
 
-var config = input switch
+StandardConfig config = input switch
 {
     "0" => (StandardConfig) new FrameworkCompareConfig(Job.ShortRun),
     "1" => new FrameworkCompareConfig(Job.Default),

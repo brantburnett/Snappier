@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -7,6 +7,7 @@
 
     <IsPackable>false</IsPackable>
     <LangVersion>14</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
     <SignAssembly>true</SignAssembly>
     <AssemblyOriginatorKeyFile>..\Snappier.snk</AssemblyOriginatorKeyFile>
     <NoWarn>$(NoWarn);8002</NoWarn> <!-- Don't nag about Snappy.NET not being strong named -->
@@ -45,6 +46,13 @@
     <Compile Remove="Unaligned*.cs" />
     <Compile Remove="Internal\VarIntEncodingReadTests.cs" />
     <Compile Remove="Internal\VarIntEncodingWriteTests.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="BenchmarkDotNet" />
+    <Using Include="BenchmarkDotNet.Attributes" />
+    <Using Include="BenchmarkDotNet.Jobs" />
+    <Using Include="Snappier.Internal" />
   </ItemGroup>
 
 </Project>

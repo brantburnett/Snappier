@@ -1,160 +1,159 @@
-﻿using System;
-using System.Runtime.CompilerServices;
-#if NET6_0_OR_GREATER
+﻿using System.Runtime.CompilerServices;
+
+#if !NETSTANDARD2_0
 using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics.Arm;
 using System.Runtime.Intrinsics.X86;
 #endif
 
-namespace Snappier.Internal
-{
-    internal static class Crc32CAlgorithm
-    {
-        #region static
+namespace Snappier.Internal;
 
-        private const uint Poly = 0x82F63B78u;
+internal static class Crc32CAlgorithm
+{
+    #region static
+
+    private const uint Poly = 0x82F63B78u;
 
 #pragma warning disable IDE1006
-        // ReSharper disable once InconsistentNaming
-        private static readonly uint[] Table;
+    // ReSharper disable once InconsistentNaming
+    private static readonly uint[] Table;
 #pragma warning restore IDE1006
 
-        static Crc32CAlgorithm()
+    static Crc32CAlgorithm()
+    {
+        uint[] table = new uint[16 * 256];
+        for (uint i = 0; i < 256; i++)
         {
-            uint[] table = new uint[16 * 256];
-            for (uint i = 0; i < 256; i++)
+            uint res = i;
+            for (int t = 0; t < 16; t++)
             {
-                uint res = i;
-                for (int t = 0; t < 16; t++)
-                {
-                    for (int k = 0; k < 8; k++) res = (res & 1) == 1 ? Poly ^ (res >> 1) : (res >> 1);
-                    table[(t * 256) + i] = res;
-                }
+                for (int k = 0; k < 8; k++) res = (res & 1) == 1 ? Poly ^ (res >> 1) : (res >> 1);
+                table[(t * 256) + i] = res;
             }
-
-            Table = table;
         }
 
-        #endregion
+        Table = table;
+    }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static uint Compute(ReadOnlySpan<byte> source)
+    #endregion
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static uint Compute(ReadOnlySpan<byte> source)
+    {
+        return Append(0, source);
+    }
+
+    public static uint Append(uint crc, ReadOnlySpan<byte> source)
+    {
+        uint crcLocal = uint.MaxValue ^ crc;
+
+#if !NETSTANDARD2_0
+        // If available on the current CPU, use ARM CRC32C intrinsic operations.
+        // The if Crc32 statements are optimized out by the JIT compiler based on CPU support.
+        if (Crc32.IsSupported)
         {
-            return Append(0, source);
-        }
-
-        public static uint Append(uint crc, ReadOnlySpan<byte> source)
-        {
-            uint crcLocal = uint.MaxValue ^ crc;
-
-            #if NET6_0_OR_GREATER
-            // If available on the current CPU, use ARM CRC32C intrinsic operations.
-            // The if Crc32 statements are optimized out by the JIT compiler based on CPU support.
-            if (Crc32.IsSupported)
+            if (Crc32.Arm64.IsSupported)
             {
-                if (Crc32.Arm64.IsSupported)
+                while (source.Length >= 8)
                 {
-                    while (source.Length >= 8)
-                    {
-                        crcLocal = Crc32.Arm64.ComputeCrc32C(crcLocal, MemoryMarshal.Read<ulong>(source));
-                        source = source.Slice(8);
-                    }
+                    crcLocal = Crc32.Arm64.ComputeCrc32C(crcLocal, MemoryMarshal.Read<ulong>(source));
+                    source = source.Slice(8);
                 }
-
-                // Process in 4-byte chunks
-                while (source.Length >= 4)
-                {
-                    crcLocal = Crc32.ComputeCrc32C(crcLocal, MemoryMarshal.Read<uint>(source));
-                    source = source.Slice(4);
-                }
-
-                // Process the remainder
-                int j = 0;
-                while (j < source.Length)
-                {
-                    crcLocal = Crc32.ComputeCrc32C(crcLocal, source[j++]);
-                }
-
-                return crcLocal ^ uint.MaxValue;
             }
 
-            // If available on the current CPU, use Intel CRC32C intrinsic operations.
-            // The Sse42 if statements are optimized out by the JIT compiler based on CPU support.
-            else if (Sse42.IsSupported)
+            // Process in 4-byte chunks
+            while (source.Length >= 4)
             {
-                // Process in 8-byte chunks first if 64-bit
-                if (Sse42.X64.IsSupported)
-                {
-                    if (source.Length >= 8)
-                    {
-                        // work with a ulong local during the loop to reduce typecasts
-                        ulong crcLocalLong = crcLocal;
-
-                        while (source.Length >= 8)
-                        {
-                            crcLocalLong = Sse42.X64.Crc32(crcLocalLong, MemoryMarshal.Read<ulong>(source));
-                            source = source.Slice(8);
-                        }
-
-                        crcLocal = (uint) crcLocalLong;
-                    }
-                }
-
-                // Process in 4-byte chunks
-                while (source.Length >= 4)
-                {
-                    crcLocal = Sse42.Crc32(crcLocal, MemoryMarshal.Read<uint>(source));
-                    source = source.Slice(4);
-                }
-
-                // Process the remainder
-                int j = 0;
-                while (j < source.Length)
-                {
-                    crcLocal = Sse42.Crc32(crcLocal, source[j++]);
-                }
-
-                return crcLocal ^ uint.MaxValue;
-            }
-            #endif
-
-            uint[] table = Table;
-            while (source.Length >= 16)
-            {
-                uint a = table[(3 * 256) + source[12]]
-                         ^ table[(2 * 256) + source[13]]
-                         ^ table[(1 * 256) + source[14]]
-                         ^ table[(0 * 256) + source[15]];
-
-                uint b = table[(7 * 256) + source[8]]
-                         ^ table[(6 * 256) + source[9]]
-                         ^ table[(5 * 256) + source[10]]
-                         ^ table[(4 * 256) + source[11]];
-
-                uint c = table[(11 * 256) + source[4]]
-                         ^ table[(10 * 256) + source[5]]
-                         ^ table[(9 * 256) + source[6]]
-                         ^ table[(8 * 256) + source[7]];
-
-                uint d = table[(15 * 256) + ((byte)crcLocal ^ source[0])]
-                         ^ table[(14 * 256) + ((byte)(crcLocal >> 8) ^ source[1])]
-                         ^ table[(13 * 256) + ((byte)(crcLocal >> 16) ^ source[2])]
-                         ^ table[(12 * 256) + ((crcLocal >> 24) ^ source[3])];
-
-                crcLocal = d ^ c ^ b ^ a;
-                source = source.Slice(16);
+                crcLocal = Crc32.ComputeCrc32C(crcLocal, MemoryMarshal.Read<uint>(source));
+                source = source.Slice(4);
             }
 
-            for (int offset = 0; offset < source.Length; offset++)
+            // Process the remainder
+            int j = 0;
+            while (j < source.Length)
             {
-                crcLocal = table[(byte) (crcLocal ^ source[offset])] ^ crcLocal >> 8;
+                crcLocal = Crc32.ComputeCrc32C(crcLocal, source[j++]);
             }
 
             return crcLocal ^ uint.MaxValue;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static uint ApplyMask(uint x) =>
-            unchecked(((x >> 15) | (x << 17)) + 0xa282ead8);
+        // If available on the current CPU, use Intel CRC32C intrinsic operations.
+        // The Sse42 if statements are optimized out by the JIT compiler based on CPU support.
+        else if (Sse42.IsSupported)
+        {
+            // Process in 8-byte chunks first if 64-bit
+            if (Sse42.X64.IsSupported)
+            {
+                if (source.Length >= 8)
+                {
+                    // work with a ulong local during the loop to reduce typecasts
+                    ulong crcLocalLong = crcLocal;
+
+                    while (source.Length >= 8)
+                    {
+                        crcLocalLong = Sse42.X64.Crc32(crcLocalLong, MemoryMarshal.Read<ulong>(source));
+                        source = source.Slice(8);
+                    }
+
+                    crcLocal = (uint) crcLocalLong;
+                }
+            }
+
+            // Process in 4-byte chunks
+            while (source.Length >= 4)
+            {
+                crcLocal = Sse42.Crc32(crcLocal, MemoryMarshal.Read<uint>(source));
+                source = source.Slice(4);
+            }
+
+            // Process the remainder
+            int j = 0;
+            while (j < source.Length)
+            {
+                crcLocal = Sse42.Crc32(crcLocal, source[j++]);
+            }
+
+            return crcLocal ^ uint.MaxValue;
+        }
+#endif
+
+        uint[] table = Table;
+        while (source.Length >= 16)
+        {
+            uint a = table[(3 * 256) + source[12]]
+                     ^ table[(2 * 256) + source[13]]
+                     ^ table[(1 * 256) + source[14]]
+                     ^ table[(0 * 256) + source[15]];
+
+            uint b = table[(7 * 256) + source[8]]
+                     ^ table[(6 * 256) + source[9]]
+                     ^ table[(5 * 256) + source[10]]
+                     ^ table[(4 * 256) + source[11]];
+
+            uint c = table[(11 * 256) + source[4]]
+                     ^ table[(10 * 256) + source[5]]
+                     ^ table[(9 * 256) + source[6]]
+                     ^ table[(8 * 256) + source[7]];
+
+            uint d = table[(15 * 256) + ((byte)crcLocal ^ source[0])]
+                     ^ table[(14 * 256) + ((byte)(crcLocal >> 8) ^ source[1])]
+                     ^ table[(13 * 256) + ((byte)(crcLocal >> 16) ^ source[2])]
+                     ^ table[(12 * 256) + ((crcLocal >> 24) ^ source[3])];
+
+            crcLocal = d ^ c ^ b ^ a;
+            source = source.Slice(16);
+        }
+
+        for (int offset = 0; offset < source.Length; offset++)
+        {
+            crcLocal = table[(byte) (crcLocal ^ source[offset])] ^ crcLocal >> 8;
+        }
+
+        return crcLocal ^ uint.MaxValue;
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static uint ApplyMask(uint x) =>
+        unchecked(((x >> 15) | (x << 17)) + 0xa282ead8);
 }

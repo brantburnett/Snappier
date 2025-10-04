@@ -1,17 +1,13 @@
-﻿using BenchmarkDotNet.Attributes;
-using Snappier.Internal;
+﻿namespace Snappier.Benchmarks;
 
-namespace Snappier.Benchmarks
+public class LeftShiftOverflows
 {
-    public class LeftShiftOverflows
-    {
-        private byte value = 24;
-        private int shift = 7;
+    private byte _value = 24;
+    private int _shift = 7;
 
-        [Benchmark(Baseline = true)]
-        public bool Current()
-        {
-            return Helpers.LeftShiftOverflows(value, shift);
-        }
+    [Benchmark(Baseline = true)]
+    public bool Current()
+    {
+        return Helpers.LeftShiftOverflows(_value, _shift);
     }
 }
