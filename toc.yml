@@ -3,6 +3,6 @@
 - name: API
   href: api/
 - name: Contributing
-  href: contributing.md
+  href: CONTRIBUTING.md
 - name: GitHub
   href: https://github.com/brantburnett/Snappier
