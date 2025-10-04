@@ -2,9 +2,7 @@
 
 namespace Snappier.Internal;
 
-/// <summary>
-/// Helpers to perform Unsafe.Add operations on readonly refs.
-/// </summary>
+// Helpers to perform Unsafe.Add operations on readonly refs.
 internal static class UnsafeReadonly
 {
     extension(Unsafe)
