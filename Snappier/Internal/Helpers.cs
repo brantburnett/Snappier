@@ -86,9 +86,10 @@ internal static class Helpers
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static uint UnsafeReadUInt32(in byte ptr)
+    public static uint UnsafeReadUInt32(ref readonly byte ptr)
     {
-        uint result = Unsafe.ReadUnaligned<uint>(ref Unsafe.AsRef(in ptr));
+        uint result = Unsafe.ReadUnaligned<uint>(in ptr);
+
         if (!BitConverter.IsLittleEndian)
         {
             result = BinaryPrimitives.ReverseEndianness(result);
@@ -98,9 +99,10 @@ internal static class Helpers
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ulong UnsafeReadUInt64(in byte ptr)
+    public static ulong UnsafeReadUInt64(ref readonly byte ptr)
     {
-        ulong result = Unsafe.ReadUnaligned<ulong>(ref Unsafe.AsRef(in ptr));
+        ulong result = Unsafe.ReadUnaligned<ulong>(in ptr);
+
         if (!BitConverter.IsLittleEndian)
         {
             result = BinaryPrimitives.ReverseEndianness(result);

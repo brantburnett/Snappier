@@ -61,9 +61,9 @@ internal class CopyHelpers
     /// <param name="opEnd">Pointer to the end of the area to write in the buffer.</param>
     /// <param name="bufferEnd">Pointer past the end of the buffer.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void IncrementalCopy(ref byte source, ref byte op, ref byte opEnd, ref byte bufferEnd)
+    public static void IncrementalCopy(ref readonly byte source, ref byte op, ref byte opEnd, ref byte bufferEnd)
     {
-        Debug.Assert(Unsafe.IsAddressLessThan(ref source, ref op));
+        Debug.Assert(Unsafe.IsAddressLessThan(in source, in op));
         Debug.Assert(!Unsafe.IsAddressGreaterThan(ref op, ref opEnd));
         Debug.Assert(!Unsafe.IsAddressGreaterThan(ref opEnd, ref bufferEnd));
         // NOTE: The copy tags use 3 or 6 bits to store the copy length, so len <= 64.
@@ -73,7 +73,7 @@ internal class CopyHelpers
         // compression format, so we have to also handle len < 4 in case the input
         // does not satisfy these conditions.
 
-        int patternSize = (int) Unsafe.ByteOffset(ref source, ref op);
+        int patternSize = (int) Unsafe.ByteOffset(in source, in op);
 
         if (patternSize < 8)
         {
@@ -96,7 +96,7 @@ internal class CopyHelpers
                 if (!Unsafe.IsAddressGreaterThan(ref op, ref Unsafe.Subtract(ref bufferEnd, 16)))
                 {
                     Vector128<byte> shuffleMask = PshufbFillPatterns[patternSize];
-                    Vector128<byte> srcPattern = Vector128.LoadUnsafe(ref source);
+                    Vector128<byte> srcPattern = Vector128.LoadUnsafe(in source);
                     Vector128<byte> pattern = Shuffle(srcPattern, shuffleMask);
 
                     // Get the new pattern size now that we've repeated it
@@ -172,19 +172,19 @@ internal class CopyHelpers
         if (!Unsafe.IsAddressGreaterThan(ref opEnd, ref Unsafe.Subtract(ref bufferEnd, 16)))
         {
             UnalignedCopy64(in source, ref op);
-            UnalignedCopy64(in Unsafe.Add(ref  source, 8), ref Unsafe.Add(ref op, 8));
+            UnalignedCopy64(in Unsafe.Add(in source, 8), ref Unsafe.Add(ref op, 8));
 
             if (Unsafe.IsAddressLessThan(ref op, ref Unsafe.Subtract(ref opEnd, 16))) {
-                UnalignedCopy64(in Unsafe.Add(ref source, 16), ref Unsafe.Add(ref op, 16));
-                UnalignedCopy64(in Unsafe.Add(ref source, 24), ref Unsafe.Add(ref op, 24));
+                UnalignedCopy64(in Unsafe.Add(in source, 16), ref Unsafe.Add(ref op, 16));
+                UnalignedCopy64(in Unsafe.Add(in source, 24), ref Unsafe.Add(ref op, 24));
             }
             if (Unsafe.IsAddressLessThan(ref op, ref Unsafe.Subtract(ref opEnd, 32))) {
-                UnalignedCopy64(in Unsafe.Add(ref source, 32), ref Unsafe.Add(ref op, 32));
-                UnalignedCopy64(in Unsafe.Add(ref source, 40), ref Unsafe.Add(ref op, 40));
+                UnalignedCopy64(in Unsafe.Add(in source, 32), ref Unsafe.Add(ref op, 32));
+                UnalignedCopy64(in Unsafe.Add(in source, 40), ref Unsafe.Add(ref op, 40));
             }
             if (Unsafe.IsAddressLessThan(ref op, ref Unsafe.Subtract(ref opEnd, 48))) {
-                UnalignedCopy64(in Unsafe.Add(ref source, 48), ref Unsafe.Add(ref op, 48));
-                UnalignedCopy64(in Unsafe.Add(ref source, 56), ref Unsafe.Add(ref op, 56));
+                UnalignedCopy64(in Unsafe.Add(in source, 48), ref Unsafe.Add(ref op, 48));
+                UnalignedCopy64(in Unsafe.Add(in source, 56), ref Unsafe.Add(ref op, 56));
             }
 
             return;
@@ -195,10 +195,10 @@ internal class CopyHelpers
 
         for (ref byte loopEnd = ref Unsafe.Subtract(ref bufferEnd, 16);
              Unsafe.IsAddressLessThan(ref op, ref loopEnd);
-             op = ref Unsafe.Add(ref op, 16), source = ref Unsafe.Add(ref source, 16))
+             op = ref Unsafe.Add(ref op, 16), source = ref Unsafe.Add(in source, 16))
         {
             UnalignedCopy64(in source, ref op);
-            UnalignedCopy64(in Unsafe.Add(ref source, 8), ref Unsafe.Add(ref op, 8));
+            UnalignedCopy64(in Unsafe.Add(in source, 8), ref Unsafe.Add(ref op, 8));
         }
 
         if (!Unsafe.IsAddressLessThan(ref op, ref opEnd))
@@ -211,7 +211,7 @@ internal class CopyHelpers
         if (!Unsafe.IsAddressGreaterThan(ref op, ref Unsafe.Subtract(ref bufferEnd, 8)))
         {
             UnalignedCopy64(in source, ref op);
-            source = ref Unsafe.Add(ref source, 8);
+            source = ref Unsafe.Add(in source, 8);
             op = ref Unsafe.Add(ref op, 8);
         }
 
@@ -219,27 +219,27 @@ internal class CopyHelpers
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void IncrementalCopySlow(in byte source, ref byte op, ref byte opEnd)
+    public static void IncrementalCopySlow(ref readonly byte source, ref byte op, ref byte opEnd)
     {
         while (Unsafe.IsAddressLessThan(ref op, ref opEnd))
         {
             op = source;
             op = ref Unsafe.Add(ref op, 1);
-            source = ref Unsafe.Add(ref Unsafe.AsRef(in source), 1);
+            source = ref Unsafe.Add(in source, 1);
         }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void UnalignedCopy64(in byte source, ref byte destination)
+    public static void UnalignedCopy64(ref readonly byte source, ref byte destination)
     {
-        long tempStackVar = Unsafe.As<byte, long>(ref Unsafe.AsRef(in source));
+        long tempStackVar = Unsafe.As<byte, long>(in source);
         Unsafe.As<byte, long>(ref destination) = tempStackVar;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void UnalignedCopy128(in byte source, ref byte destination)
+    public static void UnalignedCopy128(ref readonly byte source, ref byte destination)
     {
-        Guid tempStackVar = Unsafe.As<byte, Guid>(ref Unsafe.AsRef(in source));
+        Guid tempStackVar = Unsafe.As<byte, Guid>(in source);
         Unsafe.As<byte, Guid>(ref destination) = tempStackVar;
     }
 }

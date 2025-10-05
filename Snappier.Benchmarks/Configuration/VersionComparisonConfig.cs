@@ -18,20 +18,20 @@ public class VersionComparisonConfig : StandardConfig
     {
         Job jobBefore = baseJob.WithCustomBuildConfiguration("Previous");
 
-        Job jobBefore60 = jobBefore.WithRuntime(CoreRuntime.Core60).AsBaseline();
         Job jobBefore80 = jobBefore.WithRuntime(CoreRuntime.Core80).WithPgo().AsBaseline();
         Job jobBefore90 = jobBefore.WithRuntime(CoreRuntime.Core90).WithPgo().AsBaseline();
+        Job jobBefore10_0 = jobBefore.WithRuntime(CoreRuntime.Core10_0).WithPgo().AsBaseline();
 
-        Job jobAfter60 = baseJob.WithRuntime(CoreRuntime.Core60);
         Job jobAfter80 = baseJob.WithRuntime(CoreRuntime.Core80).WithPgo();
         Job jobAfter90 = baseJob.WithRuntime(CoreRuntime.Core90).WithPgo();
+        Job jobAfter10_0 = baseJob.WithRuntime(CoreRuntime.Core10_0).WithPgo();
 
-        AddJob(jobBefore60);
         AddJob(jobBefore80);
         AddJob(jobBefore90);
-        AddJob(jobAfter60);
+        AddJob(jobBefore10_0);
         AddJob(jobAfter80);
         AddJob(jobAfter90);
+        AddJob(jobAfter10_0);
 
 #if NET6_0_OR_GREATER // OperatingSystem check is only available in .NET 6.0 or later, but the runner itself won't be .NET 4 anyway
         if (OperatingSystem.IsWindows())

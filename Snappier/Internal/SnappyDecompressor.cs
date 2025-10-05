@@ -126,7 +126,7 @@ internal sealed class SnappyDecompressor : IDisposable
             switch (status)
             {
                 case OperationStatus.Done:
-            ExpectedLength = (int)length;
+                    ExpectedLength = (int)length;
 
                     // The number of bytes consumed from the input is the number of bytes used by VarIntEncoding.TryRead
                     // less the number of bytes previously found in the scratch buffer
@@ -186,15 +186,15 @@ internal sealed class SnappyDecompressor : IDisposable
         // We only index into this array with a byte, and the list is 256 long, so it's safe to skip range checks.
         // JIT doesn't seem to recognize this currently, so we'll use a ref and Unsafe.Add to avoid the checks.
         Debug.Assert(Constants.CharTable.Length >= 256);
-        ref ushort charTable = ref MemoryMarshal.GetReference(Constants.CharTable);
+        ref readonly ushort charTable = ref MemoryMarshal.GetReference(Constants.CharTable);
 
         unchecked
         {
-            ref byte input = ref Unsafe.AsRef(in inputSpan[0]);
-            ref byte inputEnd = ref Unsafe.Add(ref input, inputSpan.Length);
+            ref readonly byte input = ref Unsafe.AsRef(in inputSpan[0]);
+            ref readonly byte inputEnd = ref Unsafe.Add(in input, inputSpan.Length);
 
             // Track the point in the input before which input is guaranteed to have at least Constants.MaxTagLength bytes left
-            ref byte inputLimitMinMaxTagLength = ref Unsafe.Subtract(ref inputEnd, Math.Min(inputSpan.Length, Constants.MaximumTagLength - 1));
+            ref readonly byte inputLimitMinMaxTagLength = ref Unsafe.Subtract(in inputEnd, Math.Min(inputSpan.Length, Constants.MaximumTagLength - 1));
 
             ref byte buffer = ref _lookbackBuffer.Span[0];
             ref byte bufferEnd = ref Unsafe.Add(ref buffer, _lookbackBuffer.Length);
@@ -211,7 +211,7 @@ internal sealed class SnappyDecompressor : IDisposable
                 // so that the stack size of this method is smaller and JIT can produce better results
 
                 (uint inputUsed, uint bytesWritten) =
-                    DecompressTagFromScratch(ref input, ref inputEnd, ref op, ref buffer, ref bufferEnd);
+                    DecompressTagFromScratch(in input, in inputEnd, ref op, ref buffer, ref bufferEnd);
                 op = ref Unsafe.Add(ref op, bytesWritten);
 
                 if (inputUsed == 0)
@@ -228,14 +228,14 @@ internal sealed class SnappyDecompressor : IDisposable
                     goto exit;
                 }
 
-                input = ref Unsafe.Add(ref input, inputUsed);
+                input = ref Unsafe.Add(in input, inputUsed);
             }
 
             while (true)
             {
-                if (!Unsafe.IsAddressLessThan(ref input, ref inputLimitMinMaxTagLength))
+                if (!Unsafe.IsAddressLessThan(in input, in inputLimitMinMaxTagLength))
                 {
-                    uint newScratchLength = RefillTag(ref input, ref inputEnd);
+                    uint newScratchLength = RefillTag(in input, in inputEnd);
                     if (newScratchLength == uint.MaxValue)
                     {
                         break;
@@ -245,8 +245,8 @@ internal sealed class SnappyDecompressor : IDisposable
                     {
                         // Data has been moved to the scratch buffer
                         input = ref _scratch[0];
-                        inputEnd = ref Unsafe.Add(ref input, newScratchLength);
-                        inputLimitMinMaxTagLength = ref Unsafe.Subtract(ref inputEnd,
+                        inputEnd = ref Unsafe.Add(in input, newScratchLength);
+                        inputLimitMinMaxTagLength = ref Unsafe.Subtract(in inputEnd,
                             Math.Min(newScratchLength, Constants.MaximumTagLength - 1));
                     }
                 }
@@ -257,17 +257,17 @@ internal sealed class SnappyDecompressor : IDisposable
                 skip_preload:
 
                 byte c = (byte) preload;
-                input = ref Unsafe.Add(ref input, 1);
+                input = ref Unsafe.Add(in input, 1);
 
                 if ((c & 0x03) == Constants.Literal)
                 {
                     nint literalLength = unchecked((c >> 2) + 1);
 
-                    if (TryFastAppend(ref op, ref bufferEnd, in input, Unsafe.ByteOffset(ref input, ref inputEnd), literalLength))
+                    if (TryFastAppend(ref op, ref bufferEnd, in input, Unsafe.ByteOffset(in input, in inputEnd), literalLength))
                     {
                         Debug.Assert(literalLength < 61);
                         op = ref Unsafe.Add(ref op, literalLength);
-                        input = ref Unsafe.Add(ref input, literalLength);
+                        input = ref Unsafe.Add(in input, literalLength);
                         // NOTE: There is no RefillTag here, as TryFastAppend()
                         // will not return true unless there's already at least five spare
                         // bytes in addition to the literal.
@@ -284,10 +284,10 @@ internal sealed class SnappyDecompressor : IDisposable
                         literalLength = (nint) Helpers.ExtractLowBytes(literalLengthTemp,
                             (int) literalLengthLength) + 1;
 
-                        input = ref Unsafe.Add(ref input, literalLengthLength);
+                        input = ref Unsafe.Add(in input, literalLengthLength);
                     }
 
-                    nint inputRemaining = Unsafe.ByteOffset(ref input, ref inputEnd);
+                    nint inputRemaining = Unsafe.ByteOffset(in input, in inputEnd);
                     if (inputRemaining < literalLength)
                     {
                         Append(ref op, ref bufferEnd, in input, inputRemaining);
@@ -298,14 +298,14 @@ internal sealed class SnappyDecompressor : IDisposable
 
                     Append(ref op, ref bufferEnd, in input, literalLength);
                     op = ref Unsafe.Add(ref op, literalLength);
-                    input = ref Unsafe.Add(ref input, literalLength);
+                    input = ref Unsafe.Add(in input, literalLength);
                 }
                 else
                 {
                     if ((c & 3) == Constants.Copy4ByteOffset)
                     {
                         uint copyOffset = Helpers.UnsafeReadUInt32(in input);
-                        input = ref Unsafe.Add(ref input, 4);
+                        input = ref Unsafe.Add(in input, 4);
 
                         nint length = (c >> 2) + 1;
                         AppendFromSelf(ref op, ref buffer, ref bufferEnd, copyOffset, length);
@@ -313,7 +313,7 @@ internal sealed class SnappyDecompressor : IDisposable
                     }
                     else
                     {
-                        ushort entry = Unsafe.Add(ref charTable, c);
+                        ushort entry = Unsafe.Add(in charTable, c);
                         preload = Helpers.UnsafeReadUInt32(in input);
 
                         uint trailer = Helpers.ExtractLowBytes(preload, c & 3);
@@ -327,12 +327,12 @@ internal sealed class SnappyDecompressor : IDisposable
                         AppendFromSelf(ref op, ref buffer, ref bufferEnd, copyOffset, length);
                         op = ref Unsafe.Add(ref op, length);
 
-                        input = ref Unsafe.Add(ref input, c & 3);
+                        input = ref Unsafe.Add(in input, c & 3);
 
                         // By using the result of the previous load we reduce the critical
                         // dependency chain of ip to 4 cycles.
                         preload >>= (c & 3) * 8;
-                        if (Unsafe.IsAddressLessThan(ref input, ref inputLimitMinMaxTagLength))
+                        if (Unsafe.IsAddressLessThan(in input, in inputLimitMinMaxTagLength))
                         {
                             goto skip_preload;
                         }
@@ -349,16 +349,16 @@ internal sealed class SnappyDecompressor : IDisposable
     // Returns the amount of the input used, 0 indicates there was insufficient data.
     // Some of the input may have been used if 0 is returned, but it isn't relevant because
     // DecompressAllTags will short circuit.
-    private (uint inputUsed, uint bytesWritten) DecompressTagFromScratch(ref byte input, ref byte inputEnd, ref byte op,
-        ref byte buffer, ref byte bufferEnd)
+    private (uint inputUsed, uint bytesWritten) DecompressTagFromScratch(ref readonly byte input, ref readonly byte inputEnd,
+        ref byte op, ref byte buffer, ref byte bufferEnd)
     {
         // scratch will be the scratch buffer with only the tag if true is returned
-        uint inputUsed = RefillTagFromScratch(ref input, ref inputEnd);
+        uint inputUsed = RefillTagFromScratch(in input, in inputEnd);
         if (inputUsed == 0)
         {
             return (0, 0);
         }
-        input = ref Unsafe.Add(ref input, inputUsed);
+        input = ref Unsafe.Add(in input, inputUsed);
 
         // No more scratch for next cycle, we have a full buffer we're about to use
         _scratchLength = 0;
@@ -378,7 +378,7 @@ internal sealed class SnappyDecompressor : IDisposable
                     (int) literalLengthLength) + 1;
             }
 
-            nint inputRemaining = Unsafe.ByteOffset(ref input, ref inputEnd);
+            nint inputRemaining = Unsafe.ByteOffset(in input, in inputEnd);
             if (inputRemaining < literalLength)
             {
                 Append(ref op, ref bufferEnd, in input, inputRemaining);
@@ -425,11 +425,11 @@ internal sealed class SnappyDecompressor : IDisposable
     // Returns the amount of the input used, 0 indicates there was insufficient data.
     // Some of the input may have been used if 0 is returned, but it isn't relevant because
     // DecompressAllTags will short circuit.
-    private uint RefillTagFromScratch(ref byte input, ref byte inputEnd)
+    private uint RefillTagFromScratch(ref readonly byte input, ref readonly byte inputEnd)
     {
         Debug.Assert(_scratchLength > 0);
 
-        if (!Unsafe.IsAddressLessThan(ref input, ref inputEnd))
+        if (!Unsafe.IsAddressLessThan(in input, in inputEnd))
         {
             return 0;
         }
@@ -438,8 +438,8 @@ internal sealed class SnappyDecompressor : IDisposable
         uint entry = Constants.CharTable[_scratch[0]];
         uint needed = (entry >> 11) + 1; // +1 byte for 'c'
 
-        uint toCopy = Math.Min((uint)Unsafe.ByteOffset(ref input, ref inputEnd), needed - (uint) _scratchLength);
-        Unsafe.CopyBlockUnaligned(ref _scratch[(int)_scratchLength], ref input, toCopy);
+        uint toCopy = Math.Min((uint)Unsafe.ByteOffset(in input, in inputEnd), needed - (uint) _scratchLength);
+        Unsafe.CopyBlockUnaligned(ref _scratch[(int)_scratchLength], in input, toCopy);
 
         _scratchLength += (int) toCopy;
 
@@ -461,9 +461,9 @@ internal sealed class SnappyDecompressor : IDisposable
     // Returns a small number if we have enough data for this tag but not enough to safely load preload without a buffer
     // overrun. In this case, further reads should be from scratch with a length up to the returned number. Scratch will
     // always have some extra bytes on the end so we don't risk buffer overruns.
-    private uint RefillTag(ref byte input, ref byte inputEnd)
+    private uint RefillTag(ref readonly byte input, ref readonly byte inputEnd)
     {
-        if (!Unsafe.IsAddressLessThan(ref input, ref inputEnd))
+        if (!Unsafe.IsAddressLessThan(in input, in inputEnd))
         {
             return uint.MaxValue;
         }
@@ -472,11 +472,11 @@ internal sealed class SnappyDecompressor : IDisposable
         uint entry = Constants.CharTable[input];
         uint needed = (entry >> 11) + 1; // +1 byte for 'c'
 
-        uint inputLength = (uint)Unsafe.ByteOffset(ref input, ref inputEnd);
+        uint inputLength = (uint)Unsafe.ByteOffset(in input, in inputEnd);
         if (inputLength < needed)
         {
             // Data is insufficient, copy to scratch
-            Unsafe.CopyBlockUnaligned(ref _scratch[0], ref input, inputLength);
+            Unsafe.CopyBlockUnaligned(ref _scratch[0], in input, inputLength);
 
             _scratchLength = (int) inputLength;
             return uint.MaxValue;
@@ -486,7 +486,7 @@ internal sealed class SnappyDecompressor : IDisposable
         {
             // Have enough bytes, but copy to scratch so that we do not
             // read past end of input
-            Unsafe.CopyBlockUnaligned(ref _scratch[0], ref input, inputLength);
+            Unsafe.CopyBlockUnaligned(ref _scratch[0], in input, inputLength);
 
             return inputLength;
         }
@@ -565,18 +565,18 @@ internal sealed class SnappyDecompressor : IDisposable
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void Append(ref byte op, ref byte bufferEnd, in byte input, nint length)
+    private static void Append(ref byte op, ref byte bufferEnd, ref readonly byte input, nint length)
     {
         if (length > Unsafe.ByteOffset(ref op, ref bufferEnd))
         {
             ThrowHelper.ThrowInvalidDataException("Data too long");
         }
 
-        Unsafe.CopyBlockUnaligned(ref op, ref Unsafe.AsRef(in input), (uint) length);
+        Unsafe.CopyBlockUnaligned(ref op, in input, (uint) length);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static bool TryFastAppend(ref byte op, ref byte bufferEnd, in byte input, nint available, nint length)
+    private static bool TryFastAppend(ref byte op, ref byte bufferEnd, ref readonly byte input, nint available, nint length)
     {
         if (length <= 16 && available >= 16 + Constants.MaximumTagLength &&
             Unsafe.ByteOffset(ref op, ref bufferEnd) >= (nint) 16)
@@ -605,8 +605,8 @@ internal sealed class SnappyDecompressor : IDisposable
             ThrowHelper.ThrowInvalidDataException("Data too long");
         }
 
-        ref byte source = ref Unsafe.Subtract(ref op, copyOffset);
-        CopyHelpers.IncrementalCopy(ref source, ref op,
+        ref readonly byte source = ref Unsafe.Subtract(ref op, copyOffset);
+        CopyHelpers.IncrementalCopy(in source, ref op,
             ref Unsafe.Add(ref op, length), ref bufferEnd);
     }
 
