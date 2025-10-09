@@ -23,6 +23,8 @@ internal class SnappyCompressor : IDisposable
 
     public bool TryCompress(ReadOnlySpan<byte> input, Span<byte> output, out int bytesWritten)
     {
+        const int MaxVarInt32Length = 5;
+
         ObjectDisposedException.ThrowIf(_workingMemory is null, this);
         if (input.Overlaps(output))
         {
@@ -30,6 +32,15 @@ internal class SnappyCompressor : IDisposable
         }
 
         _workingMemory.EnsureCapacity(input.Length);
+
+        // Ensure the output buffer is large enough to store the length prefix.
+        // VarInt encoding of a 32-bit unsigned integer can take up to 5 bytes.
+        // If there isn't enough space for the prefix, return false immediately.
+        if (output.Length < MaxVarInt32Length)
+        {
+            bytesWritten = 0;
+            return false;
+        }
 
         bytesWritten = VarIntEncoding.Write(output, (uint)input.Length);
         output = output.Slice(bytesWritten);
@@ -185,7 +196,7 @@ internal class SnappyCompressor : IDisposable
             {
                 ref readonly byte ipLimit = ref Unsafe.Subtract(in inputEnd, Constants.InputMarginBytes);
 
-                for (uint preload = Helpers.UnsafeReadUInt32(in Unsafe.Add(in ip, 1));;)
+                for (uint preload = Helpers.UnsafeReadUInt32(in Unsafe.Add(in ip, 1)); ;)
                 {
                     // Bytes in [nextEmit, ip) will be emitted as literal bytes.  Or
                     // [nextEmit, ipEnd) after the main loop.
@@ -221,25 +232,25 @@ internal class SnappyCompressor : IDisposable
                     int skip = 32;
 
                     scoped ref readonly byte candidate = ref Unsafe.NullRef<byte>();
-                    if (Unsafe.ByteOffset(in ip, in ipLimit) >= (nint) 16)
+                    if (Unsafe.ByteOffset(in ip, in ipLimit) >= (nint)16)
                     {
                         nint delta = Unsafe.ByteOffset(in inputStart, in ip);
                         for (int j = 0; j < 16; j += 4)
                         {
                             // Manually unroll this loop into chunks of 4
 
-                            uint dword = j == 0 ? preload : (uint) data;
+                            uint dword = j == 0 ? preload : (uint)data;
                             Debug.Assert(dword == Helpers.UnsafeReadUInt32(in Unsafe.Add(in ip, j)));
                             ref ushort tableEntry = ref HashTable.TableEntry(ref table, dword, mask);
                             candidate = ref Unsafe.Add(in inputStart, tableEntry);
                             Debug.Assert(!Unsafe.IsAddressLessThan(in candidate, in inputStart));
                             Debug.Assert(Unsafe.IsAddressLessThan(in candidate, in Unsafe.Add(in ip, j)));
-                            tableEntry = (ushort) (delta + j);
+                            tableEntry = (ushort)(delta + j);
 
                             if (Helpers.UnsafeReadUInt32(in candidate) == dword)
                             {
-                                op = (byte) (Constants.Literal | (j << 2));
-                                CopyHelpers.UnalignedCopy128(in nextEmit, ref Unsafe.Add(ref op,  1));
+                                op = (byte)(Constants.Literal | (j << 2));
+                                CopyHelpers.UnalignedCopy128(in nextEmit, ref Unsafe.Add(ref op, 1));
                                 ip = ref Unsafe.Add(in ip, j);
                                 op = ref Unsafe.Add(ref op, j + 2);
                                 goto emit_match;
@@ -252,11 +263,11 @@ internal class SnappyCompressor : IDisposable
                             candidate = ref Unsafe.Add(in inputStart, tableEntry);
                             Debug.Assert(!Unsafe.IsAddressLessThan(in candidate, in inputStart));
                             Debug.Assert(Unsafe.IsAddressLessThan(in candidate, in Unsafe.Add(in ip, i1)));
-                            tableEntry = (ushort) (delta + i1);
+                            tableEntry = (ushort)(delta + i1);
 
                             if (Helpers.UnsafeReadUInt32(in candidate) == dword)
                             {
-                                op = (byte) (Constants.Literal | (i1 << 2));
+                                op = (byte)(Constants.Literal | (i1 << 2));
                                 CopyHelpers.UnalignedCopy128(in nextEmit, ref Unsafe.Add(ref op, 1));
                                 ip = ref Unsafe.Add(in ip, i1);
                                 op = ref Unsafe.Add(ref op, i1 + 2);
@@ -270,11 +281,11 @@ internal class SnappyCompressor : IDisposable
                             candidate = ref Unsafe.Add(in inputStart, tableEntry);
                             Debug.Assert(!Unsafe.IsAddressLessThan(in candidate, in inputStart));
                             Debug.Assert(Unsafe.IsAddressLessThan(in candidate, in Unsafe.Add(in ip, i2)));
-                            tableEntry = (ushort) (delta + i2);
+                            tableEntry = (ushort)(delta + i2);
 
                             if (Helpers.UnsafeReadUInt32(in candidate) == dword)
                             {
-                                op = (byte) (Constants.Literal | (i2 << 2));
+                                op = (byte)(Constants.Literal | (i2 << 2));
                                 CopyHelpers.UnalignedCopy128(in nextEmit, ref Unsafe.Add(ref op, 1));
                                 ip = ref Unsafe.Add(in ip, i2);
                                 op = ref Unsafe.Add(ref op, i2 + 2);
@@ -288,11 +299,11 @@ internal class SnappyCompressor : IDisposable
                             candidate = ref Unsafe.Add(in inputStart, tableEntry);
                             Debug.Assert(!Unsafe.IsAddressLessThan(in candidate, in inputStart));
                             Debug.Assert(Unsafe.IsAddressLessThan(in candidate, in Unsafe.Add(in ip, i3)));
-                            tableEntry = (ushort) (delta + i3);
+                            tableEntry = (ushort)(delta + i3);
 
                             if (Helpers.UnsafeReadUInt32(in candidate) == dword)
                             {
-                                op = (byte) (Constants.Literal | (i3 << 2));
+                                op = (byte)(Constants.Literal | (i3 << 2));
                                 CopyHelpers.UnalignedCopy128(in nextEmit, ref Unsafe.Add(ref op, 1));
                                 ip = ref Unsafe.Add(in ip, i3);
                                 op = ref Unsafe.Add(ref op, i3 + 2);
@@ -308,8 +319,8 @@ internal class SnappyCompressor : IDisposable
 
                     while (true)
                     {
-                        Debug.Assert((uint) data == Helpers.UnsafeReadUInt32(in ip));
-                        ref ushort tableEntry = ref HashTable.TableEntry(ref table, (uint) data, mask);
+                        Debug.Assert((uint)data == Helpers.UnsafeReadUInt32(in ip));
+                        ref ushort tableEntry = ref HashTable.TableEntry(ref table, (uint)data, mask);
                         int bytesBetweenHashLookups = skip >> 5;
                         skip += bytesBetweenHashLookups;
 
@@ -325,7 +336,7 @@ internal class SnappyCompressor : IDisposable
                         Debug.Assert(Unsafe.IsAddressLessThan(in candidate, in ip));
 
                         tableEntry = (ushort)Unsafe.ByteOffset(in inputStart, in ip);
-                        if ((uint) data == Helpers.UnsafeReadUInt32(in candidate))
+                        if ((uint)data == Helpers.UnsafeReadUInt32(in candidate))
                         {
                             break;
                         }
@@ -340,16 +351,16 @@ internal class SnappyCompressor : IDisposable
                     Debug.Assert(!Unsafe.IsAddressGreaterThan(in Unsafe.Add(in nextEmit, 16), in inputEnd));
                     op = ref EmitLiteralFast(ref op, in nextEmit, (uint)Unsafe.ByteOffset(in nextEmit, in ip));
 
-                    // Step 3: Call EmitCopy, and then see if another EmitCopy could
-                    // be our next move.  Repeat until we find no match for the
-                    // input immediately after what was consumed by the last EmitCopy call.
-                    //
-                    // If we exit this loop normally then we need to call EmitLiteral next,
-                    // though we don't yet know how big the literal will be.  We handle that
-                    // by proceeding to the next iteration of the main loop.  We also can exit
-                    // this loop via goto if we get close to exhausting the input.
+                // Step 3: Call EmitCopy, and then see if another EmitCopy could
+                // be our next move.  Repeat until we find no match for the
+                // input immediately after what was consumed by the last EmitCopy call.
+                //
+                // If we exit this loop normally then we need to call EmitLiteral next,
+                // though we don't yet know how big the literal will be.  We handle that
+                // by proceeding to the next iteration of the main loop.  We also can exit
+                // this loop via goto if we get close to exhausting the input.
 
-                    emit_match:
+                emit_match:
                     do
                     {
                         // We have a 4-byte match at ip, and no need to emit any
@@ -385,26 +396,26 @@ internal class SnappyCompressor : IDisposable
                         // table[Hash(ip, mask)] for that.  To improve compression,
                         // we also update table[Hash(ip - 1, mask)] and table[Hash(ip, mask)].
                         HashTable.TableEntry(ref table, Helpers.UnsafeReadUInt32(in Unsafe.Subtract(in ip, 1)), mask) =
-                            (ushort) (Unsafe.ByteOffset(in inputStart, in ip) - 1);
-                        ref ushort tableEntry = ref HashTable.TableEntry(ref table, (uint) data, mask);
+                            (ushort)(Unsafe.ByteOffset(in inputStart, in ip) - 1);
+                        ref ushort tableEntry = ref HashTable.TableEntry(ref table, (uint)data, mask);
                         candidate = ref Unsafe.Add(in inputStart, tableEntry);
                         tableEntry = (ushort)Unsafe.ByteOffset(in inputStart, in ip);
-                    } while ((uint) data == Helpers.UnsafeReadUInt32(in candidate));
+                    } while ((uint)data == Helpers.UnsafeReadUInt32(in candidate));
 
                     // Because the least significant 5 bytes matched, we can utilize data
                     // for the next iteration.
-                    preload = (uint) (data >> 8);
+                    preload = (uint)(data >> 8);
                 }
             }
 
-            emit_remainder:
+        emit_remainder:
             // Emit the remaining bytes as a literal
             if (Unsafe.IsAddressLessThan(in ip, in inputEnd))
             {
-                op = ref EmitLiteralSlow(ref op, in ip, (uint) Unsafe.ByteOffset(in ip, in inputEnd));
+                op = ref EmitLiteralSlow(ref op, in ip, (uint)Unsafe.ByteOffset(in ip, in inputEnd));
             }
 
-            return (int) Unsafe.ByteOffset(ref output[0], ref op);
+            return (int)Unsafe.ByteOffset(ref output[0], ref op);
         }
     }
 
@@ -432,7 +443,7 @@ internal class SnappyCompressor : IDisposable
         uint n = length - 1;
         if (n < 60)
         {
-            op = unchecked((byte) (Constants.Literal | (n << 2)));
+            op = unchecked((byte)(Constants.Literal | (n << 2)));
             op = ref Unsafe.Add(ref op, 1);
         }
         else
@@ -454,7 +465,7 @@ internal class SnappyCompressor : IDisposable
         }
 
         Unsafe.CopyBlockUnaligned(ref op, in literal, length);
-        return ref Unsafe.Add(ref op,  length);
+        return ref Unsafe.Add(ref op, length);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -467,9 +478,9 @@ internal class SnappyCompressor : IDisposable
 
         unchecked
         {
-            uint u = (uint) ((length << 2) + (offset << 8));
-            uint copy1 = (uint) (Constants.Copy1ByteOffset - (4 << 2) + ((offset >> 3) & 0xe0));
-            uint copy2 = (uint) (Constants.Copy2ByteOffset - (1 << 2));
+            uint u = (uint)((length << 2) + (offset << 8));
+            uint copy1 = (uint)(Constants.Copy1ByteOffset - (4 << 2) + ((offset >> 3) & 0xe0));
+            uint copy2 = (uint)(Constants.Copy2ByteOffset - (1 << 2));
 
             // It turns out that offset < 2048 is a difficult to predict branch.
             // `perf record` shows this is the highest percentage of branch misses in
@@ -522,15 +533,19 @@ internal class SnappyCompressor : IDisposable
         }
 
         // One or two copies will now finish the job.
-        if (length > 64) {
+        if (length > 64)
+        {
             op = ref EmitCopyAtMost64LenGreaterThanOrEqualTo12(ref op, offset, 60);
             length -= 60;
         }
 
         // Emit remainder.
-        if (length < 12) {
+        if (length < 12)
+        {
             op = ref EmitCopyAtMost64LenLessThan12(ref op, offset, length);
-        } else {
+        }
+        else
+        {
             op = ref EmitCopyAtMost64LenGreaterThanOrEqualTo12(ref op, offset, length);
         }
         return ref op;
