@@ -23,7 +23,6 @@ internal class SnappyCompressor : IDisposable
 
     public bool TryCompress(ReadOnlySpan<byte> input, Span<byte> output, out int bytesWritten)
     {
-        const int MaxVarInt32Length = 5;
 
         ObjectDisposedException.ThrowIf(_workingMemory is null, this);
         if (input.Overlaps(output))
@@ -33,14 +32,12 @@ internal class SnappyCompressor : IDisposable
 
         _workingMemory.EnsureCapacity(input.Length);
 
-        // Ensure the output buffer is large enough to store the length prefix.
-        // VarInt encoding of a 32-bit unsigned integer can take up to 5 bytes.
-        // If there isn't enough space for the prefix, return false immediately.
-        if (output.Length < MaxVarInt32Length)
+        if (output.Length == 0)
         {
             bytesWritten = 0;
-            return false;
+            return input.IsEmpty;
         }
+        // TODO: Replace with VarIntEncoding.TryWrite once available to handle variable prefix sizes.
 
         bytesWritten = VarIntEncoding.Write(output, (uint)input.Length);
         output = output.Slice(bytesWritten);
