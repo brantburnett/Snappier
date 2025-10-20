@@ -180,6 +180,16 @@ jobs:
       with:
         dotnet-version: 10.0.x
 
+    - name: Install GitVersion
+      uses: gittools/actions/gitversion/setup@v4
+      with:
+        versionSpec: "6.4.0"
+    - name: Determine Version
+      id: gitversion
+      uses: gittools/actions/gitversion/execute@v4
+      with:
+        configFilePath: "GitVersion.yml"
+
     - name: NuGet login (OIDC → temp API key)
       uses: NuGet/login@v1
       id: login
@@ -188,11 +198,8 @@ jobs:
 
     - name: Install dependencies
       run: dotnet restore
-    - name: Get version
-      id: version
-      run: echo "version=${GITHUB_REF/refs\/tags\/release\//}" >> $GITHUB_OUTPUT
     - name: Pack
-      run: dotnet pack --configuration Release -p:Version=${{ steps.version.outputs.version }}
+      run: dotnet pack --configuration Release -p:Version=${{ steps.gitversion.outputs.fullSemVer }}
     - name: Upload Package Artifact
       uses: actions/upload-artifact@v4
       with:
