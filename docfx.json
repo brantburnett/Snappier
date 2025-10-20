@@ -4,16 +4,15 @@
     {
       "src": [
         {
-          "src": "./Snappier",
+          "src": "./",
           "files": [
-            "**/*.csproj"
+            "artifacts/bin/Snappier/release_net8.0/Snappier.dll"
           ]
         }
       ],
-      "dest": "api",
+      "output": "api",
       "properties": {
-        "TargetFramework": "net10.0",
-        "LangVersion": "preview" // Necessary until docfx supports C# 14
+        "TargetFramework": "net8.0"
       }
     }
   ],

@@ -26,6 +26,10 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
+      - name: Build
+        # Target framework should match docfx.json
+        run: dotnet build -f net8.0 --configuration Release Snappier/Snappier.csproj
+
       - name: Install docfX
         run: dotnet tool restore
       - name: Build documentation
