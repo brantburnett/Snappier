@@ -175,6 +175,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v5
+      with:
+        fetch-depth: 0  # required for GitVersion to work properly
     - name: Setup .NET
       uses: actions/setup-dotnet@v5
       with:
