@@ -1,2 +1,6 @@
 workflow: GitHubFlow/v1
 tag-prefix: release/[vV]?
+mode: ManualDeployment
+branches:
+  main:
+    label: beta
