@@ -168,7 +168,6 @@ jobs:
     - test
     - test-arm
     - test-windows
-    if: ${{ startsWith(github.ref, 'refs/tags/release/') }}
 
     permissions:
       contents: read
@@ -194,6 +193,12 @@ jobs:
       run: echo "version=${GITHUB_REF/refs\/tags\/release\//}" >> $GITHUB_OUTPUT
     - name: Pack
       run: dotnet pack --configuration Release -p:Version=${{ steps.version.outputs.version }}
+    - name: Upload Package Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: package
+        path: artifacts/package/**
     - name: Push to NuGet.org
+      if: ${{ startsWith(github.ref, 'refs/tags/release/') }}
       run: |
         dotnet nuget push artifacts/package/**/*.nupkg --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json

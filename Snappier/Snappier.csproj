@@ -9,9 +9,6 @@
     <SignAssembly>true</SignAssembly>
     <AssemblyOriginatorKeyFile>..\Snappier.snk</AssemblyOriginatorKeyFile>
 
-    <EnablePackageValidation>true</EnablePackageValidation>
-    <PackageValidationBaselineVersion>1.1.6</PackageValidationBaselineVersion>
-
     <Authors>btburnett3</Authors>
     <PackageTags>snappy;compression;fast;io</PackageTags>
     <!-- Copyright remains with Google since this is a direct port of the C++ source from https://github.com/google/snappy -->
@@ -43,6 +40,17 @@
     <!-- We want a deterministic build for CI -->
     <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
   </PropertyGroup>
+
+  <PropertyGroup>
+    <EnablePackageValidation>true</EnablePackageValidation>
+    <PackageValidationBaselineVersion>1.2.0</PackageValidationBaselineVersion>
+    <ApiCompatEnableRuleCannotChangeParameterName>true</ApiCompatEnableRuleCannotChangeParameterName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- We've removed support for the .NET 6 target framework intentionally -->
+    <PackageValidationBaselineFrameworkToIgnore Include="net6.0" />
+  </ItemGroup>
 
   <ItemGroup>
     <None Include="..\README.md" Pack="true" PackagePath="$(PackageReadmeFile)" />
