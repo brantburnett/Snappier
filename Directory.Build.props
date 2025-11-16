@@ -1,6 +1,6 @@
 <Project>
   <PropertyGroup>
-    <LangVersion>13</LangVersion>
+    <LangVersion>14</LangVersion>
     <CheckEolTargetFramework>false</CheckEolTargetFramework>
     <UseArtifactsOutput>true</UseArtifactsOutput>
   </PropertyGroup>
