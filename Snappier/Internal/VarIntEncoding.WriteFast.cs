@@ -24,8 +24,9 @@ internal static partial class VarIntEncoding
     /// </summary>
     /// <param name="buffer">Buffer to receive the value.</param>
     /// <param name="value">Value to encode.</param>
-    /// <returns>Number of bytes encoded.</returns>
-    public static int Write(Span<byte> buffer, uint value)
+    /// <param name="bytesWritten">Number of bytes written to the buffer.</param>
+    /// <returns><see langword="true"/> if the value was written successfully. <see langword="false"/> if the buffer is too small.</returns>
+    public static bool TryWrite(Span<byte> buffer, uint value, out int bytesWritten)
     {
         // Note: This method is likely to be inlined into the caller, potentially
         // eliding the size check if JIT knows the size of the buffer. BitConverter.IsLittleEndian
@@ -39,11 +40,12 @@ internal static partial class VarIntEncoding
             // up to 8 bytes are being copied to the buffer from a register. This guard prevents a
             // potential buffer overrun.
 
-            return WriteFast(ref MemoryMarshal.GetReference(buffer), value);
+            bytesWritten = WriteFast(ref MemoryMarshal.GetReference(buffer), value);
+            return true;
         }
 #endif
 
-        return WriteSlow(buffer, value);
+        return TryWriteSlow(buffer, value, out bytesWritten);
     }
 
 #if !NETSTANDARD2_0

@@ -8,8 +8,8 @@ public class VarIntEncodingWrite
     readonly byte[] _dest = new byte[8];
 
     [Benchmark(Baseline = true)]
-    public int Baseline()
+    public bool Baseline()
     {
-        return VarIntEncoding.Write(_dest, Value);
+        return VarIntEncoding.TryWrite(_dest, Value, out _);
     }
 }

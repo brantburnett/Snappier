@@ -2,7 +2,7 @@
 
 internal static partial class VarIntEncoding
 {
-    private static int WriteSlow(Span<byte> output, uint length)
+    private static bool TryWriteSlow(Span<byte> output, uint length, out int bytesWritten)
     {
         const int b = 0b1000_0000;
 
@@ -10,39 +10,71 @@ internal static partial class VarIntEncoding
         {
             if (length < (1 << 7))
             {
+                if (output.Length < 1)
+                {
+                    bytesWritten = 0;
+                    return false;
+                }
+
                 output[0] = (byte) length;
-                return 1;
+                bytesWritten = 1;
             }
             else if (length < (1 << 14))
             {
+                if (output.Length < 2)
+                {
+                    bytesWritten = 0;
+                    return false;
+                }
+
                 output[0] = (byte) (length | b);
                 output[1] = (byte) (length >> 7);
-                return 2;
+                bytesWritten = 2;
             }
             else if (length < (1 << 21))
             {
+                if (output.Length < 3)
+                {
+                    bytesWritten = 0;
+                    return false;
+                }
+
                 output[0] = (byte) (length | b);
                 output[1] = (byte) ((length >> 7) | b);
                 output[2] = (byte) (length >> 14);
-                return 3;
+                bytesWritten = 3;
             }
             else if (length < (1 << 28))
             {
+                if (output.Length < 4)
+                {
+                    bytesWritten = 0;
+                    return false;
+                }
+
                 output[0] = (byte) (length | b);
                 output[1] = (byte) ((length >> 7) | b);
                 output[2] = (byte) ((length >> 14) | b);
                 output[3] = (byte) (length >> 21);
-                return 4;
+                bytesWritten = 4;
             }
             else
             {
+                if (output.Length < 5)
+                {
+                    bytesWritten = 0;
+                    return false;
+                }
+
                 output[0] = (byte) (length | b);
                 output[1] = (byte) ((length >> 7) | b);
                 output[2] = (byte) ((length >> 14) | b);
                 output[3] = (byte) ((length >> 21) | b);
                 output[4] = (byte) (length >> 28);
-                return 5;
+                bytesWritten = 5;
             }
         }
+
+        return true;
     }
 }

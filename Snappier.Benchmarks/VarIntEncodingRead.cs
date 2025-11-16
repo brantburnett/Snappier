@@ -10,7 +10,7 @@ public class VarIntEncodingRead
     [GlobalSetup]
     public void GlobalSetup()
     {
-        VarIntEncoding.Write(_source, Value);
+        VarIntEncoding.TryWrite(_source, Value, out _);
     }
 
     [Benchmark]
