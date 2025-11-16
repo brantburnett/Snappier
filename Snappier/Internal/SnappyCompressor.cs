@@ -31,7 +31,10 @@ internal class SnappyCompressor : IDisposable
 
         _workingMemory.EnsureCapacity(input.Length);
 
-        bytesWritten = VarIntEncoding.Write(output, (uint)input.Length);
+        if (!VarIntEncoding.TryWrite(output, (uint)input.Length, out bytesWritten))
+        {
+            ThrowHelper.ThrowArgumentExceptionInsufficientOutputBuffer(nameof(output));
+        }
         output = output.Slice(bytesWritten);
 
         while (input.Length > 0)
@@ -91,7 +94,10 @@ internal class SnappyCompressor : IDisposable
         _workingMemory.EnsureCapacity(input.Length);
 
         Span<byte> sizeBuffer = bufferWriter.GetSpan(VarIntEncoding.MaxLength);
-        int bytesWritten = VarIntEncoding.Write(sizeBuffer, (uint)input.Length);
+        if (!VarIntEncoding.TryWrite(sizeBuffer, (uint)input.Length, out int bytesWritten))
+        {
+            ThrowHelper.ThrowInvalidOperationException("IBufferWriter<byte> did not return a sufficient span for length prefix.");
+        }
         bufferWriter.Advance(bytesWritten);
 
         while (input.Length > 0)

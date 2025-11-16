@@ -21,23 +21,35 @@ public class VarIntEncodingWriteTests
 
     [Theory]
     [MemberData(nameof(TestData))]
-    public void Test_Write(uint value, byte[] expected)
+    public void Test_TryWrite(uint value, byte[] expected)
     {
         byte[] bytes = new byte[5];
 
-        int length = VarIntEncoding.Write(bytes, value);
+        bool success = VarIntEncoding.TryWrite(bytes, value, out int length);
+        Assert.True(success);
         Assert.Equal(expected, bytes.Take(length));
     }
 
     [Theory]
     [MemberData(nameof(TestData))]
-    public void Test_WriteWithPadding(uint value, byte[] expected)
+    public void Test_TryWriteInsufficientBufferLength(uint value, byte[] expected)
+    {
+        byte[] bytes = new byte[expected.Length - 1];
+
+        bool success = VarIntEncoding.TryWrite(bytes, value, out int length);
+        Assert.False(success);
+    }
+
+    [Theory]
+    [MemberData(nameof(TestData))]
+    public void Test_TryWriteWithPadding(uint value, byte[] expected)
     {
         // Test of the fast path where there are at least 8 bytes in the buffer
 
         byte[] bytes = new byte[sizeof(ulong)];
 
-        int length = VarIntEncoding.Write(bytes, value);
+        bool success = VarIntEncoding.TryWrite(bytes, value, out int length);
+        Assert.True(success);
         Assert.Equal(expected, bytes.Take(length));
     }
 }
