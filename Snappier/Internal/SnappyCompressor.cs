@@ -33,7 +33,7 @@ internal class SnappyCompressor : IDisposable
 
         if (!VarIntEncoding.TryWrite(output, (uint)input.Length, out bytesWritten))
         {
-            ThrowHelper.ThrowArgumentExceptionInsufficientOutputBuffer(nameof(output));
+            return false;
         }
         output = output.Slice(bytesWritten);
 
