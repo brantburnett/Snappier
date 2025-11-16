@@ -6,7 +6,6 @@
     <PlatformTarget>AnyCPU</PlatformTarget>
 
     <IsPackable>false</IsPackable>
-    <LangVersion>14</LangVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <SignAssembly>true</SignAssembly>
     <AssemblyOriginatorKeyFile>..\Snappier.snk</AssemblyOriginatorKeyFile>
