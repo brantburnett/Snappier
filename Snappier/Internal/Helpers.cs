@@ -55,8 +55,8 @@ internal static class Helpers
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void ClearAndReturn(byte[] array, int usedLength)
     {
-        Debug.Assert(array is not null);
-        Debug.Assert(usedLength >= 0);
+        DebugExtensions.Assert(array is not null);
+        DebugExtensions.Assert(usedLength >= 0);
 
         array.AsSpan(0, usedLength).Clear();
         ArrayPool<byte>.Shared.Return(array);
@@ -65,15 +65,15 @@ internal static class Helpers
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool LeftShiftOverflows(byte value, int shift)
     {
-        Debug.Assert(shift < 32);
+        DebugExtensions.Assert(shift < 32);
         return (value & ~(0xffff_ffffu >>> shift)) != 0;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static uint ExtractLowBytes(uint value, int numBytes)
     {
-        Debug.Assert(numBytes >= 0);
-        Debug.Assert(numBytes <= 4);
+        DebugExtensions.Assert(numBytes >= 0);
+        DebugExtensions.Assert(numBytes <= 4);
 
 #if NET8_0_OR_GREATER
         if (Bmi2.IsSupported)
@@ -183,7 +183,7 @@ internal static class Helpers
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int FindLsbSetNonZero(uint n)
     {
-        Debug.Assert(n != 0);
+        DebugExtensions.Assert(n != 0);
 
 #if NET8_0_OR_GREATER
         return BitOperations.TrailingZeroCount(n);
@@ -213,7 +213,7 @@ internal static class Helpers
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int FindLsbSetNonZero(ulong n)
     {
-        Debug.Assert(n != 0);
+        DebugExtensions.Assert(n != 0);
 
 #if NET8_0_OR_GREATER
         return BitOperations.TrailingZeroCount(n);

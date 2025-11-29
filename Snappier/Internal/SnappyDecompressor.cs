@@ -141,7 +141,7 @@ internal sealed class SnappyDecompressor : IDisposable
                     bytesConsumed = toCopy;
                     _scratchLength += toCopy;
 
-                    Debug.Assert(_scratchLength < scratch.Length);
+                    DebugExtensions.Assert(_scratchLength < scratch.Length);
                     break;
 
                 default:
@@ -185,7 +185,7 @@ internal sealed class SnappyDecompressor : IDisposable
     {
         // We only index into this array with a byte, and the list is 256 long, so it's safe to skip range checks.
         // JIT doesn't seem to recognize this currently, so we'll use a ref and Unsafe.Add to avoid the checks.
-        Debug.Assert(Constants.CharTable.Length >= 256);
+        DebugExtensions.Assert(Constants.CharTable.Length >= 256);
         ref readonly ushort charTable = ref MemoryMarshal.GetReference(Constants.CharTable);
 
         unchecked
@@ -265,7 +265,7 @@ internal sealed class SnappyDecompressor : IDisposable
 
                     if (TryFastAppend(ref op, ref bufferEnd, in input, Unsafe.ByteOffset(in input, in inputEnd), literalLength))
                     {
-                        Debug.Assert(literalLength < 61);
+                        DebugExtensions.Assert(literalLength < 61);
                         op = ref Unsafe.Add(ref op, literalLength);
                         input = ref Unsafe.Add(in input, literalLength);
                         // NOTE: There is no RefillTag here, as TryFastAppend()
@@ -427,7 +427,7 @@ internal sealed class SnappyDecompressor : IDisposable
     // DecompressAllTags will short circuit.
     private uint RefillTagFromScratch(ref readonly byte input, ref readonly byte inputEnd)
     {
-        Debug.Assert(_scratchLength > 0);
+        DebugExtensions.Assert(_scratchLength > 0);
 
         if (!Unsafe.IsAddressLessThan(in input, in inputEnd))
         {

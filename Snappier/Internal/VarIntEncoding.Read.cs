@@ -92,10 +92,10 @@ internal static partial class VarIntEncoding
 
     private static OperationStatus ReadFast(ReadOnlySpan<byte> input, out uint result, out int bytesRead)
     {
-        Debug.Assert(Sse2.IsSupported);
-        Debug.Assert(Bmi2.IsSupported);
-        Debug.Assert(input.Length >= Vector128<byte>.Count);
-        Debug.Assert(BitConverter.IsLittleEndian);
+        DebugExtensions.Assert(Sse2.IsSupported);
+        DebugExtensions.Assert(Bmi2.IsSupported);
+        DebugExtensions.Assert(input.Length >= Vector128<byte>.Count);
+        DebugExtensions.Assert(BitConverter.IsLittleEndian);
 
         int mask = ~Sse2.MoveMask(Vector128.LoadUnsafe(ref MemoryMarshal.GetReference(input)));
         bytesRead = BitOperations.TrailingZeroCount(mask) + 1;

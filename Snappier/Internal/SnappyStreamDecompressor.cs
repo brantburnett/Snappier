@@ -37,7 +37,7 @@ internal sealed class SnappyStreamDecompressor : IDisposable
 
     public int Decompress(Span<byte> buffer)
     {
-        Debug.Assert(_decompressor != null);
+        DebugExtensions.Assert(_decompressor != null);
 
         ReadOnlySpan<byte> input = _input.Span;
 
@@ -259,7 +259,7 @@ internal sealed class SnappyStreamDecompressor : IDisposable
     /// </summary>
     private bool ReadChunkCrc(ref ReadOnlySpan<byte> input)
     {
-        Debug.Assert(_chunkBytesProcessed < 4);
+        DebugExtensions.Assert(_chunkBytesProcessed < 4);
 
         if (_chunkBytesProcessed == 0 && input.Length >= 4)
         {

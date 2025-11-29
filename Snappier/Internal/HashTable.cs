@@ -66,7 +66,7 @@ internal class HashTable : IDisposable
             return MinHashTableSize;
         }
 
-        Debug.Assert(inputSize > 1);
+        DebugExtensions.Assert(inputSize > 1);
         return 2 << Helpers.Log2Floor((uint)(inputSize - 1));
     }
 

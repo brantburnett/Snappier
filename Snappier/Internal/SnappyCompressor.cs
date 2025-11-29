@@ -153,7 +153,7 @@ internal class SnappyCompressor : IDisposable
 
     private void CompressFragment(ReadOnlySpan<byte> fragment, IBufferWriter<byte> bufferWriter)
     {
-        Debug.Assert(_workingMemory is not null);
+        DebugExtensions.Assert(_workingMemory is not null);
 
         Span<ushort> hashTable = _workingMemory.GetHashTable(fragment.Length);
 
@@ -175,8 +175,8 @@ internal class SnappyCompressor : IDisposable
     {
         unchecked
         {
-            Debug.Assert(input.Length <= Constants.BlockSize);
-            Debug.Assert((tableSpan.Length & (tableSpan.Length - 1)) == 0); // table must be power of two
+            DebugExtensions.Assert(input.Length <= Constants.BlockSize);
+            DebugExtensions.Assert((tableSpan.Length & (tableSpan.Length - 1)) == 0); // table must be power of two
 
             uint mask = (uint)(2 * (tableSpan.Length - 1));
 
@@ -235,11 +235,11 @@ internal class SnappyCompressor : IDisposable
                             // Manually unroll this loop into chunks of 4
 
                             uint dword = j == 0 ? preload : (uint) data;
-                            Debug.Assert(dword == Helpers.UnsafeReadUInt32(in Unsafe.Add(in ip, j)));
+                            DebugExtensions.Assert(dword == Helpers.UnsafeReadUInt32(in Unsafe.Add(in ip, j)));
                             ref ushort tableEntry = ref HashTable.TableEntry(ref table, dword, mask);
                             candidate = ref Unsafe.Add(in inputStart, tableEntry);
-                            Debug.Assert(!Unsafe.IsAddressLessThan(in candidate, in inputStart));
-                            Debug.Assert(Unsafe.IsAddressLessThan(in candidate, in Unsafe.Add(in ip, j)));
+                            DebugExtensions.Assert(!Unsafe.IsAddressLessThan(in candidate, in inputStart));
+                            DebugExtensions.Assert(Unsafe.IsAddressLessThan(in candidate, in Unsafe.Add(in ip, j)));
                             tableEntry = (ushort) (delta + j);
 
                             if (Helpers.UnsafeReadUInt32(in candidate) == dword)
@@ -253,11 +253,11 @@ internal class SnappyCompressor : IDisposable
 
                             int i1 = j + 1;
                             dword = (uint)(data >> 8);
-                            Debug.Assert(dword == Helpers.UnsafeReadUInt32(in Unsafe.Add(in ip, i1)));
+                            DebugExtensions.Assert(dword == Helpers.UnsafeReadUInt32(in Unsafe.Add(in ip, i1)));
                             tableEntry = ref HashTable.TableEntry(ref table, dword, mask);
                             candidate = ref Unsafe.Add(in inputStart, tableEntry);
-                            Debug.Assert(!Unsafe.IsAddressLessThan(in candidate, in inputStart));
-                            Debug.Assert(Unsafe.IsAddressLessThan(in candidate, in Unsafe.Add(in ip, i1)));
+                            DebugExtensions.Assert(!Unsafe.IsAddressLessThan(in candidate, in inputStart));
+                            DebugExtensions.Assert(Unsafe.IsAddressLessThan(in candidate, in Unsafe.Add(in ip, i1)));
                             tableEntry = (ushort) (delta + i1);
 
                             if (Helpers.UnsafeReadUInt32(in candidate) == dword)
@@ -271,11 +271,11 @@ internal class SnappyCompressor : IDisposable
 
                             int i2 = j + 2;
                             dword = (uint)(data >> 16);
-                            Debug.Assert(dword == Helpers.UnsafeReadUInt32(in Unsafe.Add(in ip, i2)));
+                            DebugExtensions.Assert(dword == Helpers.UnsafeReadUInt32(in Unsafe.Add(in ip, i2)));
                             tableEntry = ref HashTable.TableEntry(ref table, dword, mask);
                             candidate = ref Unsafe.Add(in inputStart, tableEntry);
-                            Debug.Assert(!Unsafe.IsAddressLessThan(in candidate, in inputStart));
-                            Debug.Assert(Unsafe.IsAddressLessThan(in candidate, in Unsafe.Add(in ip, i2)));
+                            DebugExtensions.Assert(!Unsafe.IsAddressLessThan(in candidate, in inputStart));
+                            DebugExtensions.Assert(Unsafe.IsAddressLessThan(in candidate, in Unsafe.Add(in ip, i2)));
                             tableEntry = (ushort) (delta + i2);
 
                             if (Helpers.UnsafeReadUInt32(in candidate) == dword)
@@ -289,11 +289,11 @@ internal class SnappyCompressor : IDisposable
 
                             int i3 = j + 3;
                             dword = (uint)(data >> 24);
-                            Debug.Assert(dword == Helpers.UnsafeReadUInt32(in Unsafe.Add(in ip, i3)));
+                            DebugExtensions.Assert(dword == Helpers.UnsafeReadUInt32(in Unsafe.Add(in ip, i3)));
                             tableEntry = ref HashTable.TableEntry(ref table, dword, mask);
                             candidate = ref Unsafe.Add(in inputStart, tableEntry);
-                            Debug.Assert(!Unsafe.IsAddressLessThan(in candidate, in inputStart));
-                            Debug.Assert(Unsafe.IsAddressLessThan(in candidate, in Unsafe.Add(in ip, i3)));
+                            DebugExtensions.Assert(!Unsafe.IsAddressLessThan(in candidate, in inputStart));
+                            DebugExtensions.Assert(Unsafe.IsAddressLessThan(in candidate, in Unsafe.Add(in ip, i3)));
                             tableEntry = (ushort) (delta + i3);
 
                             if (Helpers.UnsafeReadUInt32(in candidate) == dword)
@@ -314,7 +314,7 @@ internal class SnappyCompressor : IDisposable
 
                     while (true)
                     {
-                        Debug.Assert((uint) data == Helpers.UnsafeReadUInt32(in ip));
+                        DebugExtensions.Assert((uint) data == Helpers.UnsafeReadUInt32(in ip));
                         ref ushort tableEntry = ref HashTable.TableEntry(ref table, (uint) data, mask);
                         int bytesBetweenHashLookups = skip >> 5;
                         skip += bytesBetweenHashLookups;
@@ -327,8 +327,8 @@ internal class SnappyCompressor : IDisposable
                         }
 
                         candidate = ref Unsafe.Add(in inputStart, tableEntry);
-                        Debug.Assert(!Unsafe.IsAddressLessThan(in candidate, in inputStart));
-                        Debug.Assert(Unsafe.IsAddressLessThan(in candidate, in ip));
+                        DebugExtensions.Assert(!Unsafe.IsAddressLessThan(in candidate, in inputStart));
+                        DebugExtensions.Assert(Unsafe.IsAddressLessThan(in candidate, in ip));
 
                         tableEntry = (ushort)Unsafe.ByteOffset(in inputStart, in ip);
                         if ((uint) data == Helpers.UnsafeReadUInt32(in candidate))
@@ -343,7 +343,7 @@ internal class SnappyCompressor : IDisposable
                     // Step 2: A 4-byte match has been found.  We'll later see if more
                     // than 4 bytes match.  But, prior to the match, input
                     // bytes [next_emit, ip) are unmatched.  Emit them as "literal bytes."
-                    Debug.Assert(!Unsafe.IsAddressGreaterThan(in Unsafe.Add(in nextEmit, 16), in inputEnd));
+                    DebugExtensions.Assert(!Unsafe.IsAddressGreaterThan(in Unsafe.Add(in nextEmit, 16), in inputEnd));
                     op = ref EmitLiteralFast(ref op, in nextEmit, (uint)Unsafe.ByteOffset(in nextEmit, in ip));
 
                     // Step 3: Call EmitCopy, and then see if another EmitCopy could
@@ -384,7 +384,7 @@ internal class SnappyCompressor : IDisposable
                         }
 
                         // Expect 5 bytes to match
-                        Debug.Assert((data & 0xfffffffffful) ==
+                        DebugExtensions.Assert((data & 0xfffffffffful) ==
                                      (Helpers.UnsafeReadUInt64(in ip) & 0xfffffffffful));
 
                         // We are now looking for a 4-byte match again.  We read
@@ -417,7 +417,7 @@ internal class SnappyCompressor : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static ref byte EmitLiteralFast(ref byte op, ref readonly byte literal, uint length)
     {
-        Debug.Assert(length > 0);
+        DebugExtensions.Assert(length > 0);
 
         if (length <= 16)
         {
@@ -443,11 +443,11 @@ internal class SnappyCompressor : IDisposable
         }
         else
         {
-            Debug.Assert(n > 0);
+            DebugExtensions.Assert(n > 0);
             int count = (Helpers.Log2Floor(n) >> 3) + 1;
 
-            Debug.Assert(count >= 1);
-            Debug.Assert(count <= 4);
+            DebugExtensions.Assert(count >= 1);
+            DebugExtensions.Assert(count <= 4);
             op = unchecked((byte)(Constants.Literal | ((59 + count) << 2)));
             op = ref Unsafe.Add(ref op, 1);
 
@@ -466,10 +466,10 @@ internal class SnappyCompressor : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static ref byte EmitCopyAtMost64LenLessThan12(ref byte op, long offset, long length)
     {
-        Debug.Assert(length <= 64);
-        Debug.Assert(length >= 4);
-        Debug.Assert(offset < 65536);
-        Debug.Assert(length < 12);
+        DebugExtensions.Assert(length <= 64);
+        DebugExtensions.Assert(length >= 4);
+        DebugExtensions.Assert(offset < 65536);
+        DebugExtensions.Assert(length < 12);
 
         unchecked
         {
@@ -492,10 +492,10 @@ internal class SnappyCompressor : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static ref byte EmitCopyAtMost64LenGreaterThanOrEqualTo12(ref byte op, long offset, long length)
     {
-        Debug.Assert(length <= 64);
-        Debug.Assert(length >= 4);
-        Debug.Assert(offset < 65536);
-        Debug.Assert(length >= 12);
+        DebugExtensions.Assert(length <= 64);
+        DebugExtensions.Assert(length >= 4);
+        DebugExtensions.Assert(offset < 65536);
+        DebugExtensions.Assert(length >= 12);
 
         // Write 4 bytes, though we only care about 3 of them.  The output buffer
         // is required to have some slack, so the extra byte won't overrun it.
@@ -507,7 +507,7 @@ internal class SnappyCompressor : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static ref byte EmitCopyLenLessThan12(ref byte op, long offset, long length)
     {
-        Debug.Assert(length < 12);
+        DebugExtensions.Assert(length < 12);
 
         return ref EmitCopyAtMost64LenLessThan12(ref op, offset, length);
     }
@@ -515,7 +515,7 @@ internal class SnappyCompressor : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static ref byte EmitCopyLenGreaterThanOrEqualTo12(ref byte op, long offset, long length)
     {
-        Debug.Assert(length >= 12);
+        DebugExtensions.Assert(length >= 12);
 
         // A special case for len <= 64 might help, but so far measurements suggest
         // it's in the noise.
@@ -562,7 +562,7 @@ internal class SnappyCompressor : IDisposable
     internal static (int matchLength, bool matchLengthLessThan8) FindMatchLength(
         ref readonly byte s1, ref readonly byte s2, ref readonly byte s2Limit, ref ulong data)
     {
-        Debug.Assert(!Unsafe.IsAddressLessThan(in s2Limit, in s2));
+        DebugExtensions.Assert(!Unsafe.IsAddressLessThan(in s2Limit, in s2));
 
         if (BitConverter.IsLittleEndian && IntPtr.Size == 8)
         {
@@ -661,7 +661,7 @@ internal class SnappyCompressor : IDisposable
 
                 data = a2 >> (shift & (3 * 8));
                 matched += matchedBytes;
-                Debug.Assert(matched >= 8);
+                DebugExtensions.Assert(matched >= 8);
                 return ((int)matched, false);
             }
         }

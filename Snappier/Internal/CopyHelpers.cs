@@ -63,11 +63,11 @@ internal class CopyHelpers
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void IncrementalCopy(ref readonly byte source, ref byte op, ref byte opEnd, ref byte bufferEnd)
     {
-        Debug.Assert(Unsafe.IsAddressLessThan(in source, in op));
-        Debug.Assert(!Unsafe.IsAddressGreaterThan(ref op, ref opEnd));
-        Debug.Assert(!Unsafe.IsAddressGreaterThan(ref opEnd, ref bufferEnd));
+        DebugExtensions.Assert(Unsafe.IsAddressLessThan(in source, in op));
+        DebugExtensions.Assert(!Unsafe.IsAddressGreaterThan(ref op, ref opEnd));
+        DebugExtensions.Assert(!Unsafe.IsAddressGreaterThan(ref opEnd, ref bufferEnd));
         // NOTE: The copy tags use 3 or 6 bits to store the copy length, so len <= 64.
-        Debug.Assert(Unsafe.ByteOffset(ref op, ref opEnd) <= (nint) 64);
+        DebugExtensions.Assert(Unsafe.ByteOffset(ref op, ref opEnd) <= (nint) 64);
         // NOTE: In practice the compressor always emits len >= 4, so it is ok to
         // assume that to optimize this function, but this is not guaranteed by the
         // compression format, so we have to also handle len < 4 in case the input
@@ -160,7 +160,7 @@ internal class CopyHelpers
         }
 
         // ReSharper disable once ConditionIsAlwaysTrueOrFalse
-        Debug.Assert(patternSize >= 8);
+        DebugExtensions.Assert(patternSize >= 8);
 
         // Copy 2x 8 bytes at a time. Because op - src can be < 16, a single
         // UnalignedCopy128 might overwrite data in op. UnalignedCopy64 is safe
