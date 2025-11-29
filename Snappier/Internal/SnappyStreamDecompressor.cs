@@ -10,7 +10,7 @@ internal sealed class SnappyStreamDecompressor : IDisposable
 {
     private const int ScratchBufferSize = 4;
 
-#if NETSTANDARD2_0
+#if !NET8_0_OR_GREATER
     private readonly byte[] _scratch = new byte[ScratchBufferSize];
 #else
     [System.Runtime.CompilerServices.InlineArray(ScratchBufferSize)]

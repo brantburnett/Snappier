@@ -1,10 +1,11 @@
 ﻿using System.Buffers;
 using System.Buffers.Binary;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-#if !NETSTANDARD2_0
+#if NET8_0_OR_GREATER
 using System.Numerics;
 using System.Runtime.Intrinsics.X86;
 #endif
@@ -13,6 +14,17 @@ namespace Snappier.Internal;
 
 internal static class Helpers
 {
+    // Variant of Debug.Fail that is marked with DoesNotReturn on all runtimes
+    [Conditional("DEBUG")]
+    [DoesNotReturn]
+    public static void Fail(string message)
+    {
+        Debug.Fail(message);
+
+        // Unreachable but prevents compiler errors
+        ThrowHelper.ThrowInvalidOperationException(message);
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int MaxCompressedLength(int sourceBytes)
     {
@@ -75,7 +87,7 @@ internal static class Helpers
         Debug.Assert(numBytes >= 0);
         Debug.Assert(numBytes <= 4);
 
-#if !NETSTANDARD2_0
+#if NET8_0_OR_GREATER
         if (Bmi2.IsSupported)
         {
             return Bmi2.ZeroHighBits(value, (uint)(numBytes * 8));
@@ -122,7 +134,7 @@ internal static class Helpers
         Unsafe.WriteUnaligned(ref ptr, value);
     }
 
-#if NETSTANDARD2_0
+#if !NET8_0_OR_GREATER
 
     // Port from .NET 7 BitOperations of a faster fallback algorithm for .NET Standard since we don't have intrinsics
     // or BitOperations. This is the same algorithm used by BitOperations.Log2 when hardware acceleration is unavailable.
@@ -170,10 +182,10 @@ internal static class Helpers
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int Log2Floor(uint n)
     {
-#if NETSTANDARD2_0
-        return Log2SoftwareFallback(n);
-#else
+#if NET8_0_OR_GREATER
         return BitOperations.Log2(n);
+#else
+        return Log2SoftwareFallback(n);
 #endif
     }
 
@@ -185,7 +197,9 @@ internal static class Helpers
     {
         Debug.Assert(n != 0);
 
-#if NETSTANDARD2_0
+#if NET8_0_OR_GREATER
+        return BitOperations.TrailingZeroCount(n);
+#else
         int rc = 31;
         int shift = 1 << 4;
 
@@ -202,8 +216,6 @@ internal static class Helpers
         }
 
         return rc;
-#else
-        return BitOperations.TrailingZeroCount(n);
 #endif
     }
 
@@ -215,7 +227,9 @@ internal static class Helpers
     {
         Debug.Assert(n != 0);
 
-#if NETSTANDARD2_0
+#if NET8_0_OR_GREATER
+        return BitOperations.TrailingZeroCount(n);
+#else
         uint bottomBits = unchecked((uint)n);
         if (bottomBits == 0)
         {
@@ -225,8 +239,6 @@ internal static class Helpers
         {
             return FindLsbSetNonZero(bottomBits);
         }
-#else
-        return BitOperations.TrailingZeroCount(n);
 #endif
     }
 }

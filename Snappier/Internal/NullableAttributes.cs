@@ -1,5 +1,5 @@
 ﻿#define INTERNAL_NULLABLE_ATTRIBUTES
-#if NETSTANDARD2_0
+#if !NET8_0_OR_GREATER
 
 // https://github.com/dotnet/corefx/blob/48363ac826ccf66fbe31a5dcb1dc2aab9a7dd768/src/Common/src/CoreLib/System/Diagnostics/CodeAnalysis/NullableAttributes.cs
 

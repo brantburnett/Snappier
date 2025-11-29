@@ -1,7 +1,7 @@
 ﻿using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
-#if !NETSTANDARD2_0
+#if NET8_0_OR_GREATER
 using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics;
 using System.Runtime.Intrinsics.X86;
@@ -12,7 +12,7 @@ namespace Snappier.Internal;
 
 internal class CopyHelpers
 {
-#if !NETSTANDARD2_0
+#if NET8_0_OR_GREATER
 
     // Raw bytes for PshufbFillPatterns. This syntax returns a ReadOnlySpan<byte> that references
     // directly to the static data within the DLL. This is only supported with bytes due to things
@@ -77,7 +77,7 @@ internal class CopyHelpers
 
         if (patternSize < 8)
         {
-#if !NETSTANDARD2_0
+#if NET8_0_OR_GREATER
             if (Ssse3.IsSupported) // SSSE3
             {
                 // Load the first eight bytes into an 128-bit XMM register, then use PSHUFB
@@ -127,15 +127,15 @@ internal class CopyHelpers
             else
             {
 #endif
-                // No SSSE3 Fallback
+            // No SSSE3 Fallback
 
-                // If plenty of buffer space remains, expand the pattern to at least 8
-                // bytes. The way the following loop is written, we need 8 bytes of buffer
-                // space if pattern_size >= 4, 11 bytes if pattern_size is 1 or 3, and 10
-                // bytes if pattern_size is 2.  Precisely encoding that is probably not
-                // worthwhile; instead, invoke the slow path if we cannot write 11 bytes
-                // (because 11 are required in the worst case).
-                if (!Unsafe.IsAddressGreaterThan(ref op, ref Unsafe.Subtract(ref bufferEnd, 11)))
+            // If plenty of buffer space remains, expand the pattern to at least 8
+            // bytes. The way the following loop is written, we need 8 bytes of buffer
+            // space if pattern_size >= 4, 11 bytes if pattern_size is 1 or 3, and 10
+            // bytes if pattern_size is 2.  Precisely encoding that is probably not
+            // worthwhile; instead, invoke the slow path if we cannot write 11 bytes
+            // (because 11 are required in the worst case).
+            if (!Unsafe.IsAddressGreaterThan(ref op, ref Unsafe.Subtract(ref bufferEnd, 11)))
                 {
                     while (patternSize < 8)
                     {
@@ -154,7 +154,7 @@ internal class CopyHelpers
                     IncrementalCopySlow(in source, ref op, ref opEnd);
                     return;
                 }
-#if !NETSTANDARD2_0
+#if NET8_0_OR_GREATER
             }
 #endif
         }
