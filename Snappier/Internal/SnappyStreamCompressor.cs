@@ -115,7 +115,7 @@ internal class SnappyStreamCompressor : IDisposable
 
     private void WriteOutputBuffer(Stream stream)
     {
-        Debug.Assert(_outputBuffer is not null);
+        DebugExtensions.Assert(_outputBuffer is not null);
 
         if (_outputBufferSize <= 0)
         {
@@ -129,7 +129,7 @@ internal class SnappyStreamCompressor : IDisposable
 
     private async Task WriteOutputBufferAsync(Stream stream, CancellationToken cancellationToken = default)
     {
-        Debug.Assert(_outputBuffer is not null);
+        DebugExtensions.Assert(_outputBuffer is not null);
 
         if (_outputBufferSize <= 0)
         {
@@ -139,7 +139,7 @@ internal class SnappyStreamCompressor : IDisposable
 #if NET8_0_OR_GREATER
         await stream.WriteAsync(_outputBuffer.AsMemory(0, _outputBufferSize), cancellationToken).ConfigureAwait(false);
 #else
-        await stream.WriteAsync(_outputBuffer!, 0, _outputBufferSize, cancellationToken).ConfigureAwait(false);
+        await stream.WriteAsync(_outputBuffer, 0, _outputBufferSize, cancellationToken).ConfigureAwait(false);
 #endif
 
         _outputBufferSize = 0;
@@ -165,7 +165,7 @@ internal class SnappyStreamCompressor : IDisposable
     /// <returns>Number of bytes consumed.</returns>
     private int CompressInput(ReadOnlySpan<byte> input)
     {
-        Debug.Assert(input.Length > 0);
+        DebugExtensions.Assert(input.Length > 0);
 
         if (_inputBufferSize == 0 && input.Length >= Constants.BlockSize)
         {
@@ -193,8 +193,8 @@ internal class SnappyStreamCompressor : IDisposable
 
     private void CompressBlock(ReadOnlySpan<byte> input)
     {
-        Debug.Assert(_compressor != null);
-        Debug.Assert(input.Length <= Constants.BlockSize);
+        DebugExtensions.Assert(_compressor != null);
+        DebugExtensions.Assert(input.Length <= Constants.BlockSize);
 
         const int headerSize = 8; // 1 byte for chunk type, 3 bytes for block size, 4 bytes for CRC
 

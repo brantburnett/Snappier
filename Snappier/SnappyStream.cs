@@ -138,7 +138,7 @@ public sealed class SnappyStream : Stream
 
         if (_mode == CompressionMode.Compress && _wroteBytes)
         {
-            Debug.Assert(_compressor != null);
+            DebugExtensions.Assert(_compressor != null);
             _compressor.Flush(_stream);
         }
     }
@@ -156,7 +156,7 @@ public sealed class SnappyStream : Stream
 
         if (_mode == CompressionMode.Compress && _wroteBytes)
         {
-            Debug.Assert(_compressor != null);
+            DebugExtensions.Assert(_compressor != null);
             return _compressor.FlushAsync(_stream, cancellationToken);
         }
 
@@ -199,7 +199,7 @@ public sealed class SnappyStream : Stream
 
         int totalRead = 0;
 
-        Debug.Assert(_decompressor != null);
+        DebugExtensions.Assert(_decompressor != null);
         while (true)
         {
             int bytesRead = _decompressor.Decompress(buffer.Slice(totalRead));
@@ -210,7 +210,7 @@ public sealed class SnappyStream : Stream
                 break;
             }
 
-            Debug.Assert(_buffer != null);
+            DebugExtensions.Assert(_buffer != null);
 #if NET8_0_OR_GREATER
             int bytes = _stream.Read(_buffer);
 #else
@@ -265,7 +265,7 @@ public sealed class SnappyStream : Stream
         AsyncOperationStarting();
         try
         {
-            Debug.Assert(_decompressor != null);
+            DebugExtensions.Assert(_decompressor != null);
 
             // Finish decompressing any bytes in the input buffer
             int bytesRead = 0, bytesReadIteration = -1;
@@ -310,7 +310,7 @@ public sealed class SnappyStream : Stream
     {
         try
         {
-            Debug.Assert(_decompressor != null && _buffer != null);
+            DebugExtensions.Assert(_decompressor != null && _buffer != null);
             while (true)
             {
                 int bytesRead = await readTask.ConfigureAwait(false);
@@ -383,7 +383,7 @@ public sealed class SnappyStream : Stream
         EnsureCompressionMode();
         EnsureNotDisposed();
 
-        Debug.Assert(_compressor != null);
+        DebugExtensions.Assert(_compressor != null);
         _compressor.Write(buffer, _stream);
 
         _wroteBytes = true;
@@ -428,10 +428,10 @@ public sealed class SnappyStream : Stream
         AsyncOperationStarting();
         try
         {
-            Debug.Assert(_stream != null);
-            Debug.Assert(_compressor != null);
+            DebugExtensions.Assert(_stream != null);
+            DebugExtensions.Assert(_compressor != null);
 
-            await _compressor.WriteAsync(buffer, _stream!, cancellationToken).ConfigureAwait(false);
+            await _compressor.WriteAsync(buffer, _stream, cancellationToken).ConfigureAwait(false);
 
             _wroteBytes = true;
         }
@@ -450,7 +450,7 @@ public sealed class SnappyStream : Stream
             return;
         }
 
-        Debug.Assert(_compressor != null);
+        DebugExtensions.Assert(_compressor != null);
         // Make sure to only "flush" when we actually had some input
         if (_wroteBytes)
         {
@@ -470,7 +470,7 @@ public sealed class SnappyStream : Stream
             return default;
         }
 
-        Debug.Assert(_compressor != null);
+        DebugExtensions.Assert(_compressor != null);
         // Make sure to only "flush" when we actually had some input
         if (_wroteBytes)
         {
@@ -632,7 +632,7 @@ public sealed class SnappyStream : Stream
     private void AsyncOperationCompleting()
     {
         int oldValue = Interlocked.CompareExchange(ref _activeAsyncOperation, 0, 1);
-        Debug.Assert(oldValue == 1, $"Expected {nameof(_activeAsyncOperation)} to be 1, got {oldValue}");
+        DebugExtensions.Assert(oldValue == 1, $"Expected {nameof(_activeAsyncOperation)} to be 1, got {oldValue}");
     }
 
     // The helpers below aid with the various conditional compilation differences between legacy Task-based
