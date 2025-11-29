@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="Directory.Build.props" />
+    <File Path="global.json" />
+  </Folder>
+  <Project Path="Snappier.Benchmarks/Snappier.Benchmarks.csproj" />
+  <Project Path="Snappier.Tests/Snappier.Tests.csproj" />
+  <Project Path="Snappier/Snappier.csproj" />
+</Solution>
