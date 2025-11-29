@@ -1,7 +1,6 @@
 ﻿using System.Buffers;
 using System.Buffers.Binary;
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
@@ -14,17 +13,6 @@ namespace Snappier.Internal;
 
 internal static class Helpers
 {
-    // Variant of Debug.Fail that is marked with DoesNotReturn on all runtimes
-    [Conditional("DEBUG")]
-    [DoesNotReturn]
-    public static void Fail(string message)
-    {
-        Debug.Fail(message);
-
-        // Unreachable but prevents compiler errors
-        ThrowHelper.ThrowInvalidOperationException(message);
-    }
-
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int MaxCompressedLength(int sourceBytes)
     {
