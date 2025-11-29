@@ -23,7 +23,7 @@ internal static class UnsafeReadonly
         public static ref readonly TTo As<TFrom, TTo>(ref readonly TFrom source) =>
             ref Unsafe.As<TFrom, TTo>(ref Unsafe.AsRef(in source));
 
-#if NETSTANDARD2_0
+#if !NET8_0_OR_GREATER
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static nint ByteOffset<T>(ref readonly T origin, ref readonly T target) =>
             Unsafe.ByteOffset(ref Unsafe.AsRef(in origin), ref Unsafe.AsRef(in target));

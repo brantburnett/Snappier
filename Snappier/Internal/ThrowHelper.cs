@@ -35,7 +35,7 @@ internal static class ThrowHelper
     public static void ThrowNotSupportedException(string? message = null) =>
         throw new NotSupportedException(message);
 
-#if NETSTANDARD2_0
+#if !NET8_0_OR_GREATER
     [DoesNotReturn]
     private static void ThrowArgumentNullException(string? paramName) =>
         throw new ArgumentNullException(paramName);

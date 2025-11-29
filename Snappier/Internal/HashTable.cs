@@ -2,7 +2,7 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
-#if !NETSTANDARD2_0
+#if NET8_0_OR_GREATER
 using System.Runtime.Intrinsics.Arm;
 using System.Runtime.Intrinsics.X86;
 #endif
@@ -100,7 +100,7 @@ internal class HashTable : IDisposable
 
         uint hash;
 
-#if !NETSTANDARD2_0
+#if NET8_0_OR_GREATER
         // We use mask as the second arg to the CRC function, as it's about to
         // be used anyway; it'd be equally correct to use 0 or some constant.
         // Mathematically, _mm_crc32_u32 (or similar) is a function of the

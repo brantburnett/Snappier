@@ -1,6 +1,6 @@
 ﻿using System.Buffers;
 
-#if !NETSTANDARD2_0
+#if NET8_0_OR_GREATER
 using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Numerics;
@@ -25,7 +25,7 @@ internal static partial class VarIntEncoding
 
     public static OperationStatus TryRead(ReadOnlySpan<byte> input, out uint result, out int bytesRead)
     {
-#if !NETSTANDARD2_0
+#if NET8_0_OR_GREATER
         if (Sse2.IsSupported && Bmi2.IsSupported && BitConverter.IsLittleEndian && input.Length >= Vector128<byte>.Count)
         {
             return ReadFast(input, out result, out bytesRead);
@@ -78,7 +78,7 @@ internal static partial class VarIntEncoding
         return OperationStatus.Done;
     }
 
-#if !NETSTANDARD2_0
+#if NET8_0_OR_GREATER
 
     private static ReadOnlySpan<uint> ReadMasks =>
     [

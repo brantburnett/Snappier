@@ -110,10 +110,10 @@ internal class SnappyCompressor : IDisposable
                 // Either this fragment is contiguous, or the first segment in the fragment is at least 32KB.
                 // In either case, compress the first (and possibly only) segment.
 
-#if NETSTANDARD2_0
-                ReadOnlySpan<byte> fragmentSpan = fragment.First.Span;
-#else
+#if NET8_0_OR_GREATER
                 ReadOnlySpan<byte> fragmentSpan = fragment.FirstSpan;
+#else
+                ReadOnlySpan<byte> fragmentSpan = fragment.First.Span;
 #endif
 
                 CompressFragment(fragmentSpan, bufferWriter);

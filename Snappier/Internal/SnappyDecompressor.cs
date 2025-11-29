@@ -8,7 +8,7 @@ namespace Snappier.Internal;
 
 internal sealed class SnappyDecompressor : IDisposable
 {
-#if NETSTANDARD2_0
+#if !NET8_0_OR_GREATER
     private readonly byte[] _scratch = new byte[Constants.MaximumTagLength];
 
     private Span<byte> Scratch => _scratch.AsSpan();

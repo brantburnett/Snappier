@@ -1,6 +1,6 @@
 ﻿using System.Runtime.CompilerServices;
 
-#if !NETSTANDARD2_0
+#if NET8_0_OR_GREATER
 using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics.Arm;
 using System.Runtime.Intrinsics.X86;
@@ -47,7 +47,7 @@ internal static class Crc32CAlgorithm
     {
         uint crcLocal = uint.MaxValue ^ crc;
 
-#if !NETSTANDARD2_0
+#if NET8_0_OR_GREATER
         // If available on the current CPU, use ARM CRC32C intrinsic operations.
         // The if Crc32 statements are optimized out by the JIT compiler based on CPU support.
         if (Crc32.IsSupported)

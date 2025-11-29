@@ -1,4 +1,4 @@
-﻿#if !NETSTANDARD2_0
+﻿#if NET8_0_OR_GREATER
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -32,7 +32,7 @@ internal static partial class VarIntEncoding
         // eliding the size check if JIT knows the size of the buffer. BitConverter.IsLittleEndian
         // will always be elided based on CPU architecture.
 
-#if !NETSTANDARD2_0
+#if NET8_0_OR_GREATER
         if (BitConverter.IsLittleEndian && buffer.Length >= sizeof(ulong))
         {
             // Only use the fast path on little-endian CPUs and when there's enough padding in the
@@ -48,7 +48,7 @@ internal static partial class VarIntEncoding
         return TryWriteSlow(buffer, value, out bytesWritten);
     }
 
-#if !NETSTANDARD2_0
+#if NET8_0_OR_GREATER
 
     private static int WriteFast(ref byte buffer, uint value)
     {
