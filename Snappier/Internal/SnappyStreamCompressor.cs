@@ -4,7 +4,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
-#if NETSTANDARD2_0
+#if !NET8_0_OR_GREATER
 using System.Runtime.InteropServices;
 #endif
 
@@ -62,7 +62,7 @@ internal class SnappyStreamCompressor : IDisposable
     /// <param name="stream">Output stream.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>A block of memory with compressed data (if any). Must be used before any subsequent call to Write.</returns>
-    public async ValueTask WriteAsync(ReadOnlyMemory<byte> input, Stream stream, CancellationToken cancellationToken = default)
+    public async Task WriteAsync(ReadOnlyMemory<byte> input, Stream stream, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(stream);
         ObjectDisposedException.ThrowIf(_compressor is null, this);
@@ -96,7 +96,7 @@ internal class SnappyStreamCompressor : IDisposable
         WriteOutputBuffer(stream);
     }
 
-    public async ValueTask FlushAsync(Stream stream, CancellationToken cancellationToken = default)
+    public async Task FlushAsync(Stream stream, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(stream);
         ObjectDisposedException.ThrowIf(_compressor is null, this);
@@ -127,7 +127,7 @@ internal class SnappyStreamCompressor : IDisposable
         _outputBufferSize = 0;
     }
 
-    private async ValueTask WriteOutputBufferAsync(Stream stream, CancellationToken cancellationToken = default)
+    private async Task WriteOutputBufferAsync(Stream stream, CancellationToken cancellationToken = default)
     {
         Debug.Assert(_outputBuffer is not null);
 
@@ -136,10 +136,10 @@ internal class SnappyStreamCompressor : IDisposable
             return;
         }
 
-#if NETSTANDARD2_0
-        await stream.WriteAsync(_outputBuffer!, 0, _outputBufferSize, cancellationToken).ConfigureAwait(false);
-#else
+#if NET8_0_OR_GREATER
         await stream.WriteAsync(_outputBuffer.AsMemory(0, _outputBufferSize), cancellationToken).ConfigureAwait(false);
+#else
+        await stream.WriteAsync(_outputBuffer!, 0, _outputBufferSize, cancellationToken).ConfigureAwait(false);
 #endif
 
         _outputBufferSize = 0;

@@ -157,7 +157,7 @@ public sealed class SnappyStream : Stream
         if (_mode == CompressionMode.Compress && _wroteBytes)
         {
             Debug.Assert(_compressor != null);
-            return _compressor.FlushAsync(_stream, cancellationToken).AsTask();
+            return _compressor.FlushAsync(_stream, cancellationToken);
         }
 
         return Task.CompletedTask;
@@ -176,7 +176,7 @@ public sealed class SnappyStream : Stream
     /// <inheritdoc />
     public override int Read(byte[] buffer, int offset, int count) => ReadCore(buffer.AsSpan(offset, count));
 
-#if !NETSTANDARD2_0
+#if NET8_0_OR_GREATER
 
     /// <inheritdoc />
     public override int Read(Span<byte> buffer) => ReadCore(buffer);
@@ -211,11 +211,11 @@ public sealed class SnappyStream : Stream
             }
 
             Debug.Assert(_buffer != null);
-            #if !NETSTANDARD2_0
+#if NET8_0_OR_GREATER
             int bytes = _stream.Read(_buffer);
-            #else
+#else
             int bytes = _stream.Read(_buffer, 0, _buffer.Length);
-            #endif
+#endif
             if (bytes <= 0)
             {
                 break;
@@ -234,15 +234,21 @@ public sealed class SnappyStream : Stream
     /// <inheritdoc />
     public override Task<int> ReadAsync(byte[] buffer, int offset, int count,
         CancellationToken cancellationToken) =>
-        ReadAsyncCore(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+        AsTask(ReadAsyncCore(buffer.AsMemory(offset, count), cancellationToken));
 
-#if !NETSTANDARD2_0
+#if NET8_0_OR_GREATER
     /// <inheritdoc />
     public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = new CancellationToken()) =>
         ReadAsyncCore(buffer, cancellationToken);
 #endif
 
-    private ValueTask<int> ReadAsyncCore(Memory<byte> buffer, CancellationToken cancellationToken = new CancellationToken())
+    private
+#if NET8_0_OR_GREATER
+        ValueTask<int>
+#else
+        Task<int>
+#endif
+        ReadAsyncCore(Memory<byte> buffer, CancellationToken cancellationToken = new CancellationToken())
     {
         EnsureDecompressionMode();
         EnsureNoActiveAsyncOperation();
@@ -250,7 +256,7 @@ public sealed class SnappyStream : Stream
 
         if (cancellationToken.IsCancellationRequested)
         {
-            return new ValueTask<int>(Task.FromCanceled<int>(cancellationToken));
+            return FromCanceled<int>(cancellationToken);
         }
 
         EnsureBufferInitialized();
@@ -272,13 +278,13 @@ public sealed class SnappyStream : Stream
             if (bytesRead != 0)
             {
                 // If decompression output buffer is not empty, return immediately.
-                return new ValueTask<int>(bytesRead);
+                return FromResult(bytesRead);
             }
 
-#if NETSTANDARD2_0
-            ValueTask<int> readTask = new(_stream.ReadAsync(_buffer, 0, _buffer.Length, cancellationToken));
-#else
+#if NET8_0_OR_GREATER
             ValueTask<int> readTask = _stream.ReadAsync(_buffer, cancellationToken);
+#else
+            Task<int> readTask = _stream.ReadAsync(_buffer, 0, _buffer.Length, cancellationToken);
 #endif
 
             cleanup = false;
@@ -294,8 +300,13 @@ public sealed class SnappyStream : Stream
         }
     }
 
-    private async ValueTask<int> FinishReadAsyncMemory(
-        ValueTask<int> readTask, Memory<byte> buffer, CancellationToken cancellationToken)
+    private async
+#if NET8_0_OR_GREATER
+        ValueTask<int> FinishReadAsyncMemory(ValueTask<int> readTask,
+#else
+        Task<int> FinishReadAsyncMemory(Task<int> readTask,
+#endif
+        Memory<byte> buffer, CancellationToken cancellationToken)
     {
         try
         {
@@ -339,11 +350,11 @@ public sealed class SnappyStream : Stream
                 {
                     // We could have read in head information and didn't get any data.
                     // Read from the base stream again.
-                    #if !NETSTANDARD2_0
+#if NET8_0_OR_GREATER
                     readTask = _stream.ReadAsync(_buffer, cancellationToken);
-                    #else
-                    readTask = new ValueTask<int>(_stream.ReadAsync(_buffer, 0, _buffer.Length, cancellationToken));
-                    #endif
+#else
+                    readTask = _stream.ReadAsync(_buffer, 0, _buffer.Length, cancellationToken);
+#endif
                 }
             }
         }
@@ -357,7 +368,7 @@ public sealed class SnappyStream : Stream
     public override void Write(byte[] buffer, int offset, int count) =>
         WriteCore(buffer.AsSpan(offset, count));
 
-#if !NETSTANDARD2_0
+#if NET8_0_OR_GREATER
 
     /// <inheritdoc />
     public override void Write(ReadOnlySpan<byte> buffer) => WriteCore(buffer);
@@ -380,27 +391,39 @@ public sealed class SnappyStream : Stream
 
     /// <inheritdoc />
     public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
-        WriteAsyncCore(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+        AsTask(WriteAsyncCore(buffer.AsMemory(offset, count), cancellationToken));
 
-#if !NETSTANDARD2_0
+#if NET8_0_OR_GREATER
     /// <inheritdoc />
     public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer,
         CancellationToken cancellationToken = default) =>
         WriteAsyncCore(buffer, cancellationToken);
 #endif
 
-    private ValueTask WriteAsyncCore(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken)
+    private
+#if NET8_0_OR_GREATER
+        ValueTask
+#else
+        Task
+#endif
+        WriteAsyncCore(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken)
     {
         EnsureCompressionMode();
         EnsureNoActiveAsyncOperation();
         EnsureNotDisposed();
 
         return cancellationToken.IsCancellationRequested
-            ? new ValueTask(Task.FromCanceled(cancellationToken))
+            ? FromCanceled(cancellationToken)
             : WriteAsyncMemoryCore(buffer, cancellationToken);
     }
 
-    private async ValueTask WriteAsyncMemoryCore(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken)
+    private async
+#if NET8_0_OR_GREATER
+        ValueTask
+#else
+        Task
+#endif
+        WriteAsyncMemoryCore(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken)
     {
         AsyncOperationStarting();
         try
@@ -435,6 +458,8 @@ public sealed class SnappyStream : Stream
         }
     }
 
+#if NET8_0_OR_GREATER
+
     private ValueTask PurgeBuffersAsync()
     {
         // Same logic as PurgeBuffers, except with async counterparts.
@@ -454,6 +479,8 @@ public sealed class SnappyStream : Stream
 
         return default;
     }
+
+#endif
 
     /// <inheritdoc />
     protected override void Dispose(bool disposing)
@@ -501,7 +528,7 @@ public sealed class SnappyStream : Stream
         }
     }
 
-#if !NETSTANDARD2_0
+#if NET8_0_OR_GREATER
     /// <inheritdoc />
     public override async ValueTask DisposeAsync()
     {
@@ -607,6 +634,25 @@ public sealed class SnappyStream : Stream
         int oldValue = Interlocked.CompareExchange(ref _activeAsyncOperation, 0, 1);
         Debug.Assert(oldValue == 1, $"Expected {nameof(_activeAsyncOperation)} to be 1, got {oldValue}");
     }
+
+    // The helpers below aid with the various conditional compilation differences between legacy Task-based
+    // async methods and modern .NET ValueTask-based async methods. Since all call paths in legacy .NET always
+    // end up a Task in the end before returning to the caller, we can use Task throughout these code paths
+    // and avoid a dependency on System.Threading.Tasks.Extensions for ValueTask support.
+
+#if NET8_0_OR_GREATER
+    private static ValueTask<T> FromResult<T>(T result) => ValueTask.FromResult(result);
+    private static ValueTask<T> FromCanceled<T>(CancellationToken cancellationToken) => ValueTask.FromCanceled<T>(cancellationToken);
+    private static ValueTask FromCanceled(CancellationToken cancellationToken) => ValueTask.FromCanceled(cancellationToken);
+    private static Task<T> AsTask<T>(ValueTask<T> valueTask) => valueTask.AsTask();
+    private static Task AsTask(ValueTask valueTask) => valueTask.AsTask();
+#else
+    private static Task<T> FromResult<T>(T result) => Task.FromResult(result);
+    private static Task<T> FromCanceled<T>(CancellationToken cancellationToken) => Task.FromCanceled<T>(cancellationToken);
+    private static Task FromCanceled(CancellationToken cancellationToken) => Task.FromCanceled(cancellationToken);
+    private static Task<T> AsTask<T>(Task<T> valueTask) => valueTask;
+    private static Task AsTask(Task valueTask) => valueTask;
+#endif
 
     #endregion
 }
