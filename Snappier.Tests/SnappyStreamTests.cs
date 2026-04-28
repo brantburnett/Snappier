@@ -268,11 +268,11 @@ public class SnappyStreamTests(ITestOutputHelper outputHelper)
         byte[] data = [ 0x00, 0x04, 0x00, 0x00, 0x64, 0x4e, 0x6c, 0x71, 0x79, 0x20, 0x77, 0x6f, 0x72, 0x6c, 0x64 ];
 
         using var src = new MemoryStream(data);
-        using SnappyStream compressor = new(src, CompressionMode.Decompress);
+        using SnappyStream decompressor = new(src, CompressionMode.Decompress);
 
         using var destination = new MemoryStream();
 
         // Ensure this throws, no infinite loop
-        Assert.Throws<InvalidDataException>(() => compressor.CopyTo(destination));
+        Assert.Throws<InvalidDataException>(() => decompressor.CopyTo(destination));
     }
 }
