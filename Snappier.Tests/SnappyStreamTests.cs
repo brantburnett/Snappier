@@ -260,4 +260,19 @@ public class SnappyStreamTests(ITestOutputHelper outputHelper)
 
         Assert.True(decompressed.GetBuffer().AsSpan(0, (int)decompressed.Length).SequenceEqual(originalBytes));
     }
+
+    // https://github.com/brantburnett/Snappier/security/advisories/GHSA-pggp-6c3x-2xmx
+    [Fact(Timeout = 5000)]
+    public void MalformedFrameInput()
+    {
+        byte[] data = [ 0x00, 0x04, 0x00, 0x00, 0x64, 0x4e, 0x6c, 0x71, 0x79, 0x20, 0x77, 0x6f, 0x72, 0x6c, 0x64 ];
+
+        using var src = new MemoryStream(data);
+        using SnappyStream compressor = new(src, CompressionMode.Decompress);
+
+        using var destination = new MemoryStream();
+
+        // Ensure this throws, no infinite loop
+        Assert.Throws<InvalidDataException>(() => compressor.CopyTo(destination));
+    }
 }

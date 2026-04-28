@@ -98,7 +98,12 @@ internal sealed class SnappyStreamDecompressor : IDisposable
                             }
 
                             int availableChunkBytes = _chunkSize - _chunkBytesProcessed;
-                            if (availableChunkBytes > input.Length)
+                            if (availableChunkBytes <= 0)
+                            {
+                                // Malformed block, decompressor needs more data but there is no more available in the chunk
+                                ThrowHelper.ThrowInvalidDataException("Insufficient data in compressed block.");
+                            }
+                            else if (availableChunkBytes > input.Length)
                             {
                                 _decompressor.Decompress(input);
                                 _chunkBytesProcessed += input.Length;
