@@ -2,16 +2,30 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+using Snappier.Internal;
 
-namespace Snappier.Internal;
+namespace Snappier;
 
-internal class SnappyCompressor : IDisposable
+/// <summary>
+/// Reusable compressor for raw Snappy blocks.
+/// </summary>
+/// <remarks>
+/// A compressor retains its working memory between calls. Instances are not thread-safe and
+/// must not be used concurrently. Dispose the compressor when it is no longer needed.
+/// </remarks>
+public sealed class SnappyCompressor : IDisposable
 {
     private HashTable? _workingMemory = new();
 
+    /// <summary>
+    /// Compresses a raw Snappy block into a caller-provided buffer.
+    /// </summary>
+    /// <param name="input">Data to compress.</param>
+    /// <param name="output">Destination buffer.</param>
+    /// <returns>The number of bytes written.</returns>
     [Obsolete("Retained for benchmark comparisons to previous versions")]
     [ExcludeFromCodeCoverage]
-    public int Compress(ReadOnlySpan<byte> input, Span<byte> output)
+    internal int Compress(ReadOnlySpan<byte> input, Span<byte> output)
     {
         if (!TryCompress(input, output, out int bytesWritten))
         {
@@ -21,6 +35,13 @@ internal class SnappyCompressor : IDisposable
         return bytesWritten;
     }
 
+    /// <summary>
+    /// Attempts to compress a raw Snappy block into a caller-provided buffer.
+    /// </summary>
+    /// <param name="input">Data to compress.</param>
+    /// <param name="output">Destination buffer.</param>
+    /// <param name="bytesWritten">The number of bytes written.</param>
+    /// <returns><see langword="true"/> on success; otherwise <see langword="false"/>.</returns>
     public bool TryCompress(ReadOnlySpan<byte> input, Span<byte> output, out int bytesWritten)
     {
         ObjectDisposedException.ThrowIf(_workingMemory is null, this);
@@ -82,6 +103,11 @@ internal class SnappyCompressor : IDisposable
         return true;
     }
 
+    /// <summary>
+    /// Compresses a raw Snappy block into a buffer writer.
+    /// </summary>
+    /// <param name="input">Data to compress.</param>
+    /// <param name="bufferWriter">Destination for compressed data.</param>
     public void Compress(ReadOnlySequence<byte> input, IBufferWriter<byte> bufferWriter)
     {
         ArgumentNullException.ThrowIfNull(bufferWriter);
@@ -143,6 +169,7 @@ internal class SnappyCompressor : IDisposable
         }
     }
 
+    /// <inheritdoc />
     public void Dispose()
     {
         _workingMemory?.Dispose();

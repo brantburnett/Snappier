@@ -3,11 +3,22 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using Snappier.Internal;
 
-namespace Snappier.Internal;
+namespace Snappier;
 
-internal sealed class SnappyDecompressor : IDisposable
+/// <summary>
+/// Reusable decompressor for raw Snappy blocks.
+/// </summary>
+/// <remarks>
+/// Call <see cref="Reset()"/> between blocks when using incremental span-based decompression.
+/// The sequence-based overload resets automatically. Instances are not thread-safe and must not
+/// be used concurrently. Dispose the decompressor when it is no longer needed.
+/// </remarks>
+public sealed class SnappyDecompressor : IDisposable
 {
+    private bool _disposed;
+
 #if !NET8_0_OR_GREATER
     private readonly byte[] _scratch = new byte[Constants.MaximumTagLength];
 
@@ -28,6 +39,9 @@ internal sealed class SnappyDecompressor : IDisposable
 
     private int _remainingLiteral;
 
+    /// <summary>
+    /// Gets whether more compressed input is required to complete the current block.
+    /// </summary>
     public bool NeedMoreData => !AllDataDecompressed && UnreadBytes == 0;
 
     /// <summary>
@@ -35,13 +49,15 @@ internal sealed class SnappyDecompressor : IDisposable
     /// </summary>
     /// <param name="input">Input to process.</param>
     /// <remarks>
-    /// The first call to this method after construction or after a call to <see cref="Reset"/> start at the
+    /// The first call to this method after construction or after a call to <see cref="Reset()"/> starts at the
     /// beginning of a new Snappy block, leading with the encoded block size. It may be called multiple times
     /// as more data becomes available. <see cref="AllDataDecompressed"/> will be true once the entire block
     /// has been processed.
     /// </remarks>
     public void Decompress(ReadOnlySpan<byte> input)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
         if (AllDataDecompressed)
         {
             ThrowHelper.ThrowInvalidOperationException("All data has been decompressed");
@@ -91,8 +107,13 @@ internal sealed class SnappyDecompressor : IDisposable
         }
     }
 
+    /// <summary>
+    /// Resets the decompressor for a new block while retaining reusable working memory.
+    /// </summary>
     public void Reset()
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
         _scratchLength = 0;
         _remainingLiteral = 0;
 
@@ -105,6 +126,35 @@ internal sealed class SnappyDecompressor : IDisposable
             // Don't reuse the lookback buffer when it came from a BufferWriter
             _lookbackBuffer = default;
         }
+    }
+
+    /// <summary>
+    /// Resets the decompressor and decompresses an entire raw Snappy block into a buffer writer.
+    /// </summary>
+    /// <param name="input">Compressed block data.</param>
+    /// <param name="bufferWriter">Destination for decompressed data.</param>
+    /// <exception cref="InvalidDataException">The compressed block is invalid or incomplete.</exception>
+    public void Decompress(ReadOnlySequence<byte> input, IBufferWriter<byte> bufferWriter)
+    {
+        Reset(bufferWriter);
+
+        foreach (ReadOnlyMemory<byte> segment in input)
+            Decompress(segment.Span);
+
+        if (!AllDataDecompressed)
+            ThrowHelper.ThrowInvalidDataExceptionIncompleteSnappyBlock();
+    }
+
+    /// <summary>
+    /// Resets the decompressor for a new block and replaces the output destination.
+    /// </summary>
+    /// <param name="bufferWriter">Destination for decompressed data.</param>
+    public void Reset(IBufferWriter<byte> bufferWriter)
+    {
+        ArgumentNullException.ThrowIfNull(bufferWriter);
+
+        Reset();
+        BufferWriter = bufferWriter;
     }
 
     private OperationStatus TryReadUncompressedLength(ReadOnlySpan<byte> input, out int bytesConsumed)
@@ -178,7 +228,7 @@ internal sealed class SnappyDecompressor : IDisposable
     /// <param name="input">Input data, which should begin with the varint encoded uncompressed length.</param>
     /// <returns>The length of the uncompressed data.</returns>
     /// <exception cref="InvalidDataException">Invalid stream length</exception>
-    public static int ReadUncompressedLength(ReadOnlySpan<byte> input) =>
+    internal static int ReadUncompressedLength(ReadOnlySpan<byte> input) =>
         (int) VarIntEncoding.Read(input, out _);
 
     internal void DecompressAllTags(ReadOnlySpan<byte> inputSpan)
@@ -497,9 +547,28 @@ internal sealed class SnappyDecompressor : IDisposable
     #region Loopback Writer
 
     /// <summary>
-    /// Buffer writer for the output data. Incompatible with <see cref="ExtractData"/> and <see cref="Read"/>.
+    /// Gets or sets the buffer writer for output data. Incompatible with <see cref="ExtractData"/>
+    /// and <see cref="Read"/>.
     /// </summary>
-    public IBufferWriter<byte>? BufferWriter { get; init; }
+    /// <remarks>
+    /// The destination may only be replaced before a block begins or after calling <see cref="Reset()"/>.
+    /// </remarks>
+    public IBufferWriter<byte>? BufferWriter
+    {
+        get => field;
+        set
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+
+            if (!ReferenceEquals(field, value) && ExpectedLength.HasValue)
+            {
+                ThrowHelper.ThrowInvalidOperationException(
+                    "The buffer writer cannot be replaced while a block is active. Call Reset first.");
+            }
+
+            field = value;
+        }
+    }
 
     private byte[]? _lookbackBufferArray;
     private Memory<byte> _lookbackBuffer;
@@ -534,18 +603,27 @@ internal sealed class SnappyDecompressor : IDisposable
         }
     }
 
+    /// <summary>
+    /// Gets the number of decompressed bytes available to <see cref="Read"/>.
+    /// </summary>
     public int UnreadBytes
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => (int)_lookbackPosition - _readPosition;
     }
 
+    /// <summary>
+    /// Gets whether all decompressed bytes have been read.
+    /// </summary>
     public bool EndOfFile
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => ExpectedLength.HasValue && _readPosition >= ExpectedLength.GetValueOrDefault();
     }
 
+    /// <summary>
+    /// Gets whether the current compressed block is complete.
+    /// </summary>
     public bool AllDataDecompressed
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -610,8 +688,15 @@ internal sealed class SnappyDecompressor : IDisposable
             ref Unsafe.Add(ref op, length), ref bufferEnd);
     }
 
+    /// <summary>
+    /// Reads decompressed data when no <see cref="BufferWriter"/> is configured.
+    /// </summary>
+    /// <param name="destination">Destination buffer.</param>
+    /// <returns>The number of bytes read.</returns>
     public int Read(Span<byte> destination)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
         if (BufferWriter is not null)
         {
             ThrowCannotUseWithBufferWriter(nameof(Read));
@@ -639,6 +724,8 @@ internal sealed class SnappyDecompressor : IDisposable
     /// </remarks>
     public IMemoryOwner<byte> ExtractData()
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
         if (BufferWriter is not null)
         {
             ThrowCannotUseWithBufferWriter(nameof(ExtractData));
@@ -719,8 +806,13 @@ internal sealed class SnappyDecompressor : IDisposable
 
     #endregion
 
+    /// <inheritdoc />
     public void Dispose()
     {
+        if (_disposed)
+            return;
+
+        _disposed = true;
         if (_lookbackBufferArray is not null)
         {
             // Clear the used portion of the lookback buffer before returning

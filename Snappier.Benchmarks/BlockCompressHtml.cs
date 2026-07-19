@@ -1,9 +1,11 @@
 ﻿namespace Snappier.Benchmarks;
 
+[MemoryDiagnoser]
 public class BlockCompressHtml
 {
     private ReadOnlyMemory<byte> _input;
     private Memory<byte> _output;
+    private SnappyCompressor _compressor = null!;
 
     [GlobalSetup]
     public void LoadToMemory()
@@ -16,9 +18,10 @@ public class BlockCompressHtml
         _input = input.AsMemory(0, inputLength);
 
         _output = new byte[Snappy.GetMaxCompressedLength(inputLength)];
+        _compressor = new SnappyCompressor();
     }
 
-    [Benchmark]
+    [Benchmark(Baseline = true)]
     public int Compress()
     {
         using var compressor = new SnappyCompressor();
@@ -27,4 +30,11 @@ public class BlockCompressHtml
         return compressor.Compress(_input.Span, _output.Span);
 #pragma warning restore CS0618 // Type or member is obsolete
     }
+
+    [Benchmark]
+    public bool CompressReusable() =>
+        _compressor.TryCompress(_input.Span, _output.Span, out _);
+
+    [GlobalCleanup]
+    public void Cleanup() => _compressor.Dispose();
 }

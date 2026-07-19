@@ -105,6 +105,29 @@ public class Program
 }
 ```
 
+## Reusing block compressors and decompressors
+
+For repeated block operations, `SnappyCompressor` retains its compression working memory and
+`SnappyDecompressor` can be reset with a new `IBufferWriter<byte>` destination. Reuse avoids the
+per-call codec allocation made by the static `Snappy` methods.
+
+```cs
+using Snappier;
+using System.Buffers;
+
+using var compressor = new SnappyCompressor();
+using var decompressor = new SnappyDecompressor();
+
+var compressed = new ArrayBufferWriter<byte>();
+compressor.Compress(new ReadOnlySequence<byte>(Data), compressed);
+
+var decompressed = new ArrayBufferWriter<byte>();
+decompressor.Decompress(new ReadOnlySequence<byte>(compressed.WrittenMemory), decompressed);
+```
+
+Instances retain mutable block state and are not thread-safe. Do not use one instance concurrently;
+use a separate instance per thread or operation owner. Dispose instances when they are no longer needed.
+
 ## Block compression/decompression using heap allocated byte[]
 
 ```cs

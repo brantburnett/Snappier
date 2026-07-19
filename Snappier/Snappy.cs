@@ -195,20 +195,8 @@ public static class Snappy
     {
         ArgumentNullException.ThrowIfNull(output);
 
-        using var decompressor = new SnappyDecompressor()
-        {
-            BufferWriter = output
-        };
-
-        foreach (ReadOnlyMemory<byte> segment in input)
-        {
-            decompressor.Decompress(segment.Span);
-        }
-
-        if (!decompressor.AllDataDecompressed)
-        {
-            ThrowHelper.ThrowInvalidDataExceptionIncompleteSnappyBlock();
-        }
+        using var decompressor = new SnappyDecompressor();
+        decompressor.Decompress(input, output);
     }
 
     /// <summary>

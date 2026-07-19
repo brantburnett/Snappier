@@ -1,8 +1,10 @@
 ﻿namespace Snappier.Benchmarks;
 
+[MemoryDiagnoser]
 public class BlockDecompressHtml
 {
     private ReadOnlyMemory<byte> _input;
+    private SnappyDecompressor _decompressor = null!;
 
     [GlobalSetup]
     public void LoadToMemory()
@@ -18,13 +20,24 @@ public class BlockDecompressHtml
         int compressedLength = Snappy.Compress(input.AsSpan(0, inputLength), compressed);
 
         _input = compressed.AsMemory(0, compressedLength);
+        _decompressor = new SnappyDecompressor();
     }
 
-    [Benchmark]
+    [Benchmark(Baseline = true)]
     public void Decompress()
     {
         using var decompressor = new SnappyDecompressor();
 
         decompressor.Decompress(_input.Span);
     }
+
+    [Benchmark]
+    public void DecompressReusable()
+    {
+        _decompressor.Reset();
+        _decompressor.Decompress(_input.Span);
+    }
+
+    [GlobalCleanup]
+    public void Cleanup() => _decompressor.Dispose();
 }
