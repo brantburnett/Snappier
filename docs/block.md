@@ -105,6 +105,34 @@ public class Program
 }
 ```
 
+## Reusing block encoders and decoders
+
+For repeated block operations, `SnappyBlockEncoder` retains its compression working memory and
+`SnappyBlockDecoder` retains its decompression lookback buffer. Reuse avoids constructing a codec
+for every block.
+
+```cs
+using Snappier;
+using System.Buffers;
+
+using var encoder = new SnappyBlockEncoder();
+using var decoder = new SnappyBlockDecoder();
+
+var compressed = new ArrayBufferWriter<byte>();
+encoder.Compress(new ReadOnlySequence<byte>(Data), compressed);
+
+var decompressed = new ArrayBufferWriter<byte>();
+decoder.Decompress(new ReadOnlySequence<byte>(compressed.WrittenMemory), decompressed);
+```
+
+For incremental decompression, use `SnappyBlockDecoder.Decompress(ReadOnlySpan<byte>, Span<byte>,
+out int, out int)`. Its `OperationStatus` result reports whether more source or destination space is
+required. Call `Reset()` before starting another block. The sequence-to-writer overload resets
+automatically.
+
+Instances retain mutable block state and are not thread-safe. Do not use one instance concurrently;
+use a separate instance per thread or operation owner. Dispose instances when they are no longer needed.
+
 ## Block compression/decompression using heap allocated byte[]
 
 ```cs

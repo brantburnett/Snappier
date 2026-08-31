@@ -173,7 +173,7 @@ public static class Snappy
     {
         using var decompressor = new SnappyDecompressor();
 
-        decompressor.Decompress(input);
+        Decompress(decompressor, input);
 
         if (!decompressor.AllDataDecompressed)
         {
@@ -202,7 +202,7 @@ public static class Snappy
 
         foreach (ReadOnlyMemory<byte> segment in input)
         {
-            decompressor.Decompress(segment.Span);
+            Decompress(decompressor, segment.Span);
         }
 
         if (!decompressor.AllDataDecompressed)
@@ -224,7 +224,7 @@ public static class Snappy
     {
         using var decompressor = new SnappyDecompressor();
 
-        decompressor.Decompress(input);
+        Decompress(decompressor, input);
 
         if (!decompressor.AllDataDecompressed)
         {
@@ -232,6 +232,15 @@ public static class Snappy
         }
 
         return decompressor.ExtractData();
+    }
+
+    private static void Decompress(SnappyDecompressor decompressor, ReadOnlySpan<byte> input)
+    {
+        OperationStatus status = decompressor.Decompress(input, out int bytesConsumed);
+        if (status == OperationStatus.InvalidData || bytesConsumed != input.Length)
+        {
+            ThrowHelper.ThrowInvalidDataException("Invalid Snappy block.");
+        }
     }
 
     /// <summary>
@@ -249,7 +258,7 @@ public static class Snappy
 
         foreach (ReadOnlyMemory<byte> segment in input)
         {
-            decompressor.Decompress(segment.Span);
+            Decompress(decompressor, segment.Span);
         }
 
         if (!decompressor.AllDataDecompressed)

@@ -284,6 +284,21 @@ public class SnappyTests
         });
     }
 
+    [Fact]
+    public void BadData_LiteralLongerThanExpected_ThrowsInvalidDataException()
+    {
+        byte[] input = [1, 4, 42];
+
+        Assert.Throws<InvalidDataException>(() => Snappy.Decompress(input, new byte[1]));
+        Assert.Throws<InvalidDataException>(() => Snappy.TryDecompress(input, new byte[1], out _));
+#if NET6_0_OR_GREATER
+        Assert.Throws<InvalidDataException>(() =>
+            Snappy.Decompress(new ReadOnlySequence<byte>(input), new ArrayBufferWriter<byte>()));
+#endif
+        Assert.Throws<InvalidDataException>(() => Snappy.DecompressToMemory(input));
+        Assert.Throws<InvalidDataException>(() => Snappy.DecompressToMemory(new ReadOnlySequence<byte>(input)));
+    }
+
     [Theory]
     [InlineData("baddata1.snappy")]
     [InlineData("baddata2.snappy")]
