@@ -1,4 +1,5 @@
-﻿using System.Buffers.Binary;
+﻿using System.Buffers;
+using System.Buffers.Binary;
 using System.Diagnostics;
 
 namespace Snappier.Internal;
@@ -105,15 +106,11 @@ internal sealed class SnappyStreamDecompressor : IDisposable
                             }
                             else if (availableChunkBytes > input.Length)
                             {
-                                _decompressor.Decompress(input);
-                                _chunkBytesProcessed += input.Length;
-                                input = default;
+                                DecompressBlock(ref input, input.Length);
                             }
                             else
                             {
-                                _decompressor.Decompress(input.Slice(0, availableChunkBytes));
-                                _chunkBytesProcessed += availableChunkBytes;
-                                input = input.Slice(availableChunkBytes);
+                                DecompressBlock(ref input, availableChunkBytes);
                             }
                         }
 
@@ -210,6 +207,21 @@ internal sealed class SnappyStreamDecompressor : IDisposable
         exit:
         _input = _input.Slice(_input.Length - input.Length);
         return originalBufferLength - buffer.Length;
+    }
+
+    private void DecompressBlock(ref ReadOnlySpan<byte> input, int inputLength)
+    {
+        DebugExtensions.Assert(_decompressor is not null);
+
+        OperationStatus status = _decompressor.Decompress(input.Slice(0, inputLength), out int bytesConsumed);
+        _chunkBytesProcessed += bytesConsumed;
+        input = input.Slice(bytesConsumed);
+
+        if (status == OperationStatus.InvalidData || bytesConsumed != inputLength ||
+            (status == OperationStatus.Done && _chunkBytesProcessed != _chunkSize))
+        {
+            ThrowHelper.ThrowInvalidDataException("Invalid compressed block.");
+        }
     }
 
     public void SetInput(ReadOnlyMemory<byte> input)
