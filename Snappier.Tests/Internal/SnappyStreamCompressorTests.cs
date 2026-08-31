@@ -3,6 +3,35 @@
 
 public class SnappyStreamCompressorTests
 {
+    [Fact]
+    public void Decompress_SplitBlockLength_Succeeds()
+    {
+        byte[] input = new byte[65536];
+        using var output = new MemoryStream();
+        using (var compressor = new SnappyStreamCompressor())
+        {
+            compressor.Write(input, output);
+            compressor.Flush(output);
+        }
+
+        using var decompressor = new SnappyStreamDecompressor();
+        byte[] decompressed = new byte[input.Length + 1];
+        const int streamIdentifierLength = 10;
+        const int chunkHeaderLength = 4;
+        const int checksumLength = 4;
+        const int firstLengthByteLength = 1;
+        const int bytesThroughFirstLengthByte = streamIdentifierLength + chunkHeaderLength + checksumLength +
+            firstLengthByteLength;
+        decompressor.SetInput(output.GetBuffer().AsMemory(0, bytesThroughFirstLengthByte));
+        int bytesDecompressed = decompressor.Decompress(decompressed);
+        decompressor.SetInput(output.GetBuffer().AsMemory(bytesThroughFirstLengthByte,
+            (int)output.Length - bytesThroughFirstLengthByte));
+        bytesDecompressed += decompressor.Decompress(decompressed.AsSpan(bytesDecompressed));
+
+        Assert.Equal(input.Length, bytesDecompressed);
+        Assert.True(input.AsSpan().SequenceEqual(decompressed.AsSpan(0, bytesDecompressed)));
+    }
+
     [Theory]
     [InlineData("alice29.txt")]
     [InlineData("asyoulik.txt")]

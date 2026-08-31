@@ -21,15 +21,15 @@ public class SnappyDecompressorTests
 
         OperationStatus status = decompressor.Decompress(compressed.Memory.Span.Slice(0, 1), out int bytesConsumed);
         Assert.Equal(OperationStatus.NeedMoreData, status);
-        Assert.Equal(1, bytesConsumed);
+        Assert.Equal(0, bytesConsumed);
         Assert.True(decompressor.NeedMoreData);
-        status = decompressor.Decompress(compressed.Memory.Span.Slice(1, 1), out bytesConsumed);
+        status = decompressor.Decompress(compressed.Memory.Span.Slice(0, 2), out bytesConsumed);
         Assert.Equal(OperationStatus.NeedMoreData, status);
-        Assert.Equal(1, bytesConsumed);
+        Assert.Equal(0, bytesConsumed);
         Assert.True(decompressor.NeedMoreData);
-        status = decompressor.Decompress(compressed.Memory.Span.Slice(2), out bytesConsumed);
+        status = decompressor.Decompress(compressed.Memory.Span, out bytesConsumed);
         Assert.Equal(OperationStatus.Done, status);
-        Assert.Equal(compressed.Memory.Length - 2, bytesConsumed);
+        Assert.Equal(compressed.Memory.Length, bytesConsumed);
         Assert.False(decompressor.NeedMoreData);
 
         using IMemoryOwner<byte> result = decompressor.ExtractData();
@@ -61,7 +61,7 @@ public class SnappyDecompressorTests
     }
 
     [Fact]
-    public void Decompress_OneByteAtATime_ConsumesEachByte()
+    public void Decompress_OneNewByteAtATime_ConsumesAvailableData()
     {
         // Arrange
 
@@ -71,14 +71,18 @@ public class SnappyDecompressorTests
 
         // Act/Assert
 
-        for (int i = 0; i < compressed.Memory.Length; i++)
+        int inputStart = 0;
+        for (int inputEnd = 1; inputEnd <= compressed.Memory.Length; inputEnd++)
         {
-            OperationStatus status = decompressor.Decompress(compressed.Memory.Span.Slice(i, 1), out int bytesConsumed);
+            OperationStatus status = decompressor.Decompress(
+                compressed.Memory.Span.Slice(inputStart, inputEnd - inputStart), out int bytesConsumed);
+            inputStart += bytesConsumed;
 
-            Assert.Equal(1, bytesConsumed);
-            Assert.Equal(i == compressed.Memory.Length - 1 ? OperationStatus.Done : OperationStatus.NeedMoreData,
+            Assert.Equal(inputEnd == compressed.Memory.Length ? OperationStatus.Done : OperationStatus.NeedMoreData,
                 status);
         }
+
+        Assert.Equal(compressed.Memory.Length, inputStart);
 
         using IMemoryOwner<byte> result = decompressor.ExtractData();
         Assert.True(result.Memory.Span.SequenceEqual(data));
@@ -141,7 +145,7 @@ public class SnappyDecompressorTests
         OperationStatus status = decompressor.Decompress(input, out int bytesConsumed);
 
         Assert.Equal(OperationStatus.InvalidData, status);
-        Assert.Equal(input.Length, bytesConsumed);
+        Assert.Equal(1, bytesConsumed);
     }
 
     [Fact]
@@ -157,7 +161,7 @@ public class SnappyDecompressorTests
         status = decompressor.Decompress([0], out bytesConsumed);
 
         Assert.Equal(OperationStatus.InvalidData, status);
-        Assert.Equal(1, bytesConsumed);
+        Assert.Equal(0, bytesConsumed);
     }
 
     #endregion

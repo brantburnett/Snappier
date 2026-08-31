@@ -78,34 +78,32 @@ internal sealed class SnappyDecompressor : IDisposable
 
         // Process any input into the write buffer
 
-        int tagBytesConsumed = 0;
-        try
+        if (input.Length > 0)
         {
-            if (input.Length > 0)
+            if (_remainingLiteral > 0)
             {
-                if (_remainingLiteral > 0)
-                {
-                    int toWrite = Math.Min(_remainingLiteral, input.Length);
+                int toWrite = Math.Min(_remainingLiteral, input.Length);
 
-                    Append(input.Slice(0, toWrite));
-                    input = input.Slice(toWrite);
-                    bytesConsumed += toWrite;
-                    _remainingLiteral -= toWrite;
+                Append(input.Slice(0, toWrite));
+                input = input.Slice(toWrite);
+                bytesConsumed += toWrite;
+                _remainingLiteral -= toWrite;
+            }
+
+            if (!AllDataDecompressed && input.Length > 0)
+            {
+                try
+                {
+                    DecompressAllTags(input, out int tagBytesConsumed);
+                    bytesConsumed += tagBytesConsumed;
                 }
-
-                if (!AllDataDecompressed && input.Length > 0)
+                catch (InvalidDataException)
                 {
-                    DecompressAllTags(input, out tagBytesConsumed);
+                    return _status = OperationStatus.InvalidData;
                 }
             }
         }
-        catch (InvalidDataException)
-        {
-            bytesConsumed += tagBytesConsumed;
-            return _status = OperationStatus.InvalidData;
-        }
 
-        bytesConsumed += tagBytesConsumed;
         if (AllDataDecompressed && _remainingLiteral > 0)
         {
             return _status = OperationStatus.InvalidData;
@@ -153,76 +151,15 @@ internal sealed class SnappyDecompressor : IDisposable
 
     private OperationStatus TryReadUncompressedLength(ReadOnlySpan<byte> input, out int bytesConsumed)
     {
-        OperationStatus status;
-
-        if (_scratchLength > 0)
+        OperationStatus status = VarIntEncoding.TryRead(input, out uint length, out bytesConsumed);
+        if (status == OperationStatus.Done)
         {
-            // We have a partial length in the scratch buffer, so we need to finish reading that first
-            // The maximum tag length of 5 bytes is also the maximum varint length, so we can reuse _scratch
-
-            // Copy the remaining bytes from the input to the scratch buffer
-            Span<byte> scratch = Scratch;
-            int toCopy = Math.Min(input.Length, scratch.Length - _scratchLength);
-            input.Slice(0, toCopy).CopyTo(scratch.Slice(_scratchLength));
-
-            status = VarIntEncoding.TryRead(scratch.Slice(0, _scratchLength + toCopy), out uint length, out int scratchBytesConsumed);
-
-            switch (status)
+            if (length > int.MaxValue)
             {
-                case OperationStatus.Done:
-                    // The number of bytes consumed from the input is the number of bytes used by VarIntEncoding.TryRead
-                    // less the number of bytes previously found in the scratch buffer
-                    bytesConsumed = scratchBytesConsumed - _scratchLength;
-
-                    // Reset scratch buffer
-                    _scratchLength = 0;
-
-                    if (length > int.MaxValue)
-                    {
-                        status = OperationStatus.InvalidData;
-                        break;
-                    }
-
-                    ExpectedLength = (int)length;
-                    break;
-
-                case OperationStatus.NeedMoreData:
-                    // We consumed all the input, but still need more data to finish reading the length
-                    bytesConsumed = toCopy;
-                    _scratchLength += toCopy;
-
-                    DebugExtensions.Assert(_scratchLength < scratch.Length);
-                    break;
-
-                default:
-                    bytesConsumed = 0;
-                    break;
+                return OperationStatus.InvalidData;
             }
-        }
-        else
-        {
-            // No data in the scratch buffer, try to read directly from the input
-            status = VarIntEncoding.TryRead(input, out uint length, out bytesConsumed);
 
-            switch (status)
-            {
-                case OperationStatus.Done:
-                    if (length > int.MaxValue)
-                    {
-                        status = OperationStatus.InvalidData;
-                        break;
-                    }
-
-                    ExpectedLength = (int)length;
-                    break;
-
-                case OperationStatus.NeedMoreData:
-                    // Copy all of the input to the scratch buffer
-                    input.CopyTo(Scratch);
-                    _scratchLength = input.Length;
-                    bytesConsumed = input.Length;
-                    break;
-            }
+            ExpectedLength = (int)length;
         }
 
         return status;
@@ -260,7 +197,8 @@ internal sealed class SnappyDecompressor : IDisposable
             ref readonly byte inputLimitMinMaxTagLength = ref Unsafe.Subtract(in inputEnd, Math.Min(inputSpan.Length, Constants.MaximumTagLength - 1));
 
             ref byte buffer = ref _lookbackBuffer.Span[0];
-            ref byte bufferEnd = ref Unsafe.Add(ref buffer, ExpectedLength.GetValueOrDefault());
+            int outputLength = Math.Min(_lookbackBuffer.Length, ExpectedLength.GetValueOrDefault());
+            ref byte bufferEnd = ref Unsafe.Add(ref buffer, outputLength);
             ref byte op = ref Unsafe.Add(ref buffer, _lookbackPosition);
 
             try
@@ -663,8 +601,8 @@ internal sealed class SnappyDecompressor : IDisposable
         Span<byte> lookbackSpan = _lookbackBuffer.Span;
         ref byte op = ref lookbackSpan[_lookbackPosition];
 
-        Append(ref op, ref Unsafe.Add(ref lookbackSpan[0], ExpectedLength.GetValueOrDefault()), in inputPtr,
-            input.Length);
+        int outputLength = Math.Min(lookbackSpan.Length, ExpectedLength.GetValueOrDefault());
+        Append(ref op, ref Unsafe.Add(ref lookbackSpan[0], outputLength), in inputPtr, input.Length);
         _lookbackPosition += input.Length;
     }
 

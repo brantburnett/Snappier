@@ -200,10 +200,7 @@ public static class Snappy
             BufferWriter = output
         };
 
-        foreach (ReadOnlyMemory<byte> segment in input)
-        {
-            Decompress(decompressor, segment.Span);
-        }
+        Decompress(decompressor, input);
 
         if (!decompressor.AllDataDecompressed)
         {
@@ -234,12 +231,38 @@ public static class Snappy
         return decompressor.ExtractData();
     }
 
-    private static void Decompress(SnappyDecompressor decompressor, ReadOnlySpan<byte> input)
+    private static int Decompress(SnappyDecompressor decompressor, ReadOnlySpan<byte> input)
     {
         OperationStatus status = decompressor.Decompress(input, out int bytesConsumed);
-        if (status == OperationStatus.InvalidData || bytesConsumed != input.Length)
+        if (status == OperationStatus.InvalidData)
         {
             ThrowHelper.ThrowInvalidDataException("Invalid Snappy block.");
+        }
+
+        return bytesConsumed;
+    }
+
+    private static void Decompress(SnappyDecompressor decompressor, ReadOnlySequence<byte> input)
+    {
+        Span<byte> scratch = stackalloc byte[Constants.MaximumTagLength];
+
+        while (!input.IsEmpty && !decompressor.AllDataDecompressed)
+        {
+            int bytesConsumed = Decompress(decompressor, input.First.Span);
+
+            if (bytesConsumed == 0 && !input.IsSingleSegment)
+            {
+                int bytesToCopy = (int)Math.Min(input.Length, scratch.Length);
+                input.Slice(0, bytesToCopy).CopyTo(scratch);
+                bytesConsumed = Decompress(decompressor, scratch.Slice(0, bytesToCopy));
+            }
+
+            if (bytesConsumed == 0)
+            {
+                break;
+            }
+
+            input = input.Slice(bytesConsumed);
         }
     }
 
@@ -256,10 +279,7 @@ public static class Snappy
     {
         using var decompressor = new SnappyDecompressor();
 
-        foreach (ReadOnlyMemory<byte> segment in input)
-        {
-            Decompress(decompressor, segment.Span);
-        }
+        Decompress(decompressor, input);
 
         if (!decompressor.AllDataDecompressed)
         {

@@ -102,6 +102,20 @@ public class SnappyTests
     }
 
     [Fact]
+    public void Decompress_TrailingData_IgnoresTrailingData()
+    {
+        byte[] data = [1, 2, 3, 4];
+        using IMemoryOwner<byte> compressed = Snappy.CompressToMemory(data);
+        byte[] input = [.. compressed.Memory.ToArray(), 42];
+        byte[] output = new byte[data.Length];
+
+        int bytesWritten = Snappy.Decompress(input, output);
+
+        Assert.Equal(data.Length, bytesWritten);
+        Assert.Equal(data, output);
+    }
+
+    [Fact]
     public void TryCompress_InsufficientOutputBuffer()
     {
         using Stream resource =
@@ -385,6 +399,18 @@ public class SnappyTests
 
         Assert.Equal(bytesRead, output.Memory.Length);
         Assert.True(input.AsSpan(0, bytesRead).SequenceEqual(output.Memory.Span));
+    }
+
+    [Fact]
+    public void DecompressToMemory_FromSequence_SplitLength()
+    {
+        byte[] input = new byte[65536];
+        using IMemoryOwner<byte> compressed = Snappy.CompressToMemory(input);
+        ReadOnlySequence<byte> compressedSequence = SequenceHelpers.CreateSequence(compressed.Memory, 1);
+
+        using IMemoryOwner<byte> output = Snappy.DecompressToMemory(compressedSequence);
+
+        Assert.True(input.AsSpan().SequenceEqual(output.Memory.Span));
     }
 
 #if NET6_0_OR_GREATER
