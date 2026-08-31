@@ -162,6 +162,28 @@ public class SnappyDecompressorTests
 
     #endregion
 
+    #region Dispose
+
+    [Fact]
+    public void Dispose_AfterSmallerReusedBlock_ClearsEntireUsedBuffer()
+    {
+        var decompressor = new SnappyDecompressor();
+        byte[] firstInput = Enumerable.Repeat((byte)42, 4096).ToArray();
+        using IMemoryOwner<byte> firstCompressed = Snappy.CompressToMemory(firstInput);
+        using IMemoryOwner<byte> secondCompressed = Snappy.CompressToMemory([17]);
+
+        Assert.Equal(OperationStatus.Done, decompressor.Decompress(firstCompressed.Memory.Span, out _));
+        decompressor.Reset();
+        Assert.Equal(OperationStatus.Done, decompressor.Decompress(secondCompressed.Memory.Span, out _));
+
+        byte[] buffer = Assert.IsType<byte[]>(decompressor.GetLookbackBufferArrayForTest());
+        decompressor.Dispose();
+
+        Assert.All(buffer.Take(firstInput.Length), value => Assert.Equal(0, value));
+    }
+
+    #endregion
+
     #region DecompressAllTags
 
     [Fact]
@@ -283,6 +305,25 @@ public class SnappyDecompressorTests
 
         Assert.Equal(4, result2.Memory.Length);
         Assert.Equal(new byte[] { 4, 3, 2, 1 }, result2.Memory.ToArray());
+    }
+
+    [Fact]
+    public void ExtractData_AfterSmallerReusedBlock_ClearsPreviouslyUsedTail()
+    {
+        using var decompressor = new SnappyDecompressor();
+        byte[] firstInput = Enumerable.Repeat((byte)42, 4096).ToArray();
+        using IMemoryOwner<byte> firstCompressed = Snappy.CompressToMemory(firstInput);
+        using IMemoryOwner<byte> secondCompressed = Snappy.CompressToMemory([17]);
+
+        Assert.Equal(OperationStatus.Done, decompressor.Decompress(firstCompressed.Memory.Span, out _));
+        decompressor.Reset();
+        Assert.Equal(OperationStatus.Done, decompressor.Decompress(secondCompressed.Memory.Span, out _));
+
+        byte[] buffer = Assert.IsType<byte[]>(decompressor.GetLookbackBufferArrayForTest());
+        using IMemoryOwner<byte> result = decompressor.ExtractData();
+
+        Assert.Equal(17, result.Memory.Span[0]);
+        Assert.All(buffer.Skip(1).Take(firstInput.Length - 1), value => Assert.Equal(0, value));
     }
 
     #endregion

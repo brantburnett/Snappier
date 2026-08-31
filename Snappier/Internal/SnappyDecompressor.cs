@@ -125,6 +125,11 @@ internal sealed class SnappyDecompressor : IDisposable
         _scratchLength = 0;
         _remainingLiteral = 0;
 
+        if (_lookbackBufferArray is not null)
+        {
+            _lookbackBufferClearLength = Math.Max(_lookbackBufferClearLength, _lookbackPosition);
+        }
+
         _lookbackPosition = 0;
         _readPosition = 0;
         ExpectedLength = null;
@@ -606,6 +611,7 @@ internal sealed class SnappyDecompressor : IDisposable
 
     private byte[]? _lookbackBufferArray;
     private Memory<byte> _lookbackBuffer;
+    private int _lookbackBufferClearLength;
     private int _lookbackPosition = 0;
     private int _readPosition = 0;
 
@@ -620,8 +626,7 @@ internal sealed class SnappyDecompressor : IDisposable
             {
                 if (_lookbackBufferArray is not null)
                 {
-                    // Clear the used portion of the lookback buffer before returning
-                    Helpers.ClearAndReturn(_lookbackBufferArray, _lookbackPosition);
+                    ClearAndReturnLookbackBuffer();
                 }
 
                 if (BufferWriter is not null)
@@ -764,12 +769,19 @@ internal sealed class SnappyDecompressor : IDisposable
             ThrowHelper.ThrowInvalidOperationException("Block is not fully decompressed.");
         }
 
+        int expectedLength = ExpectedLength.GetValueOrDefault();
+        if (_lookbackBufferClearLength > expectedLength)
+        {
+            data.AsSpan(expectedLength, _lookbackBufferClearLength - expectedLength).Clear();
+        }
+
         // Build the return before we reset and clear ExpectedLength
-        var returnBuffer = new ByteArrayPoolMemoryOwner(data, ExpectedLength.GetValueOrDefault());
+        var returnBuffer = new ByteArrayPoolMemoryOwner(data, expectedLength);
 
         // Clear the buffer so we don't return it
         _lookbackBufferArray = null;
         _lookbackBuffer = default;
+        _lookbackBufferClearLength = 0;
 
         Reset();
 
@@ -821,17 +833,27 @@ internal sealed class SnappyDecompressor : IDisposable
         ExpectedLength = expectedLength;
     }
 
+    internal byte[]? GetLookbackBufferArrayForTest() => _lookbackBufferArray;
+
     #endregion
+
+    private void ClearAndReturnLookbackBuffer()
+    {
+        DebugExtensions.Assert(_lookbackBufferArray is not null);
+
+        Helpers.ClearAndReturn(_lookbackBufferArray,
+            Math.Max(_lookbackBufferClearLength, _lookbackPosition));
+
+        _lookbackBufferArray = null;
+        _lookbackBuffer = default;
+        _lookbackBufferClearLength = 0;
+    }
 
     public void Dispose()
     {
         if (_lookbackBufferArray is not null)
         {
-            // Clear the used portion of the lookback buffer before returning
-            Helpers.ClearAndReturn(_lookbackBufferArray, _lookbackPosition);
-
-            _lookbackBufferArray = null;
-            _lookbackBuffer = default;
+            ClearAndReturnLookbackBuffer();
         }
     }
 }

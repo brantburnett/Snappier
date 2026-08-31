@@ -104,7 +104,11 @@ public class SnappyBlockCodecTests
 
         // Act/Assert: invalid data remains invalid until reset
 
-        Assert.Equal(OperationStatus.InvalidData, decoder.Decompress([1, 1, 0], output, out _, out _));
+        byte[] invalidInput = [1, 1, 0];
+        Assert.Equal(OperationStatus.InvalidData,
+            decoder.Decompress(invalidInput, output, out bytesConsumed, out bytesWritten));
+        Assert.Equal(invalidInput.Length, bytesConsumed);
+        Assert.Equal(0, bytesWritten);
         Assert.Equal(OperationStatus.InvalidData, decoder.Decompress(compressed, output, out _, out _));
 
         decoder.Reset();
@@ -112,6 +116,20 @@ public class SnappyBlockCodecTests
         Assert.Equal(OperationStatus.Done, decoder.Decompress(compressed, output, out bytesConsumed, out bytesWritten));
         Assert.Equal(compressed.Length, bytesConsumed);
         Assert.Equal(output.Length, bytesWritten);
+    }
+
+    [Fact]
+    public void Decoder_LiteralLongerThanExpected_ReturnsInvalidData()
+    {
+        using var decoder = new SnappyBlockDecoder();
+        byte[] input = [1, 4, 42];
+        Span<byte> output = stackalloc byte[1];
+
+        OperationStatus status = decoder.Decompress(input, output, out int bytesConsumed, out int bytesWritten);
+
+        Assert.Equal(OperationStatus.InvalidData, status);
+        Assert.Equal(input.Length, bytesConsumed);
+        Assert.Equal(0, bytesWritten);
     }
 
     [Fact]
@@ -147,6 +165,8 @@ public class SnappyBlockCodecTests
 
         Assert.Throws<InvalidDataException>(() =>
             decoder.Decompress(new ReadOnlySequence<byte>([1, 1, 0]), new TestBufferWriter()));
+        Assert.Throws<InvalidDataException>(() =>
+            decoder.Decompress(new ReadOnlySequence<byte>([1, 4, 42]), new TestBufferWriter()));
         Assert.Throws<InvalidDataException>(() =>
             decoder.Decompress(new ReadOnlySequence<byte>([128]), new TestBufferWriter()));
         Assert.Throws<InvalidDataException>(() =>
