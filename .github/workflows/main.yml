@@ -18,16 +18,16 @@ jobs:
         disable: ["HWIntrinsics", "SSSE3", "BMI2", "Noop"]
 
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v7
     - name: Setup .NET
-      uses: actions/setup-dotnet@v5
+      uses: actions/setup-dotnet@v6
       with:
         dotnet-version: |
           8.0.x
           9.0.x
           10.0.x
     # Cache packages for faster subsequent runs
-    - uses: actions/cache@v4
+    - uses: actions/cache@v6
       with:
         path: ~/.nuget/packages
         key: ${{ runner.os }}-${{ runner.arch }}-nuget-${{ hashFiles('**/*.csproj', '**/*.props', '**/*.targets') }}
@@ -43,7 +43,7 @@ jobs:
         export COMPlus_Enable${{ matrix.disable }}=0 && \
         dotnet test --no-build -f ${{ matrix.framework }} --configuration Release --verbosity normal --logger "GitHubActions;summary.includePassedTests=true;summary.includeSkippedTests=true" --collect:"XPlat Code Coverage"
     - name: Collect Coverage
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: coverage-${{ matrix.framework }}-${{ runner.arch }}-${{ matrix.disable }}
         path: Snappier.Tests/TestResults/**/*.xml
@@ -57,16 +57,16 @@ jobs:
         framework: ["net8.0", "net9.0", "net10.0"]
 
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v7
     - name: Setup .NET
-      uses: actions/setup-dotnet@v5
+      uses: actions/setup-dotnet@v6
       with:
         dotnet-version: |
           8.0.x
           9.0.x
           10.0.x
     # Cache packages for faster subsequent runs
-    - uses: actions/cache@v4
+    - uses: actions/cache@v6
       with:
         path: ~/.nuget/packages
         key: ${{ runner.os }}-${{ runner.arch }}-nuget-${{ hashFiles('**/*.csproj', '**/*.props', '**/*.targets') }}
@@ -81,7 +81,7 @@ jobs:
       run: |
         dotnet test --no-build -f ${{ matrix.framework }} --configuration Release --verbosity normal --logger "GitHubActions;summary.includePassedTests=true;summary.includeSkippedTests=true" --collect:"XPlat Code Coverage"
     - name: Collect Coverage
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: coverage-${{ matrix.framework }}-${{ runner.arch }}
         path: Snappier.Tests/TestResults/**/*.xml
@@ -95,13 +95,13 @@ jobs:
         arch: ["x64", "x86"]
 
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v7
     - name: Setup .NET
-      uses: actions/setup-dotnet@v5
+      uses: actions/setup-dotnet@v6
       with:
         dotnet-version: '10.0.x'
     # Cache packages for faster subsequent runs
-    - uses: actions/cache@v4
+    - uses: actions/cache@v6
       with:
         path: ~/.nuget/packages
         key: ${{ runner.os }}-${{ runner.arch }}-nuget-${{ hashFiles('**/*.csproj', '**/*.props', '**/*.targets') }}
@@ -114,7 +114,7 @@ jobs:
       run: |-
         dotnet test --no-restore --runtime win-${{ matrix.arch }} -f net48 --configuration Release --verbosity normal --logger "GitHubActions;summary.includePassedTests=true;summary.includeSkippedTests=true" --collect:"XPlat Code Coverage" -- RunConfiguration.DisableAppDomain=true
     - name: Collect Coverage
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: coverage-net4-${{ matrix.arch }}
         path: Snappier.Tests/TestResults/**/*.xml
@@ -129,13 +129,13 @@ jobs:
       - test-windows
 
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v7
     - name: Setup .NET
-      uses: actions/setup-dotnet@v5
+      uses: actions/setup-dotnet@v6
       with:
         dotnet-version: '10.0.x'
     - name: Download Coverage
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         pattern: coverage-*
         path: TestResults
@@ -153,7 +153,7 @@ jobs:
         classfilters: '-System.Diagnostics.*;-System.Runtime.*;-Snappier.Internal.ThrowHelper'
         license: ${{ secrets.REPORT_GENERATOR_LICENSE }}
     - name: Collect Report
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: coverage-report
         path: artifacts/coveragereport
@@ -174,11 +174,11 @@ jobs:
       id-token: write  # enable GitHub OIDC token issuance for this job
 
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v7
       with:
         fetch-depth: 0  # required for GitVersion to work properly
     - name: Setup .NET
-      uses: actions/setup-dotnet@v5
+      uses: actions/setup-dotnet@v6
       with:
         dotnet-version: 10.0.x
 
@@ -193,6 +193,7 @@ jobs:
         configFilePath: "GitVersion.yml"
 
     - name: NuGet login (OIDC → temp API key)
+      if: ${{ startsWith(github.ref, 'refs/tags/release/') }}
       uses: NuGet/login@v1
       id: login
       with:
@@ -203,7 +204,7 @@ jobs:
     - name: Pack
       run: dotnet pack --configuration Release -p:Version=${{ steps.gitversion.outputs.fullSemVer }}
     - name: Upload Package Artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: package
         path: artifacts/package/**
