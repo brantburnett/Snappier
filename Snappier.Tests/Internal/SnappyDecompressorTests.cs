@@ -104,6 +104,62 @@ public class SnappyDecompressorTests
         Assert.Equal(compressed.Memory.Length, bytesConsumed);
     }
 
+    [Fact]
+    public void Decompress_LiteralLongerThanExpected_ReturnsInvalidData()
+    {
+        using var decompressor = new SnappyDecompressor();
+        byte[] input = [1, 4, 42];
+
+        OperationStatus status = decompressor.Decompress(input, out int bytesConsumed);
+
+        Assert.Equal(OperationStatus.InvalidData, status);
+        Assert.Equal(input.Length, bytesConsumed);
+    }
+
+    [Fact]
+    public void Decompress_SplitLongLiteralHeaderLongerThanExpected_ReturnsInvalidData()
+    {
+        using var decompressor = new SnappyDecompressor();
+
+        OperationStatus status = decompressor.Decompress([1, 0xf0], out int bytesConsumed);
+
+        Assert.Equal(OperationStatus.NeedMoreData, status);
+        Assert.Equal(2, bytesConsumed);
+
+        status = decompressor.Decompress([1, 42], out bytesConsumed);
+
+        Assert.Equal(OperationStatus.InvalidData, status);
+        Assert.Equal(2, bytesConsumed);
+    }
+
+    [Fact]
+    public void Decompress_InvalidTag_ReportsBytesConsumed()
+    {
+        using var decompressor = new SnappyDecompressor();
+        byte[] input = [1, 1, 0];
+
+        OperationStatus status = decompressor.Decompress(input, out int bytesConsumed);
+
+        Assert.Equal(OperationStatus.InvalidData, status);
+        Assert.Equal(input.Length, bytesConsumed);
+    }
+
+    [Fact]
+    public void Decompress_SplitInvalidTag_ReportsBytesConsumed()
+    {
+        using var decompressor = new SnappyDecompressor();
+
+        OperationStatus status = decompressor.Decompress([1, 1], out int bytesConsumed);
+
+        Assert.Equal(OperationStatus.NeedMoreData, status);
+        Assert.Equal(2, bytesConsumed);
+
+        status = decompressor.Decompress([0], out bytesConsumed);
+
+        Assert.Equal(OperationStatus.InvalidData, status);
+        Assert.Equal(1, bytesConsumed);
+    }
+
     #endregion
 
     #region DecompressAllTags
@@ -116,7 +172,7 @@ public class SnappyDecompressorTests
         var decompressor = new SnappyDecompressor();
         decompressor.SetExpectedLengthForTest(1024);
 
-        decompressor.WriteToBufferForTest(Enumerable.Range(0, 255).Select(p => (byte) p).ToArray());
+        decompressor.WriteToBufferForTest(Enumerable.Range(0, 255).Select(p => (byte)p).ToArray());
 
         // if in error, decompressor will read the 222, 0, 0 as the next tag and throw a copy offset exception
         decompressor.LoadScratchForTest([222, 222, 222, 222, 0, 0], 0);
@@ -226,7 +282,7 @@ public class SnappyDecompressorTests
         // Assert
 
         Assert.Equal(4, result2.Memory.Length);
-        Assert.Equal(new byte[] {4, 3, 2, 1}, result2.Memory.ToArray() );
+        Assert.Equal(new byte[] { 4, 3, 2, 1 }, result2.Memory.ToArray());
     }
 
     #endregion
