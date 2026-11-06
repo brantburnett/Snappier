@@ -284,6 +284,81 @@ public class SnappyTests
         });
     }
 
+    // Uncompressed length 10, then a literal tag (0x44) declaring 18 bytes, but only 10 bytes of input follow.
+    // https://github.com/brantburnett/Snappier/issues/152
+    private static readonly byte[] TruncatedLiteralBlock =
+        [0x0a, 0x44, 0x01, 0x00, 0x00, 0x00, 0x01, 0x01, 0x00, 0x00, 0x00, 0x02];
+
+    // Uncompressed length 10, then a literal tag (0x34) declaring 14 bytes, with all 14 bytes present.
+    private static readonly byte[] LiteralLongerThanUncompressedLengthBlock =
+        [0x0a, 0x34, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e];
+
+    public static TheoryData<string> LiteralOverrunBlocks =>
+        [nameof(TruncatedLiteralBlock), nameof(LiteralLongerThanUncompressedLengthBlock)];
+
+    private static byte[] GetLiteralOverrunBlock(string name) => name switch
+    {
+        nameof(TruncatedLiteralBlock) => TruncatedLiteralBlock,
+        nameof(LiteralLongerThanUncompressedLengthBlock) => LiteralLongerThanUncompressedLengthBlock,
+        _ => throw new ArgumentOutOfRangeException(nameof(name))
+    };
+
+    [Theory]
+    [MemberData(nameof(LiteralOverrunBlocks))]
+    public void BadData_LiteralOverrun_Decompress_ThrowsInvalidDataException(string blockName)
+    {
+        byte[] compressed = GetLiteralOverrunBlock(blockName);
+
+        Assert.Equal(10, Snappy.GetUncompressedLength(compressed));
+
+        byte[] output = new byte[10];
+        Assert.Throws<InvalidDataException>(() => Snappy.Decompress(compressed, output));
+    }
+
+    [Theory]
+    [MemberData(nameof(LiteralOverrunBlocks))]
+    public void BadData_LiteralOverrun_TryDecompress_ThrowsInvalidDataException(string blockName)
+    {
+        byte[] compressed = GetLiteralOverrunBlock(blockName);
+
+        byte[] output = new byte[10];
+        Assert.Throws<InvalidDataException>(() => Snappy.TryDecompress(compressed, output, out _));
+    }
+
+    [Theory]
+    [MemberData(nameof(LiteralOverrunBlocks))]
+    public void BadData_LiteralOverrun_DecompressToMemory_ThrowsInvalidDataException(string blockName)
+    {
+        byte[] compressed = GetLiteralOverrunBlock(blockName);
+
+        Assert.Throws<InvalidDataException>(() => Snappy.DecompressToMemory(compressed).Dispose());
+    }
+
+    [Theory]
+    [MemberData(nameof(LiteralOverrunBlocks))]
+    public void BadData_LiteralOverrun_DecompressToArray_ThrowsInvalidDataException(string blockName)
+    {
+        byte[] compressed = GetLiteralOverrunBlock(blockName);
+
+        Assert.Throws<InvalidDataException>(() => Snappy.DecompressToArray(compressed));
+    }
+
+    [Theory]
+    [MemberData(nameof(LiteralOverrunBlocks))]
+    public void BadData_LiteralOverrun_SplitSequence_ThrowsInvalidDataException(string blockName)
+    {
+        byte[] compressed = GetLiteralOverrunBlock(blockName);
+
+        // Split into segments of every size so the tag and literal land in scratch and span segment boundaries
+        for (int segmentSize = 1; segmentSize <= compressed.Length; segmentSize++)
+        {
+            ReadOnlySequence<byte> sequence = SequenceHelpers.CreateSequence(compressed, segmentSize);
+
+            Assert.Throws<InvalidDataException>(() => Snappy.DecompressToMemory(sequence).Dispose());
+            Assert.Throws<InvalidDataException>(() => Snappy.Decompress(sequence, new ArrayBufferWriter<byte>()));
+        }
+    }
+
     [Theory]
     [InlineData("baddata1.snappy")]
     [InlineData("baddata2.snappy")]
