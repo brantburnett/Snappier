@@ -285,6 +285,22 @@ public class SnappyTests
     }
 
     [Theory]
+    [InlineData(0x7FFFFFFFu)]
+    [InlineData(0x80000000u)]
+    [InlineData(0xFFFFFFFEu)]
+    [InlineData(0xFFFFFFFFu)]
+    public void BadData_LongLiteralLength_ThrowsInvalidDataException(uint encodedLength)
+    {
+        byte[] compressed = CreateLongLiteralBlock(encodedLength);
+
+        Assert.Throws<InvalidDataException>(() =>
+        {
+            byte[] output = new byte[LongLiteralBlockUncompressedLength];
+            Snappy.Decompress(compressed, output);
+        });
+    }
+
+    [Theory]
     [InlineData("baddata1.snappy")]
     [InlineData("baddata2.snappy")]
     [InlineData("baddata3.snappy")]
@@ -396,6 +412,25 @@ public class SnappyTests
         Assert.True(input.AsSpan(0, bytesRead).SequenceEqual(writer.WrittenSpan));
     }
 
+    [Theory]
+    [InlineData(0x7FFFFFFFu)]
+    [InlineData(0x80000000u)]
+    [InlineData(0xFFFFFFFEu)]
+    [InlineData(0xFFFFFFFFu)]
+    public void BadData_LongLiteralLength_SplitTag_ThrowsInvalidDataException(uint encodedLength)
+    {
+        byte[] compressed = CreateLongLiteralBlock(encodedLength);
+
+        // Two byte segments split the literal tag so it is decoded from the scratch buffer
+        ReadOnlySequence<byte> compressedSequence = SequenceHelpers.CreateSequence(compressed, 2);
+
+        Assert.Throws<InvalidDataException>(() =>
+        {
+            var writer = new ArrayBufferWriter<byte>();
+            Snappy.Decompress(compressedSequence, writer);
+        });
+    }
+
 #endif
 
     [Fact]
@@ -443,6 +478,26 @@ public class SnappyTests
             Assert.Equal(buffer.Length, decompressed.Memory.Length);
             Assert.Equal(buffer, decompressed.Memory.ToArray());
         }
+    }
+
+    private const int LongLiteralBlockUncompressedLength = 32;
+
+    // Builds a block with a long literal tag (0xFC) followed by a 4-byte little-endian length, where
+    // the decoded literal length is encodedLength + 1. Trailing literal data is included so the tag
+    // is processed by the main decode loop rather than as an incomplete tag.
+    private static byte[] CreateLongLiteralBlock(uint encodedLength)
+    {
+        byte[] compressed = new byte[1 + 1 + 4 + LongLiteralBlockUncompressedLength];
+
+        compressed[0] = LongLiteralBlockUncompressedLength; // Uncompressed length varint
+        compressed[1] = 0xFC; // Literal tag, 4-byte length follows
+        compressed[2] = (byte) encodedLength;
+        compressed[3] = (byte) (encodedLength >> 8);
+        compressed[4] = (byte) (encodedLength >> 16);
+        compressed[5] = (byte) (encodedLength >> 24);
+        ArrayFill(compressed, (byte) 'A', 6, LongLiteralBlockUncompressedLength);
+
+        return compressed;
     }
 
     private static void ArrayFill(byte[] array, byte value)
