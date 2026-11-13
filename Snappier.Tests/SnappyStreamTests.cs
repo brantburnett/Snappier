@@ -263,7 +263,7 @@ public class SnappyStreamTests(ITestOutputHelper outputHelper)
 
     // https://github.com/brantburnett/Snappier/security/advisories/GHSA-pggp-6c3x-2xmx
     [Fact(Timeout = 5000)]
-    public void MalformedFrameInput()
+    public async Task MalformedFrameInput()
     {
         byte[] data = [ 0x00, 0x04, 0x00, 0x00, 0x64, 0x4e, 0x6c, 0x71, 0x79, 0x20, 0x77, 0x6f, 0x72, 0x6c, 0x64 ];
 
@@ -272,7 +272,9 @@ public class SnappyStreamTests(ITestOutputHelper outputHelper)
 
         using var destination = new MemoryStream();
 
-        // Ensure this throws, no infinite loop
-        Assert.Throws<InvalidDataException>(() => decompressor.CopyTo(destination));
+        // Ensure this throws, no infinite loop. The synchronous path runs on a worker thread so the
+        // test ends when the timeout is reached, even if a regression makes CopyTo never return.
+        await Assert.ThrowsAsync<InvalidDataException>(
+            () => Task.Run(() => decompressor.CopyTo(destination), TestContext.Current.CancellationToken));
     }
 }
