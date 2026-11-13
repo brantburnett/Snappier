@@ -80,7 +80,12 @@ jobs:
     - name: Build
       run: dotnet build --no-restore --configuration Release --verbosity normal
     - name: Test
+      # The ubuntu-24.04-arm image's XDG_RUNTIME_DIR is not owner-only, which VSTest in the .NET 11 SDK
+      # rejects for its test session directory. Use an owner-only runtime directory instead.
       run: |
+        ls -ld "$XDG_RUNTIME_DIR" || true
+        export XDG_RUNTIME_DIR="$RUNNER_TEMP/xdg-runtime" && \
+        mkdir -p -m 700 "$XDG_RUNTIME_DIR" && \
         dotnet test --no-build -f ${{ matrix.framework }} --configuration Release --verbosity normal --logger "GitHubActions;summary.includePassedTests=true;summary.includeSkippedTests=true" --collect:"XPlat Code Coverage"
     - name: Collect Coverage
       uses: actions/upload-artifact@v7
