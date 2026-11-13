@@ -114,7 +114,14 @@ jobs:
       run: dotnet restore --runtime win-${{ matrix.arch }}
     - name: Test
       run: |-
-        dotnet test --project Snappier.Tests --no-restore --runtime win-${{ matrix.arch }} -f net48 --configuration Release --coverlet --coverlet-output-format cobertura --results-directory "${{ github.workspace }}/TestResults"
+        dotnet test --project Snappier.Tests --no-restore --runtime win-${{ matrix.arch }} -f net48 --configuration Release --coverlet --coverlet-output-format cobertura --report-xunit-trx --report-xunit-trx-filename Snappier.Tests-net48-${{ matrix.arch }}.trx --results-directory "${{ github.workspace }}/TestResults"
+    # GitHubActionsTestLogger has no .NET Framework build, so publish the TRX results as an artifact instead
+    - name: Collect Test Results
+      if: ${{ !cancelled() }}
+      uses: actions/upload-artifact@v7
+      with:
+        name: test-results-net4-${{ matrix.arch }}
+        path: TestResults/**/*.trx
     - name: Collect Coverage
       uses: actions/upload-artifact@v7
       with:
