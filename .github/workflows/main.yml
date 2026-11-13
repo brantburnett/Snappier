@@ -42,12 +42,12 @@ jobs:
     - name: Test
       run: |
         export COMPlus_Enable${{ matrix.disable }}=0 && \
-        dotnet test --no-build -f ${{ matrix.framework }} --configuration Release --verbosity normal --logger "GitHubActions;summary.includePassedTests=true;summary.includeSkippedTests=true" --collect:"XPlat Code Coverage"
+        dotnet test --no-build -f ${{ matrix.framework }} --configuration Release --report-github --coverlet --coverlet-output-format cobertura --results-directory "${{ github.workspace }}/TestResults"
     - name: Collect Coverage
       uses: actions/upload-artifact@v7
       with:
         name: coverage-${{ matrix.framework }}-${{ runner.arch }}-${{ matrix.disable }}
-        path: Snappier.Tests/TestResults/**/*.xml
+        path: TestResults/**/*.xml
         retention-days: 1
 
   test-arm:
@@ -80,18 +80,13 @@ jobs:
     - name: Build
       run: dotnet build --no-restore --configuration Release --verbosity normal
     - name: Test
-      env:
-        # VSTest's test session directory check uses x64 open() flags, which fail with EINVAL on linux-arm64
-        # and make dotnet test exit 1 after all tests pass. Remove once fixed upstream:
-        # https://github.com/microsoft/vstest/issues/16657
-        VSTEST_DISABLE_ARTIFACTS_DIRECTORY_VERIFICATION: "1"
       run: |
-        dotnet test --no-build -f ${{ matrix.framework }} --configuration Release --verbosity normal --logger "GitHubActions;summary.includePassedTests=true;summary.includeSkippedTests=true" --collect:"XPlat Code Coverage"
+        dotnet test --no-build -f ${{ matrix.framework }} --configuration Release --report-github --coverlet --coverlet-output-format cobertura --results-directory "${{ github.workspace }}/TestResults"
     - name: Collect Coverage
       uses: actions/upload-artifact@v7
       with:
         name: coverage-${{ matrix.framework }}-${{ runner.arch }}
-        path: Snappier.Tests/TestResults/**/*.xml
+        path: TestResults/**/*.xml
         retention-days: 1
 
   test-windows:
@@ -119,12 +114,12 @@ jobs:
       run: dotnet restore --runtime win-${{ matrix.arch }}
     - name: Test
       run: |-
-        dotnet test --no-restore --runtime win-${{ matrix.arch }} -f net48 --configuration Release --verbosity normal --logger "GitHubActions;summary.includePassedTests=true;summary.includeSkippedTests=true" --collect:"XPlat Code Coverage" -- RunConfiguration.DisableAppDomain=true
+        dotnet test --project Snappier.Tests --no-restore --runtime win-${{ matrix.arch }} -f net48 --configuration Release --coverlet --coverlet-output-format cobertura --results-directory "${{ github.workspace }}/TestResults"
     - name: Collect Coverage
       uses: actions/upload-artifact@v7
       with:
         name: coverage-net4-${{ matrix.arch }}
-        path: Snappier.Tests/TestResults/**/*.xml
+        path: TestResults/**/*.xml
         retention-days: 1
 
   coverage-report:
@@ -148,8 +143,8 @@ jobs:
         path: TestResults
     - name: Cleanup Windows Coverage
       run: |
-        find ./TestResults/coverage-net4-x86 -type f -name '*.xml' | xargs sed -i 's|[A-Z]:.*\\Snappier\\Snappier\\Snappier\\|${{ github.workspace }}/Snappier/|g'
-        find ./TestResults/coverage-net4-x64 -type f -name '*.xml' | xargs sed -i 's|[A-Z]:.*\\Snappier\\Snappier\\Snappier\\|${{ github.workspace }}/Snappier/|g'
+        find ./TestResults/coverage-net4-x86 -type f -name '*.xml' | xargs sed -i 's|[A-Z]:.*[/\\]Snappier[/\\]Snappier[/\\]Snappier[/\\]|${{ github.workspace }}/Snappier/|g'
+        find ./TestResults/coverage-net4-x64 -type f -name '*.xml' | xargs sed -i 's|[A-Z]:.*[/\\]Snappier[/\\]Snappier[/\\]Snappier[/\\]|${{ github.workspace }}/Snappier/|g'
       shell: bash
     - name: ReportGenerator
       uses: danielpalme/ReportGenerator-GitHub-Action@v5
