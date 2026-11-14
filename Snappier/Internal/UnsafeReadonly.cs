@@ -54,22 +54,6 @@ internal static class UnsafeReadonly
             }
         }
 
-        /// <safety>
-        /// The object or buffer at <paramref name="source"/> must have at least sizeof(<typeparamref name="TTo"/>)
-        /// readable bytes, and <typeparamref name="TTo"/> must be valid for any bit pattern stored there. Reads through
-        /// the result are ordinary typed loads, so <paramref name="source"/> must be suitably aligned for
-        /// <typeparamref name="TTo"/> on platforms that require aligned access, such as ARM32.
-        /// </safety>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static unsafe ref readonly TTo As<TFrom, TTo>(ref readonly TFrom source)
-        {
-            unsafe
-            {
-                // SAFETY: forwards the caller's obligation stated in the <safety> comment.
-                return ref Unsafe.As<TFrom, TTo>(ref Unsafe.AsRef(in source));
-            }
-        }
-
 #if !NET8_0_OR_GREATER
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static nint ByteOffset<T>(ref readonly T origin, ref readonly T target)
