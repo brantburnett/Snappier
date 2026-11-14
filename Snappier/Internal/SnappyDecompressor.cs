@@ -287,6 +287,15 @@ internal sealed class SnappyDecompressor : IDisposable
                         literalLength = (nint) Helpers.ExtractLowBytes(literalLengthTemp,
                             (int) literalLengthLength) + 1;
 
+                        // On x86 nint is 32-bit, so a 4-byte length >= 0x7FFFFFFF becomes negative or wraps to zero
+                        // after the + 1. A negative length would bypass the bounds check in Append and the cast to uint
+                        // would copy ~2 GB. A valid literal is always at least 1 byte. IntPtr.Size is a JIT-time
+                        // constant, so this check is removed on 64-bit platforms, where Append's bounds check suffices.
+                        if (IntPtr.Size == 4 && literalLength <= 0)
+                        {
+                            ThrowHelper.ThrowInvalidDataException("Data too long");
+                        }
+
                         input = ref Unsafe.Add(in input, literalLengthLength);
                     }
 
