@@ -22,10 +22,10 @@ public class FrameworkCompareConfig : StandardConfig
             .WithRuntime(CoreRuntime.Core80)
             .WithPgo(true));
         AddJob(baseJob
-            .WithRuntime(CoreRuntime.Core90)
+            .WithRuntime(CoreRuntime.Core10_0)
             .WithPgo(true));
         AddJob(baseJob
-            .WithRuntime(CoreRuntime.Core10_0)
+            .WithRuntime(CoreRuntime.Core11_0)
             .WithPgo(true));
 
         AddLogicalGroupRules(BenchmarkLogicalGroupRule.ByJob);
