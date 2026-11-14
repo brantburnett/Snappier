@@ -355,7 +355,9 @@ public class SnappyTests
             ReadOnlySequence<byte> sequence = SequenceHelpers.CreateSequence(compressed, segmentSize);
 
             Assert.Throws<InvalidDataException>(() => Snappy.DecompressToMemory(sequence).Dispose());
+#if NET6_0_OR_GREATER
             Assert.Throws<InvalidDataException>(() => Snappy.Decompress(sequence, new ArrayBufferWriter<byte>()));
+#endif
         }
     }
 
