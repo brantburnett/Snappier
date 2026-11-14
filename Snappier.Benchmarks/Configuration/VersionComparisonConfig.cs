@@ -69,7 +69,7 @@ public class VersionComparisonConfig : StandardConfig
 
         public string GetLogicalGroupKey(ImmutableArray<BenchmarkCase> allBenchmarksCases,
             BenchmarkCase benchmarkCase) =>
-            $"{benchmarkCase.Job.Infrastructure.Runtime.Name}-Pgo={(PgoColumn.IsPgo(benchmarkCase) ? "Y" : "N")}-{benchmarkCase.Descriptor.MethodIndex}";
+            $"{benchmarkCase.Job.Infrastructure.Runtime.Name}-{benchmarkCase.Job.Infrastructure.Runtime.Version}-Pgo={(PgoColumn.IsPgo(benchmarkCase) ? "Y" : "N")}-{benchmarkCase.Descriptor.MethodIndex}";
 
         public IEnumerable<IGrouping<string, BenchmarkCase>> GetLogicalGroupOrder(
             IEnumerable<IGrouping<string, BenchmarkCase>> logicalGroups,
