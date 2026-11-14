@@ -35,6 +35,79 @@ internal static class ThrowHelper
     public static void ThrowNotSupportedException(string? message = null) =>
         throw new NotSupportedException(message);
 
+    // The helpers below forward fixed messages to the general throw helpers above. They are not inlined so
+    // the message string loads and argument setup stay out of the compiled code of hot-path callers.
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public static void ThrowArgumentExceptionInputTooLarge(string? paramName) =>
+        ThrowArgumentException($"{paramName} is larger than the maximum size of {uint.MaxValue} bytes.", paramName);
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public static void ThrowArgumentOutOfRangeExceptionScratchLengthExceedsLimit(string? paramName) =>
+        ThrowArgumentOutOfRangeException(paramName, "Scratch length exceeds limit");
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public static void ThrowInvalidDataExceptionDataTooLong() =>
+        ThrowInvalidDataException("Data too long");
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public static void ThrowInvalidDataExceptionInvalidCopyOffset() =>
+        ThrowInvalidDataException("Invalid copy offset");
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public static void ThrowInvalidDataExceptionInvalidStreamLength() =>
+        ThrowInvalidDataException("Invalid stream length");
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public static void ThrowInvalidOperationExceptionAllDataDecompressed() =>
+        ThrowInvalidOperationException("All data has been decompressed");
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public static void ThrowInvalidOperationExceptionBlockNotFullyDecompressed() =>
+        ThrowInvalidOperationException("Block is not fully decompressed.");
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public static void ThrowInvalidOperationExceptionBufferNotInitialized() =>
+        ThrowInvalidOperationException("Buffer not initialized");
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public static void ThrowInvalidOperationExceptionBufferWriterInsufficientSpan() =>
+        ThrowInvalidOperationException("IBufferWriter<byte> did not return a sufficient span");
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public static void ThrowInvalidOperationExceptionBufferWriterInsufficientLengthPrefixSpan() =>
+        ThrowInvalidOperationException("IBufferWriter<byte> did not return a sufficient span for length prefix.");
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public static void ThrowInvalidOperationExceptionInsufficientBufferSize() =>
+        ThrowInvalidOperationException("Insufficient buffer size");
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public static void ThrowInvalidOperationExceptionInvalidStreamLength() =>
+        ThrowInvalidOperationException("Invalid stream length");
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public static void ThrowInvalidOperationExceptionNoDataPresent() =>
+        ThrowInvalidOperationException("No data present.");
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public static void ThrowInvalidOperationExceptionOverlappingSpans() =>
+        ThrowInvalidOperationException("Input and output spans must not overlap.");
+
 #if !NET8_0_OR_GREATER
     [DoesNotReturn]
     private static void ThrowArgumentNullException(string? paramName) =>

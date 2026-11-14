@@ -39,13 +39,13 @@ internal class HashTable : IDisposable
     {
         if (_buffer is null)
         {
-            ThrowHelper.ThrowInvalidOperationException("Buffer not initialized");
+            ThrowHelper.ThrowInvalidOperationExceptionBufferNotInitialized();
         }
 
         int hashTableSize = CalculateTableSize(fragmentSize);
         if (hashTableSize > _buffer.Length)
         {
-            ThrowHelper.ThrowInvalidOperationException("Insufficient buffer size");
+            ThrowHelper.ThrowInvalidOperationExceptionInsufficientBufferSize();
         }
 
         Span<ushort> hashTable = _buffer.AsSpan(0, hashTableSize);
