@@ -254,7 +254,8 @@ internal sealed class SnappyDecompressor : IDisposable
                 // AppendFromSelf and TryFastAppend, which check against bufferEnd, and AppendFromSelf validates copy
                 // offsets against the start of the lookback buffer. Every length passed to Append is non-negative:
                 // inputRemaining because input <= inputEnd, and a long literal length because a length that overflowed
-                // nint on 32-bit platforms is rejected after it is decoded.
+                // nint on 32-bit platforms is rejected after it is decoded. Every length passed to AppendFromSelf is
+                // 1 to 64, either (c >> 2) + 1 for a 4-byte offset copy or the length a copy tag's CharTable entry holds.
                 while (true)
                 {
                     if (!Unsafe.IsAddressLessThan(in input, in inputLimitMinMaxTagLength))
@@ -470,7 +471,8 @@ internal sealed class SnappyDecompressor : IDisposable
             unsafe
             {
                 // SAFETY: scratch is MaximumTagLength (5) bytes, so 4 bytes are readable at index 1. The caller
-                // guarantees buffer <= op <= bufferEnd, and AppendFromSelf validates copyOffset and length.
+                // guarantees buffer <= op <= bufferEnd, length = (c >> 2) + 1 is 1 to 64, and AppendFromSelf validates
+                // copyOffset and length against the buffer.
                 uint copyOffset = Helpers.UnsafeReadUInt32(in _scratch[1]);
                 AppendFromSelf(ref op, ref buffer, ref bufferEnd, copyOffset, length);
             }
@@ -493,7 +495,8 @@ internal sealed class SnappyDecompressor : IDisposable
 
             unsafe
             {
-                // SAFETY: the caller guarantees buffer <= op <= bufferEnd, and AppendFromSelf validates copyOffset and length.
+                // SAFETY: the caller guarantees buffer <= op <= bufferEnd, the CharTable entry for a copy tag holds a
+                // length of 1 to 64, and AppendFromSelf validates copyOffset and length against the buffer.
                 AppendFromSelf(ref op, ref buffer, ref bufferEnd, copyOffset, length);
             }
 
@@ -733,7 +736,9 @@ internal sealed class SnappyDecompressor : IDisposable
 
     /// <safety>
     /// <paramref name="buffer"/>, <paramref name="op"/> and <paramref name="bufferEnd"/> must reference the same buffer with
-    /// buffer &lt;= op &lt;= bufferEnd.
+    /// buffer &lt;= op &lt;= bufferEnd, and <paramref name="length"/> must be in the range 0 to 64, as decoded from a copy
+    /// tag. Only a length beyond bufferEnd is checked here. A negative length would form a reference before op, and a
+    /// length over 64 breaks the <see cref="CopyHelpers.IncrementalCopy"/> contract.
     /// </safety>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static unsafe void AppendFromSelf(ref byte op, ref byte buffer, ref byte bufferEnd, uint copyOffset, nint length)
@@ -755,7 +760,8 @@ internal sealed class SnappyDecompressor : IDisposable
         unsafe
         {
             // SAFETY: copyOffset is checked against buffer and length against bufferEnd above, so source and
-            // op + length are inside the lookback buffer, and length <= 64 for every copy tag.
+            // op + length are inside the lookback buffer. The caller guarantees 0 <= length <= 64, as
+            // IncrementalCopy requires.
             ref readonly byte source = ref Unsafe.Subtract(ref op, copyOffset);
             CopyHelpers.IncrementalCopy(in source, ref op,
                 ref Unsafe.Add(ref op, length), ref bufferEnd);
