@@ -244,25 +244,10 @@ public static class Snappy
 
     private static void Decompress(SnappyDecompressor decompressor, ReadOnlySequence<byte> input)
     {
-        Span<byte> scratch = stackalloc byte[Constants.MaximumTagLength];
-
-        while (!input.IsEmpty && !decompressor.AllDataDecompressed)
+        OperationStatus status = decompressor.Decompress(input, out _);
+        if (status == OperationStatus.InvalidData)
         {
-            int bytesConsumed = Decompress(decompressor, input.First.Span);
-
-            if (bytesConsumed == 0 && !input.IsSingleSegment)
-            {
-                int bytesToCopy = (int)Math.Min(input.Length, scratch.Length);
-                input.Slice(0, bytesToCopy).CopyTo(scratch);
-                bytesConsumed = Decompress(decompressor, scratch.Slice(0, bytesToCopy));
-            }
-
-            if (bytesConsumed == 0)
-            {
-                break;
-            }
-
-            input = input.Slice(bytesConsumed);
+            ThrowHelper.ThrowInvalidDataException("Invalid Snappy block.");
         }
     }
 

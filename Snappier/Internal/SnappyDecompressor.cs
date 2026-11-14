@@ -118,6 +118,48 @@ internal sealed class SnappyDecompressor : IDisposable
         return _status = OperationStatus.Done;
     }
 
+    /// <summary>
+    /// Decompress a portion of the input.
+    /// </summary>
+    /// <param name="input">Input to process.</param>
+    /// <param name="bytesConsumed">Number of bytes consumed from <paramref name="input"/>.</param>
+    /// <returns>Status indicating whether the block is complete, needs more data, or is invalid.</returns>
+    /// <remarks>
+    /// Behaves the same as <see cref="Decompress(ReadOnlySpan{byte}, out int)"/>, processing each segment in turn.
+    /// Partial lengths and tags which span segments are retained internally, so all input is consumed unless
+    /// the block completes or is invalid.
+    /// </remarks>
+    public OperationStatus Decompress(ReadOnlySequence<byte> input, out long bytesConsumed)
+    {
+        if (input.IsSingleSegment)
+        {
+            OperationStatus singleStatus = Decompress(input.First.Span, out int singleBytesConsumed);
+            bytesConsumed = singleBytesConsumed;
+            return singleStatus;
+        }
+
+        bytesConsumed = 0;
+        OperationStatus status = _status;
+
+        foreach (ReadOnlyMemory<byte> segment in input)
+        {
+            if (segment.IsEmpty)
+            {
+                continue;
+            }
+
+            status = Decompress(segment.Span, out int segmentBytesConsumed);
+            bytesConsumed += segmentBytesConsumed;
+
+            if (status != OperationStatus.NeedMoreData)
+            {
+                break;
+            }
+        }
+
+        return status;
+    }
+
     public void Reset()
     {
         _scratchLength = 0;
@@ -151,17 +193,65 @@ internal sealed class SnappyDecompressor : IDisposable
 
     private OperationStatus TryReadUncompressedLength(ReadOnlySpan<byte> input, out int bytesConsumed)
     {
-        OperationStatus status = VarIntEncoding.TryRead(input, out uint length, out bytesConsumed);
-        if (status == OperationStatus.Done)
+        OperationStatus status;
+        uint length;
+
+        if (_scratchLength > 0)
         {
-            if (length > int.MaxValue)
+            // We have a partial length in the scratch buffer from a previous call, so finish reading that first.
+            // The maximum tag length of 5 bytes is also the maximum varint length, so we can reuse the scratch buffer.
+            Span<byte> scratch = Scratch;
+            int previousScratchLength = _scratchLength;
+            int toCopy = Math.Min(input.Length, scratch.Length - previousScratchLength);
+            input.Slice(0, toCopy).CopyTo(scratch.Slice(previousScratchLength));
+
+            status = VarIntEncoding.TryRead(scratch.Slice(0, previousScratchLength + toCopy), out length, out int scratchBytesConsumed);
+
+            switch (status)
             {
-                return OperationStatus.InvalidData;
+                case OperationStatus.Done:
+                    // Only count the bytes which came from this input, not those already held in scratch
+                    bytesConsumed = scratchBytesConsumed - previousScratchLength;
+                    _scratchLength = 0;
+                    break;
+
+                case OperationStatus.NeedMoreData:
+                    // All of the input was retained in scratch, but more is needed to complete the length
+                    bytesConsumed = toCopy;
+                    _scratchLength += toCopy;
+                    DebugExtensions.Assert(_scratchLength < scratch.Length);
+                    return status;
+
+                default:
+                    bytesConsumed = 0;
+                    return status;
+            }
+        }
+        else
+        {
+            status = VarIntEncoding.TryRead(input, out length, out bytesConsumed);
+
+            if (status == OperationStatus.NeedMoreData)
+            {
+                // Retain the partial length internally so the caller can treat the input as consumed
+                input.CopyTo(Scratch);
+                _scratchLength = input.Length;
+                bytesConsumed = input.Length;
+                return status;
             }
 
-            ExpectedLength = (int)length;
+            if (status != OperationStatus.Done)
+            {
+                return status;
+            }
         }
 
+        if (length > int.MaxValue)
+        {
+            return OperationStatus.InvalidData;
+        }
+
+        ExpectedLength = (int)length;
         return status;
     }
 

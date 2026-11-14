@@ -213,47 +213,19 @@ internal sealed class SnappyStreamDecompressor : IDisposable
     {
         DebugExtensions.Assert(_decompressor is not null);
 
-        int previousScratchLength = _scratchLength;
-        ReadOnlySpan<byte> compressedInput;
-        if (previousScratchLength > 0)
-        {
-            int bytesToCopy = Math.Min(inputLength, Scratch.Length - previousScratchLength);
-            input.Slice(0, bytesToCopy).CopyTo(Scratch.Slice(previousScratchLength));
-            compressedInput = Scratch.Slice(0, previousScratchLength + bytesToCopy);
-        }
-        else
-        {
-            compressedInput = input.Slice(0, inputLength);
-        }
-
-        OperationStatus status = _decompressor.Decompress(compressedInput, out int bytesConsumed);
-
-        if (status == OperationStatus.NeedMoreData && bytesConsumed == 0)
-        {
-            int bytesToCache = compressedInput.Length - previousScratchLength;
-            if (previousScratchLength == 0)
-            {
-                compressedInput.CopyTo(Scratch);
-            }
-
-            _scratchLength += bytesToCache;
-            _chunkBytesProcessed += bytesToCache;
-            input = input.Slice(bytesToCache);
-            return;
-        }
+        OperationStatus status = _decompressor.Decompress(input.Slice(0, inputLength), out int bytesConsumed);
 
         if (status == OperationStatus.InvalidData)
         {
             ThrowHelper.ThrowInvalidDataException("Invalid compressed block.");
         }
 
-        int inputBytesProvided = compressedInput.Length - previousScratchLength;
-        int inputBytesConsumed = bytesConsumed - previousScratchLength;
-        _scratchLength = 0;
-        _chunkBytesProcessed += inputBytesConsumed;
-        input = input.Slice(inputBytesConsumed);
+        _chunkBytesProcessed += bytesConsumed;
+        input = input.Slice(bytesConsumed);
 
-        if (inputBytesConsumed != inputBytesProvided ||
+        // The decompressor retains partial lengths and tags internally, so all input within the chunk
+        // should be consumed. Any leftovers indicate the block ended before the chunk did.
+        if (bytesConsumed != inputLength ||
             (status == OperationStatus.Done && _chunkBytesProcessed != _chunkSize))
         {
             ThrowHelper.ThrowInvalidDataException("Invalid compressed block.");

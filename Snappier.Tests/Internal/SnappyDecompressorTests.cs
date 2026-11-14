@@ -6,6 +6,90 @@ public class SnappyDecompressorTests
 {
     #region Decompress
 
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(7)]
+    [InlineData(1024)]
+    public void Decompress_Sequence_Succeeds(int maxSegmentSize)
+    {
+        // Arrange
+
+        using var decompressor = new SnappyDecompressor();
+        byte[] data = Enumerable.Range(0, 65536).Select(value => (byte)(value % 251)).ToArray();
+        using IMemoryOwner<byte> compressed = Snappy.CompressToMemory(data);
+        ReadOnlySequence<byte> input = SequenceHelpers.CreateSequence(compressed.Memory, maxSegmentSize);
+
+        // Act
+
+        OperationStatus status = decompressor.Decompress(input, out long bytesConsumed);
+
+        // Assert
+
+        Assert.Equal(OperationStatus.Done, status);
+        Assert.Equal(compressed.Memory.Length, bytesConsumed);
+
+        using IMemoryOwner<byte> result = decompressor.ExtractData();
+        Assert.True(result.Memory.Span.SequenceEqual(data));
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(3)]
+    public void Decompress_IncompleteSequence_NeedMoreDataThenDone(int splitPoint)
+    {
+        // Arrange
+
+        using var decompressor = new SnappyDecompressor();
+        byte[] data = new byte[65536];
+        using IMemoryOwner<byte> compressed = Snappy.CompressToMemory(data);
+
+        // Act/Assert
+
+        OperationStatus status = decompressor.Decompress(
+            SequenceHelpers.CreateSequence(compressed.Memory.Slice(0, splitPoint), 1), out long bytesConsumed);
+        Assert.Equal(OperationStatus.NeedMoreData, status);
+        Assert.Equal(splitPoint, bytesConsumed);
+
+        status = decompressor.Decompress(
+            SequenceHelpers.CreateSequence(compressed.Memory.Slice(splitPoint), 2), out bytesConsumed);
+        Assert.Equal(OperationStatus.Done, status);
+        Assert.Equal(compressed.Memory.Length - splitPoint, bytesConsumed);
+
+        using IMemoryOwner<byte> result = decompressor.ExtractData();
+        Assert.True(result.Memory.Span.SequenceEqual(data));
+    }
+
+    [Fact]
+    public void Decompress_SequenceWithTrailingData_StopsAtEndOfBlock()
+    {
+        // Arrange
+
+        using var decompressor = new SnappyDecompressor();
+        using IMemoryOwner<byte> compressed = Snappy.CompressToMemory(new byte[1024]);
+        byte[] input = [.. compressed.Memory.ToArray(), 1, 2, 3, 4];
+
+        // Act
+
+        OperationStatus status = decompressor.Decompress(SequenceHelpers.CreateSequence(input, 3), out long bytesConsumed);
+
+        // Assert
+
+        Assert.Equal(OperationStatus.Done, status);
+        Assert.Equal(compressed.Memory.Length, bytesConsumed);
+    }
+
+    [Fact]
+    public void Decompress_InvalidSplitLength_ReturnsInvalidData()
+    {
+        using var decompressor = new SnappyDecompressor();
+
+        // A varint with continuation bits on all 5 bytes is invalid
+        Assert.Equal(OperationStatus.NeedMoreData, decompressor.Decompress([0xff, 0xff], out int bytesConsumed));
+        Assert.Equal(2, bytesConsumed);
+        Assert.Equal(OperationStatus.InvalidData, decompressor.Decompress([0xff, 0xff, 0xff], out _));
+    }
+
     [Fact]
     public void Decompress_SplitLength_Succeeds()
     {
@@ -19,17 +103,18 @@ public class SnappyDecompressorTests
 
         // Act
 
+        // Partial length bytes are retained internally and reported as consumed
         OperationStatus status = decompressor.Decompress(compressed.Memory.Span.Slice(0, 1), out int bytesConsumed);
         Assert.Equal(OperationStatus.NeedMoreData, status);
-        Assert.Equal(0, bytesConsumed);
+        Assert.Equal(1, bytesConsumed);
         Assert.True(decompressor.NeedMoreData);
-        status = decompressor.Decompress(compressed.Memory.Span.Slice(0, 2), out bytesConsumed);
+        status = decompressor.Decompress(compressed.Memory.Span.Slice(1, 1), out bytesConsumed);
         Assert.Equal(OperationStatus.NeedMoreData, status);
-        Assert.Equal(0, bytesConsumed);
+        Assert.Equal(1, bytesConsumed);
         Assert.True(decompressor.NeedMoreData);
-        status = decompressor.Decompress(compressed.Memory.Span, out bytesConsumed);
+        status = decompressor.Decompress(compressed.Memory.Span.Slice(2), out bytesConsumed);
         Assert.Equal(OperationStatus.Done, status);
-        Assert.Equal(compressed.Memory.Length, bytesConsumed);
+        Assert.Equal(compressed.Memory.Length - 2, bytesConsumed);
         Assert.False(decompressor.NeedMoreData);
 
         using IMemoryOwner<byte> result = decompressor.ExtractData();
