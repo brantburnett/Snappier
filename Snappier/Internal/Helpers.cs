@@ -82,7 +82,19 @@ internal static class Helpers
         }
 #endif
 
-        return value & ~(0xffffffff << (8 * numBytes));
+        return ExtractLowBytesFallback(value, numBytes);
+    }
+
+    // Separate from ExtractLowBytes so it can be tested on hardware with BMI2
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static uint ExtractLowBytesFallback(uint value, int numBytes)
+    {
+        DebugExtensions.Assert(numBytes >= 0);
+        DebugExtensions.Assert(numBytes <= 4);
+
+        // Build the mask from a 64-bit value. A 32-bit shift by 32 (numBytes == 4) is masked to a shift by 0,
+        // which would produce a zero mask instead of all ones.
+        return value & (uint)~(ulong.MaxValue << (8 * numBytes));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

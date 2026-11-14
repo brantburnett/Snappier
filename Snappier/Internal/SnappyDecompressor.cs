@@ -196,8 +196,11 @@ internal sealed class SnappyDecompressor : IDisposable
             // Track the point in the input before which input is guaranteed to have at least Constants.MaxTagLength bytes left
             ref readonly byte inputLimitMinMaxTagLength = ref Unsafe.Subtract(in inputEnd, Math.Min(inputSpan.Length, Constants.MaximumTagLength - 1));
 
-            ref byte buffer = ref _lookbackBuffer.Span[0];
-            ref byte bufferEnd = ref Unsafe.Add(ref buffer, _lookbackBuffer.Length);
+            // The lookback buffer may be larger than the expected length (i.e. rented from the ArrayPool or
+            // supplied by an IBufferWriter), bound all writes by the expected length so that invalid data which
+            // would produce more output than the declared uncompressed length is rejected.
+            ref byte buffer = ref MemoryMarshal.GetReference(_lookbackBuffer.Span);
+            ref byte bufferEnd = ref Unsafe.Add(ref buffer, ExpectedLength.GetValueOrDefault());
             ref byte op = ref Unsafe.Add(ref buffer, _lookbackPosition);
 
             if (_scratchLength > 0)
@@ -284,12 +287,25 @@ internal sealed class SnappyDecompressor : IDisposable
                         literalLength = (nint) Helpers.ExtractLowBytes(literalLengthTemp,
                             (int) literalLengthLength) + 1;
 
+                        // On x86 nint is 32-bit, so a 4-byte length >= 0x7FFFFFFF becomes negative or wraps to zero
+                        // after the + 1. A negative length would bypass the bounds check in Append and the cast to uint
+                        // would copy ~2 GB. A valid literal is always at least 1 byte. IntPtr.Size is a JIT-time
+                        // constant, so this check is removed on 64-bit platforms, where Append's bounds check suffices.
+                        if (IntPtr.Size == 4 && literalLength <= 0)
+                        {
+                            ThrowHelper.ThrowInvalidDataException("Data too long");
+                        }
+
                         input = ref Unsafe.Add(in input, literalLengthLength);
                     }
 
                     nint inputRemaining = Unsafe.ByteOffset(in input, in inputEnd);
                     if (inputRemaining < literalLength)
                     {
+                        // The rest of the literal is expected in a later call, ensure the entire literal fits
+                        // in the output before accepting the partial literal.
+                        EnsureLiteralFits(ref op, ref bufferEnd, literalLength);
+
                         Append(ref op, ref bufferEnd, in input, inputRemaining);
                         op = ref Unsafe.Add(ref op, inputRemaining);
                         _remainingLiteral = (int) (literalLength - inputRemaining);
@@ -367,20 +383,31 @@ internal sealed class SnappyDecompressor : IDisposable
 
         if ((c & 0x03) == Constants.Literal)
         {
-            uint literalLength = (uint)((c >> 2) + 1);
+            nint literalLength = (c >> 2) + 1;
             if (literalLength >= 61)
             {
                 // Long literal.
-                uint literalLengthLength = literalLength - 60;
+                nint literalLengthLength = literalLength - 60;
                 uint literalLengthTemp = Helpers.UnsafeReadUInt32(in _scratch[1]);
 
-                literalLength = Helpers.ExtractLowBytes(literalLengthTemp,
+                literalLength = (nint) Helpers.ExtractLowBytes(literalLengthTemp,
                     (int) literalLengthLength) + 1;
+
+                // On x86 nint is 32-bit, so a 4-byte length >= 0x7FFFFFFF becomes negative or wraps to zero
+                // after the + 1. See the matching check in DecompressAllTags.
+                if (IntPtr.Size == 4 && literalLength <= 0)
+                {
+                    ThrowHelper.ThrowInvalidDataException("Data too long");
+                }
             }
 
             nint inputRemaining = Unsafe.ByteOffset(in input, in inputEnd);
             if (inputRemaining < literalLength)
             {
+                // The rest of the literal is expected in a later call, ensure the entire literal fits
+                // in the output before accepting the partial literal.
+                EnsureLiteralFits(ref op, ref bufferEnd, literalLength);
+
                 Append(ref op, ref bufferEnd, in input, inputRemaining);
                 _remainingLiteral = (int) (literalLength - inputRemaining);
 
@@ -388,9 +415,9 @@ internal sealed class SnappyDecompressor : IDisposable
             }
             else
             {
-                Append(ref op, ref bufferEnd, in input, (nint)literalLength);
+                Append(ref op, ref bufferEnd, in input, literalLength);
 
-                return (inputUsed + literalLength, literalLength);
+                return (inputUsed + (uint) literalLength, (uint) literalLength);
             }
         }
         else if ((c & 3) == Constants.Copy4ByteOffset)
@@ -557,10 +584,11 @@ internal sealed class SnappyDecompressor : IDisposable
     {
         ref readonly byte inputPtr = ref input[0];
 
-        Span<byte> lookbackSpan = _lookbackBuffer.Span;
-        ref byte op = ref lookbackSpan[_lookbackPosition];
+        ref byte buffer = ref MemoryMarshal.GetReference(_lookbackBuffer.Span);
+        ref byte op = ref Unsafe.Add(ref buffer, _lookbackPosition);
 
-        Append(ref op, ref Unsafe.Add(ref lookbackSpan[0], lookbackSpan.Length), in inputPtr, input.Length);
+        // Bound writes by the expected length, the lookback buffer may be larger
+        Append(ref op, ref Unsafe.Add(ref buffer, ExpectedLength.GetValueOrDefault()), in inputPtr, input.Length);
         _lookbackPosition += input.Length;
     }
 
@@ -573,6 +601,17 @@ internal sealed class SnappyDecompressor : IDisposable
         }
 
         Unsafe.CopyBlockUnaligned(ref op, in input, (uint) length);
+    }
+
+    private static void EnsureLiteralFits(ref byte op, ref byte bufferEnd, nint literalLength)
+    {
+        // Compare as unsigned so a negative literalLength (i.e. a long literal length which overflowed nint
+        // on 32-bit platforms) is treated as too long. op never passes bufferEnd, so the remaining length
+        // is never negative.
+        if ((nuint)literalLength > (nuint)(nint)Unsafe.ByteOffset(ref op, ref bufferEnd))
+        {
+            ThrowHelper.ThrowInvalidDataException("Data too long");
+        }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
