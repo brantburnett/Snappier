@@ -26,6 +26,7 @@ jobs:
           8.0.x
           9.0.x
           10.0.x
+          11.0.x
     # Cache packages for faster subsequent runs
     - uses: actions/cache@v6
       with:
@@ -41,12 +42,12 @@ jobs:
     - name: Test
       run: |
         export COMPlus_Enable${{ matrix.disable }}=0 && \
-        dotnet test --no-build -f ${{ matrix.framework }} --configuration Release --verbosity normal --logger "GitHubActions;summary.includePassedTests=true;summary.includeSkippedTests=true" --collect:"XPlat Code Coverage"
+        dotnet test --no-build -f ${{ matrix.framework }} --configuration Release --report-github --coverlet --coverlet-output-format cobertura --results-directory "${{ github.workspace }}/TestResults"
     - name: Collect Coverage
       uses: actions/upload-artifact@v7
       with:
         name: coverage-${{ matrix.framework }}-${{ runner.arch }}-${{ matrix.disable }}
-        path: Snappier.Tests/TestResults/**/*.xml
+        path: TestResults/**/*.xml
         retention-days: 1
 
   test-arm:
@@ -65,6 +66,7 @@ jobs:
           8.0.x
           9.0.x
           10.0.x
+          11.0.x
     # Cache packages for faster subsequent runs
     - uses: actions/cache@v6
       with:
@@ -79,12 +81,12 @@ jobs:
       run: dotnet build --no-restore --configuration Release --verbosity normal
     - name: Test
       run: |
-        dotnet test --no-build -f ${{ matrix.framework }} --configuration Release --verbosity normal --logger "GitHubActions;summary.includePassedTests=true;summary.includeSkippedTests=true" --collect:"XPlat Code Coverage"
+        dotnet test --no-build -f ${{ matrix.framework }} --configuration Release --report-github --coverlet --coverlet-output-format cobertura --results-directory "${{ github.workspace }}/TestResults"
     - name: Collect Coverage
       uses: actions/upload-artifact@v7
       with:
         name: coverage-${{ matrix.framework }}-${{ runner.arch }}
-        path: Snappier.Tests/TestResults/**/*.xml
+        path: TestResults/**/*.xml
         retention-days: 1
 
   test-windows:
@@ -99,7 +101,7 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v6
       with:
-        dotnet-version: '10.0.x'
+        dotnet-version: '11.0.x'
     # Cache packages for faster subsequent runs
     - uses: actions/cache@v6
       with:
@@ -112,12 +114,19 @@ jobs:
       run: dotnet restore --runtime win-${{ matrix.arch }}
     - name: Test
       run: |-
-        dotnet test --no-restore --runtime win-${{ matrix.arch }} -f net48 --configuration Release --verbosity normal --logger "GitHubActions;summary.includePassedTests=true;summary.includeSkippedTests=true" --collect:"XPlat Code Coverage" -- RunConfiguration.DisableAppDomain=true
+        dotnet test --project Snappier.Tests --no-restore --runtime win-${{ matrix.arch }} -f net48 --configuration Release --coverlet --coverlet-output-format cobertura --report-xunit-trx --report-xunit-trx-filename Snappier.Tests-net48-${{ matrix.arch }}.trx --results-directory "${{ github.workspace }}/TestResults"
+    # GitHubActionsTestLogger has no .NET Framework build, so publish the TRX results as an artifact instead
+    - name: Collect Test Results
+      if: ${{ !cancelled() }}
+      uses: actions/upload-artifact@v7
+      with:
+        name: test-results-net4-${{ matrix.arch }}
+        path: TestResults/**/*.trx
     - name: Collect Coverage
       uses: actions/upload-artifact@v7
       with:
         name: coverage-net4-${{ matrix.arch }}
-        path: Snappier.Tests/TestResults/**/*.xml
+        path: TestResults/**/*.xml
         retention-days: 1
 
   coverage-report:
@@ -133,7 +142,7 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v6
       with:
-        dotnet-version: '10.0.x'
+        dotnet-version: '11.0.x'
     - name: Download Coverage
       uses: actions/download-artifact@v8
       with:
@@ -141,8 +150,8 @@ jobs:
         path: TestResults
     - name: Cleanup Windows Coverage
       run: |
-        find ./TestResults/coverage-net4-x86 -type f -name '*.xml' | xargs sed -i 's|[A-Z]:.*\\Snappier\\Snappier\\Snappier\\|${{ github.workspace }}/Snappier/|g'
-        find ./TestResults/coverage-net4-x64 -type f -name '*.xml' | xargs sed -i 's|[A-Z]:.*\\Snappier\\Snappier\\Snappier\\|${{ github.workspace }}/Snappier/|g'
+        find ./TestResults/coverage-net4-x86 -type f -name '*.xml' | xargs sed -i 's|[A-Z]:.*[/\\]Snappier[/\\]Snappier[/\\]Snappier[/\\]|${{ github.workspace }}/Snappier/|g'
+        find ./TestResults/coverage-net4-x64 -type f -name '*.xml' | xargs sed -i 's|[A-Z]:.*[/\\]Snappier[/\\]Snappier[/\\]Snappier[/\\]|${{ github.workspace }}/Snappier/|g'
       shell: bash
     - name: ReportGenerator
       uses: danielpalme/ReportGenerator-GitHub-Action@v5
@@ -180,7 +189,7 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v6
       with:
-        dotnet-version: 10.0.x
+        dotnet-version: 11.0.x
 
     - name: Install GitVersion
       uses: gittools/actions/gitversion/setup@v4
