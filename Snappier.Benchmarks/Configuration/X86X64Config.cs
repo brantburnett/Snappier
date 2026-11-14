@@ -1,8 +1,7 @@
 ﻿using BenchmarkDotNet.Diagnosers;
 using BenchmarkDotNet.Environments;
 using BenchmarkDotNet.Jobs;
-using BenchmarkDotNet.Toolchains.CsProj;
-using BenchmarkDotNet.Toolchains.DotNetCli;
+using BenchmarkDotNet.Toolchains.NetCoreApp;
 
 namespace Snappier.Benchmarks.Configuration;
 
@@ -10,20 +9,22 @@ public class X86X64Config : StandardConfig
 {
     public X86X64Config(Job baseJob)
     {
-        NetCoreAppSettings dotnetCli32Bit = NetCoreAppSettings
-            .NetCoreApp50
-            .WithCustomDotNetCliPath(@"C:\Program Files (x86)\dotnet\dotnet.exe", "32 bit cli");
+        NetCoreAppSettings dotnetCli32Bit = new()
+        {
+            CliPath = new FileInfo(@"C:\Program Files (x86)\dotnet\dotnet.exe"),
+        };
 
-        NetCoreAppSettings dotnetCli64Bit = NetCoreAppSettings
-            .NetCoreApp50
-            .WithCustomDotNetCliPath(@"C:\Program Files\dotnet\dotnet.exe", "64 bit cli");
+        NetCoreAppSettings dotnetCli64Bit = new()
+        {
+            CliPath = new FileInfo(@"C:\Program Files\dotnet\dotnet.exe"),
+        };
 
         AddJob(baseJob
-            .WithToolchain(CsProjCoreToolchain.From(dotnetCli32Bit))
+            .WithToolchain(CsProjCoreToolchain.From(CoreRuntime.Core10_0, dotnetCli32Bit))
             .WithPlatform(Platform.X86)
             .WithId("x86"));
         AddJob(baseJob
-            .WithToolchain(CsProjCoreToolchain.From(dotnetCli64Bit))
+            .WithToolchain(CsProjCoreToolchain.From(CoreRuntime.Core10_0, dotnetCli64Bit))
             .WithPlatform(Platform.X64)
             .WithId("x64"));
 

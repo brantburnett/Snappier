@@ -19,19 +19,19 @@ public class VersionComparisonConfig : StandardConfig
         Job jobBefore = baseJob.WithCustomBuildConfiguration("Previous");
 
         Job jobBefore80 = jobBefore.WithRuntime(CoreRuntime.Core80).WithPgo().AsBaseline();
-        Job jobBefore90 = jobBefore.WithRuntime(CoreRuntime.Core90).WithPgo().AsBaseline();
         Job jobBefore10_0 = jobBefore.WithRuntime(CoreRuntime.Core10_0).WithPgo().AsBaseline();
+        Job jobBefore11_0 = jobBefore.WithRuntime(CoreRuntime.Core11_0).WithPgo().AsBaseline();
 
         Job jobAfter80 = baseJob.WithRuntime(CoreRuntime.Core80).WithPgo();
-        Job jobAfter90 = baseJob.WithRuntime(CoreRuntime.Core90).WithPgo();
         Job jobAfter10_0 = baseJob.WithRuntime(CoreRuntime.Core10_0).WithPgo();
+        Job jobAfter11_0 = baseJob.WithRuntime(CoreRuntime.Core11_0).WithPgo();
 
         AddJob(jobBefore80);
-        AddJob(jobBefore90);
         AddJob(jobBefore10_0);
+        AddJob(jobBefore11_0);
         AddJob(jobAfter80);
-        AddJob(jobAfter90);
         AddJob(jobAfter10_0);
+        AddJob(jobAfter11_0);
 
 #if NET6_0_OR_GREATER // OperatingSystem check is only available in .NET 6.0 or later, but the runner itself won't be .NET 4 anyway
         if (OperatingSystem.IsWindows())
@@ -56,7 +56,7 @@ public class VersionComparisonConfig : StandardConfig
         public IEnumerable<BenchmarkCase> GetExecutionOrder(ImmutableArray<BenchmarkCase> benchmarksCase,
             IEnumerable<BenchmarkLogicalGroupRule> order = null) =>
             benchmarksCase
-                .OrderBy(p => p.Job.Environment.Runtime.MsBuildMoniker)
+                .OrderBy(p => p.Job.Infrastructure.Runtime.Version)
                 .ThenBy(p => PgoColumn.IsPgo(p) ? 1 : 0)
                 .ThenBy(p => !p.Descriptor.Baseline)
                 .ThenBy(p => p.DisplayInfo);
@@ -69,7 +69,7 @@ public class VersionComparisonConfig : StandardConfig
 
         public string GetLogicalGroupKey(ImmutableArray<BenchmarkCase> allBenchmarksCases,
             BenchmarkCase benchmarkCase) =>
-            $"{benchmarkCase.Job.Environment.Runtime.MsBuildMoniker}-Pgo={(PgoColumn.IsPgo(benchmarkCase) ? "Y" : "N")}-{benchmarkCase.Descriptor.MethodIndex}";
+            $"{benchmarkCase.Job.Infrastructure.Runtime.Name}-{benchmarkCase.Job.Infrastructure.Runtime.Version}-Pgo={(PgoColumn.IsPgo(benchmarkCase) ? "Y" : "N")}-{benchmarkCase.Descriptor.MethodIndex}";
 
         public IEnumerable<IGrouping<string, BenchmarkCase>> GetLogicalGroupOrder(
             IEnumerable<IGrouping<string, BenchmarkCase>> logicalGroups,
