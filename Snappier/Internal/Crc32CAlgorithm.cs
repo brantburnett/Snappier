@@ -56,7 +56,9 @@ internal static class Crc32CAlgorithm
             {
                 while (source.Length >= 8)
                 {
-                    crcLocal = Crc32.Arm64.ComputeCrc32C(crcLocal, MemoryMarshal.Read<ulong>(source));
+                    // SAFETY: the loop condition guarantees source has at least 8 bytes, and MemoryMarshal.Read
+                    // also checks the length.
+                    crcLocal = Crc32.Arm64.ComputeCrc32C(crcLocal, unsafe(MemoryMarshal.Read<ulong>(source)));
                     source = source.Slice(8);
                 }
             }
@@ -64,7 +66,9 @@ internal static class Crc32CAlgorithm
             // Process in 4-byte chunks
             while (source.Length >= 4)
             {
-                crcLocal = Crc32.ComputeCrc32C(crcLocal, MemoryMarshal.Read<uint>(source));
+                // SAFETY: the loop condition guarantees source has at least 4 bytes, and MemoryMarshal.Read
+                // also checks the length.
+                crcLocal = Crc32.ComputeCrc32C(crcLocal, unsafe(MemoryMarshal.Read<uint>(source)));
                 source = source.Slice(4);
             }
 
@@ -92,7 +96,9 @@ internal static class Crc32CAlgorithm
 
                     while (source.Length >= 8)
                     {
-                        crcLocalLong = Sse42.X64.Crc32(crcLocalLong, MemoryMarshal.Read<ulong>(source));
+                        // SAFETY: the loop condition guarantees source has at least 8 bytes, and MemoryMarshal.Read
+                        // also checks the length.
+                        crcLocalLong = Sse42.X64.Crc32(crcLocalLong, unsafe(MemoryMarshal.Read<ulong>(source)));
                         source = source.Slice(8);
                     }
 
@@ -103,7 +109,9 @@ internal static class Crc32CAlgorithm
             // Process in 4-byte chunks
             while (source.Length >= 4)
             {
-                crcLocal = Sse42.Crc32(crcLocal, MemoryMarshal.Read<uint>(source));
+                // SAFETY: the loop condition guarantees source has at least 4 bytes, and MemoryMarshal.Read
+                // also checks the length.
+                crcLocal = Sse42.Crc32(crcLocal, unsafe(MemoryMarshal.Read<uint>(source)));
                 source = source.Slice(4);
             }
 
