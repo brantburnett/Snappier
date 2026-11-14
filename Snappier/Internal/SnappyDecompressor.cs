@@ -290,7 +290,7 @@ internal sealed class SnappyDecompressor : IDisposable
                         // constant, so this check is removed on 64-bit platforms, where Append's bounds check suffices.
                         if (IntPtr.Size == 4 && literalLength <= 0)
                         {
-                            ThrowHelper.ThrowInvalidDataException("Invalid literal length");
+                            ThrowHelper.ThrowInvalidDataException("Data too long");
                         }
 
                         input = ref Unsafe.Add(in input, literalLengthLength);
