@@ -1,6 +1,8 @@
 <Project>
   <PropertyGroup>
-    <LangVersion>15</LangVersion>
+    <!-- preview is required for the updated memory safety rules, which are not part of C# 15 by default -->
+    <LangVersion>preview</LangVersion>
+    <Features>$(Features);updated-memory-safety-rules</Features>
     <CheckEolTargetFramework>false</CheckEolTargetFramework>
     <UseArtifactsOutput>true</UseArtifactsOutput>
   </PropertyGroup>

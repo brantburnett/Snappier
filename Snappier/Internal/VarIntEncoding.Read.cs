@@ -28,7 +28,8 @@ internal static partial class VarIntEncoding
 #if NET8_0_OR_GREATER
         if (Sse2.IsSupported && Bmi2.IsSupported && BitConverter.IsLittleEndian && input.Length >= Vector128<byte>.Count)
         {
-            return ReadFast(input, out result, out bytesRead);
+            // SAFETY: input.Length >= Vector128<byte>.Count was checked above.
+            return unsafe(ReadFast(input, out result, out bytesRead));
         }
 #endif
 
@@ -90,14 +91,23 @@ internal static partial class VarIntEncoding
         0xffffffff
     ];
 
-    private static OperationStatus ReadFast(ReadOnlySpan<byte> input, out uint result, out int bytesRead)
+    /// <safety>
+    /// <paramref name="input"/> must be at least <see cref="Vector128{T}.Count"/> bytes long.
+    /// </safety>
+    private static unsafe OperationStatus ReadFast(ReadOnlySpan<byte> input, out uint result, out int bytesRead)
     {
         DebugExtensions.Assert(Sse2.IsSupported);
         DebugExtensions.Assert(Bmi2.IsSupported);
         DebugExtensions.Assert(input.Length >= Vector128<byte>.Count);
         DebugExtensions.Assert(BitConverter.IsLittleEndian);
 
-        int mask = ~Sse2.MoveMask(Vector128.LoadUnsafe(ref MemoryMarshal.GetReference(input)));
+        int mask;
+
+        unsafe
+        {
+            // SAFETY: the caller guarantees input has at least 16 bytes, the size of the vector load.
+            mask = ~Sse2.MoveMask(Vector128.LoadUnsafe(ref MemoryMarshal.GetReference(input)));
+        }
         bytesRead = BitOperations.TrailingZeroCount(mask) + 1;
 
         uint shuffledBits = Bmi2.X64.IsSupported

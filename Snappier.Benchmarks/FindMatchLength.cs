@@ -59,10 +59,14 @@ public class FindMatchLength
     {
         ulong data = 0;
 
-        ref byte s1 = ref _array[0];
-        ref byte s2 = ref Unsafe.Add(ref s1, 12);
-        ref byte s2Limit = ref Unsafe.Add(ref s1, _array.Length);
+        unsafe
+        {
+            // SAFETY: s1, s2 and s2Limit are all within _array, and s2Limit is its end.
+            ref byte s1 = ref _array[0];
+            ref byte s2 = ref Unsafe.Add(ref s1, 12);
+            ref byte s2Limit = ref Unsafe.Add(ref s1, _array.Length);
 
-        return SnappyCompressor.FindMatchLength(ref s1, ref s2, ref s2Limit, ref data);
+            return SnappyCompressor.FindMatchLength(ref s1, ref s2, ref s2Limit, ref data);
+        }
     }
 }

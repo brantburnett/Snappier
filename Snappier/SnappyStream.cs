@@ -185,7 +185,7 @@ public sealed class SnappyStream : Stream
     public override int ReadByte()
     {
         byte b = 0;
-        int r = ReadCore(MemoryMarshal.CreateSpan(ref b, 1));
+        int r = ReadCore(new Span<byte>(ref b));
         return r == 0 ? -1 : b;
     }
 
@@ -374,7 +374,7 @@ public sealed class SnappyStream : Stream
     public override void Write(ReadOnlySpan<byte> buffer) => WriteCore(buffer);
 
     /// <inheritdoc />
-    public override void WriteByte(byte value) => WriteCore(MemoryMarshal.CreateReadOnlySpan(ref value, 1));
+    public override void WriteByte(byte value) => WriteCore(new ReadOnlySpan<byte>(in value));
 
 #endif
 
