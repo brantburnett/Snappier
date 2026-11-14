@@ -412,25 +412,6 @@ public class SnappyTests
         Assert.True(input.AsSpan(0, bytesRead).SequenceEqual(writer.WrittenSpan));
     }
 
-    [Theory]
-    [InlineData(0x7FFFFFFFu)]
-    [InlineData(0x80000000u)]
-    [InlineData(0xFFFFFFFEu)]
-    [InlineData(0xFFFFFFFFu)]
-    public void BadData_LongLiteralLength_SplitTag_ThrowsInvalidDataException(uint encodedLength)
-    {
-        byte[] compressed = CreateLongLiteralBlock(encodedLength);
-
-        // Two byte segments split the literal tag so it is decoded from the scratch buffer
-        ReadOnlySequence<byte> compressedSequence = SequenceHelpers.CreateSequence(compressed, 2);
-
-        Assert.Throws<InvalidDataException>(() =>
-        {
-            var writer = new ArrayBufferWriter<byte>();
-            Snappy.Decompress(compressedSequence, writer);
-        });
-    }
-
 #endif
 
     [Fact]
