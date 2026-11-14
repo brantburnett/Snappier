@@ -106,10 +106,8 @@ internal class CopyHelpers
                 // because its loads and stores partly overlap. By expanding the pattern
                 // in-place, we avoid the penalty.
 
-                // SAFETY: bufferEnd - 16 is only compared with op, never dereferenced. If the buffer is shorter
-                // than 16 bytes it points before the buffer, which the runtime does not formally allow even for a
-                // comparison.
-                if (!Unsafe.IsAddressGreaterThan(ref op, ref unsafe(Unsafe.Subtract(ref bufferEnd, 16))))
+                // Compare the distance rather than forming bufferEnd - 16, which could point before the buffer.
+                if (Unsafe.ByteOffset(ref op, ref bufferEnd) >= (nint) 16)
                 {
                     Vector128<byte> shuffleMask = PshufbFillPatterns[patternSize];
                     // SAFETY: source < op <= bufferEnd - 16, so 16 bytes are readable at source.
@@ -161,10 +159,8 @@ internal class CopyHelpers
             // bytes if pattern_size is 2.  Precisely encoding that is probably not
             // worthwhile; instead, invoke the slow path if we cannot write 11 bytes
             // (because 11 are required in the worst case).
-            // SAFETY: bufferEnd - 11 is only compared with op, never dereferenced. If the buffer is shorter
-            // than 11 bytes it points before the buffer, which the runtime does not formally allow even for a
-            // comparison.
-            if (!Unsafe.IsAddressGreaterThan(ref op, ref unsafe(Unsafe.Subtract(ref bufferEnd, 11))))
+            // Compare the distance rather than forming bufferEnd - 11, which could point before the buffer.
+            if (Unsafe.ByteOffset(ref op, ref bufferEnd) >= (nint) 11)
                 {
                     while (patternSize < 8)
                     {
@@ -207,10 +203,8 @@ internal class CopyHelpers
         //
         // Typically, the op_limit is the gating factor so try to simplify the loop
         // based on that.
-        // SAFETY: bufferEnd - 16 is only compared with opEnd, never dereferenced. If the buffer is shorter
-        // than 16 bytes it points before the buffer, which the runtime does not formally allow even for a
-        // comparison.
-        if (!Unsafe.IsAddressGreaterThan(ref opEnd, ref unsafe(Unsafe.Subtract(ref bufferEnd, 16))))
+        // Compare the distance rather than forming bufferEnd - 16, which could point before the buffer.
+        if (Unsafe.ByteOffset(ref opEnd, ref bufferEnd) >= (nint) 16)
         {
             unsafe
             {
@@ -219,15 +213,17 @@ internal class CopyHelpers
                 UnalignedCopy64(in source, ref op);
                 UnalignedCopy64(in Unsafe.Add(in source, 8), ref Unsafe.Add(ref op, 8));
 
-                if (Unsafe.IsAddressLessThan(ref op, ref Unsafe.Subtract(ref opEnd, 16))) {
+                // Compare distances rather than forming opEnd - N, which could point before the buffer.
+                nint remaining = Unsafe.ByteOffset(ref op, ref opEnd);
+                if (remaining > 16) {
                     UnalignedCopy64(in Unsafe.Add(in source, 16), ref Unsafe.Add(ref op, 16));
                     UnalignedCopy64(in Unsafe.Add(in source, 24), ref Unsafe.Add(ref op, 24));
                 }
-                if (Unsafe.IsAddressLessThan(ref op, ref Unsafe.Subtract(ref opEnd, 32))) {
+                if (remaining > 32) {
                     UnalignedCopy64(in Unsafe.Add(in source, 32), ref Unsafe.Add(ref op, 32));
                     UnalignedCopy64(in Unsafe.Add(in source, 40), ref Unsafe.Add(ref op, 40));
                 }
-                if (Unsafe.IsAddressLessThan(ref op, ref Unsafe.Subtract(ref opEnd, 48))) {
+                if (remaining > 48) {
                     UnalignedCopy64(in Unsafe.Add(in source, 48), ref Unsafe.Add(ref op, 48));
                     UnalignedCopy64(in Unsafe.Add(in source, 56), ref Unsafe.Add(ref op, 56));
                 }
@@ -241,11 +237,11 @@ internal class CopyHelpers
 
         unsafe
         {
-            // SAFETY: op < bufferEnd - 16 on every iteration, so each 16-byte write stays in the buffer, and
-            // source stays behind op. If the buffer is shorter than 16 bytes, loopEnd points before the buffer;
-            // it is only compared, but the runtime does not formally allow that even for a comparison.
-            for (ref byte loopEnd = ref Unsafe.Subtract(ref bufferEnd, 16);
-                 Unsafe.IsAddressLessThan(ref op, ref loopEnd);
+            // SAFETY: more than 16 bytes remain before bufferEnd on every iteration, so each 16-byte write stays in
+            // the buffer, and source stays behind op. The distance is compared rather than forming bufferEnd - 16,
+            // which could point before the buffer.
+            for (;
+                 Unsafe.ByteOffset(ref op, ref bufferEnd) > (nint) 16;
                  op = ref Unsafe.Add(ref op, 16), source = ref Unsafe.Add(in source, 16))
             {
                 UnalignedCopy64(in source, ref op);
@@ -262,10 +258,10 @@ internal class CopyHelpers
         // single 8 byte copy.
         unsafe
         {
-            // SAFETY: the 8-byte copy only runs when op <= bufferEnd - 8, leaving 8 writable bytes at op. After it,
-            // op can be past opEnd, which IncrementalCopySlow allows: it copies nothing in that case. source < op
-            // still share the caller's buffer.
-            if (!Unsafe.IsAddressGreaterThan(ref op, ref Unsafe.Subtract(ref bufferEnd, 8)))
+            // SAFETY: the 8-byte copy only runs when at least 8 bytes remain before bufferEnd. After it, op can be
+            // past opEnd, which IncrementalCopySlow allows: it copies nothing in that case. source < op still share
+            // the caller's buffer.
+            if (Unsafe.ByteOffset(ref op, ref bufferEnd) >= (nint) 8)
             {
                 UnalignedCopy64(in source, ref op);
                 source = ref Unsafe.Add(in source, 8);
