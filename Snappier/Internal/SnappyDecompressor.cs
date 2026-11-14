@@ -390,7 +390,7 @@ internal sealed class SnappyDecompressor : IDisposable
             {
                 // The rest of the literal is expected in a later call, ensure the entire literal fits
                 // in the output before accepting the partial literal.
-                EnsureLiteralFits(ref op, ref bufferEnd, literalLength);
+                EnsureLiteralFits(ref op, ref bufferEnd, (nint)literalLength);
 
                 Append(ref op, ref bufferEnd, in input, inputRemaining);
                 _remainingLiteral = (int) (literalLength - inputRemaining);
@@ -587,9 +587,12 @@ internal sealed class SnappyDecompressor : IDisposable
         Unsafe.CopyBlockUnaligned(ref op, in input, (uint) length);
     }
 
-    private static void EnsureLiteralFits(ref byte op, ref byte bufferEnd, long literalLength)
+    private static void EnsureLiteralFits(ref byte op, ref byte bufferEnd, nint literalLength)
     {
-        if (literalLength > Unsafe.ByteOffset(ref op, ref bufferEnd).ToInt64())
+        // Compare as unsigned so a negative literalLength (i.e. a long literal length which overflowed nint
+        // on 32-bit platforms) is treated as too long. op never passes bufferEnd, so the remaining length
+        // is never negative.
+        if ((nuint)literalLength > (nuint)(nint)Unsafe.ByteOffset(ref op, ref bufferEnd))
         {
             ThrowHelper.ThrowInvalidDataException("Data too long");
         }
