@@ -299,33 +299,33 @@ internal class CopyHelpers
 
     /// <safety>
     /// <paramref name="source"/> must have 8 readable bytes and <paramref name="destination"/> must have 8 writable bytes.
-    /// Neither needs to be aligned on x86, x64 or ARM64. The copy uses ordinary typed loads and stores through
-    /// Unsafe.As, so a misaligned address may fault on platforms that require aligned access, such as ARM32.
+    /// Neither needs to be aligned. The ranges may overlap: all 8 bytes are read before any is written.
     /// </safety>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void UnalignedCopy64(ref readonly byte source, ref byte destination)
     {
         unsafe
         {
-            // SAFETY: the caller guarantees 8 bytes at both source and destination.
-            long tempStackVar = Unsafe.As<byte, long>(in source);
-            Unsafe.As<byte, long>(ref destination) = tempStackVar;
+            // SAFETY: the caller guarantees 8 bytes at both source and destination. ReadUnaligned and WriteUnaligned
+            // emit the IL unaligned. prefix, so the JIT must not assume 8-byte alignment on any platform.
+            ulong tempStackVar = Unsafe.ReadUnaligned<ulong>(in source);
+            Unsafe.WriteUnaligned(ref destination, tempStackVar);
         }
     }
 
     /// <safety>
     /// <paramref name="source"/> must have 16 readable bytes and <paramref name="destination"/> must have 16 writable bytes.
-    /// Neither needs to be aligned on x86, x64 or ARM64. The copy uses ordinary typed loads and stores through
-    /// Unsafe.As, so a misaligned address may fault on platforms that require aligned access, such as ARM32.
+    /// Neither needs to be aligned. The ranges may overlap: all 16 bytes are read before any is written.
     /// </safety>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void UnalignedCopy128(ref readonly byte source, ref byte destination)
     {
         unsafe
         {
-            // SAFETY: the caller guarantees 16 bytes at both source and destination.
-            Guid tempStackVar = Unsafe.As<byte, Guid>(in source);
-            Unsafe.As<byte, Guid>(ref destination) = tempStackVar;
+            // SAFETY: the caller guarantees 16 bytes at both source and destination. ReadUnaligned and WriteUnaligned
+            // emit the IL unaligned. prefix, so the JIT must not assume the alignment of Guid on any platform.
+            Guid tempStackVar = Unsafe.ReadUnaligned<Guid>(in source);
+            Unsafe.WriteUnaligned(ref destination, tempStackVar);
         }
     }
 }
