@@ -87,8 +87,12 @@ internal class HashTable : IDisposable
     ///
     /// REQUIRES: mask is 2 * (table_size - 1), and table_size is a power of two.
     /// </summary>
+    /// <safety>
+    /// <paramref name="table"/> must reference the first element of a table of (<paramref name="mask"/> / 2 + 1) entries,
+    /// and <paramref name="mask"/> must be 2 * (table_size - 1) with table_size a power of two.
+    /// </safety>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ref ushort TableEntry(ref ushort table, uint bytes, uint mask)
+    public static unsafe ref ushort TableEntry(ref ushort table, uint bytes, uint mask)
     {
         // Our choice is quicker-and-dirtier than the typical hash function;
         // empirically, that seems beneficial.  The upper bits of kMagic * bytes are a
@@ -122,6 +126,7 @@ internal class HashTable : IDisposable
             hash = (kMagic * bytes) >> (31 - MaxHashTableBits);
         }
 
-        return ref Unsafe.AddByteOffset(ref table, hash & mask);
+        // SAFETY: hash & mask is an even byte offset no greater than mask, which the caller guarantees is inside the table.
+        return ref unsafe(Unsafe.AddByteOffset(ref table, hash & mask));
     }
 }

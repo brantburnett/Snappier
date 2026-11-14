@@ -40,7 +40,11 @@ internal static partial class VarIntEncoding
             // up to 8 bytes are being copied to the buffer from a register. This guard prevents a
             // potential buffer overrun.
 
-            bytesWritten = WriteFast(ref MemoryMarshal.GetReference(buffer), value);
+            unsafe
+            {
+                // SAFETY: buffer.Length >= sizeof(ulong) was checked above.
+                bytesWritten = WriteFast(ref MemoryMarshal.GetReference(buffer), value);
+            }
             return true;
         }
 #endif
@@ -50,11 +54,11 @@ internal static partial class VarIntEncoding
 
 #if NET8_0_OR_GREATER
 
-    private static int WriteFast(ref byte buffer, uint value)
+    /// <safety>
+    /// <paramref name="buffer"/> must have at least 8 writable bytes; up to 8 bytes are written regardless of the encoded length.
+    /// </safety>
+    private static unsafe int WriteFast(ref byte buffer, uint value)
     {
-        // The use of unsafe writes below is made safe because this method is never
-        // called without at least 8 bytes available in the buffer.
-
         if (value < 128)
         {
             // We need to special case 0 to ensure we write one byte, so go ahead and
@@ -79,7 +83,11 @@ internal static partial class VarIntEncoding
 
         // Finally, write the result to the buffer
 
-        Unsafe.WriteUnaligned(ref buffer, result | mask);
+        unsafe
+        {
+            // SAFETY: the caller guarantees 8 writable bytes at buffer, the size of the write.
+            Unsafe.WriteUnaligned(ref buffer, result | mask);
+        }
 
         return sizeof(ulong) - unusedBytes;
     }

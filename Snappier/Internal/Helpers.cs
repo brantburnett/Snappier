@@ -97,10 +97,14 @@ internal static class Helpers
         return value & (uint)~(ulong.MaxValue << (8 * numBytes));
     }
 
+    /// <safety>
+    /// <paramref name="ptr"/> and the 3 bytes after it must be readable and within the same buffer.
+    /// </safety>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static uint UnsafeReadUInt32(ref readonly byte ptr)
+    public static unsafe uint UnsafeReadUInt32(ref readonly byte ptr)
     {
-        uint result = Unsafe.ReadUnaligned<uint>(in ptr);
+        // SAFETY: the caller guarantees 4 readable bytes at ptr.
+        uint result = unsafe(Unsafe.ReadUnaligned<uint>(in ptr));
 
         if (!BitConverter.IsLittleEndian)
         {
@@ -110,10 +114,14 @@ internal static class Helpers
         return result;
     }
 
+    /// <safety>
+    /// <paramref name="ptr"/> and the 7 bytes after it must be readable and within the same buffer.
+    /// </safety>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ulong UnsafeReadUInt64(ref readonly byte ptr)
+    public static unsafe ulong UnsafeReadUInt64(ref readonly byte ptr)
     {
-        ulong result = Unsafe.ReadUnaligned<ulong>(in ptr);
+        // SAFETY: the caller guarantees 8 readable bytes at ptr.
+        ulong result = unsafe(Unsafe.ReadUnaligned<ulong>(in ptr));
 
         if (!BitConverter.IsLittleEndian)
         {
@@ -123,15 +131,22 @@ internal static class Helpers
         return result;
     }
 
+    /// <safety>
+    /// <paramref name="ptr"/> and the 3 bytes after it must be writable and within the same buffer.
+    /// </safety>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void UnsafeWriteUInt32(ref byte ptr, uint value)
+    public static unsafe void UnsafeWriteUInt32(ref byte ptr, uint value)
     {
         if (!BitConverter.IsLittleEndian)
         {
             value = BinaryPrimitives.ReverseEndianness(value);
         }
 
-        Unsafe.WriteUnaligned(ref ptr, value);
+        unsafe
+        {
+            // SAFETY: the caller guarantees 4 writable bytes at ptr.
+            Unsafe.WriteUnaligned(ref ptr, value);
+        }
     }
 
 #if !NET8_0_OR_GREATER
@@ -167,11 +182,15 @@ internal static class Helpers
         value |= value >> 16;
 
         // uint.MaxValue >> 27 is always in range [0 - 31] so we use Unsafe.AddByteOffset to avoid bounds check
-        return Unsafe.AddByteOffset(
-            // Using deBruijn sequence, k=2, n=5 (2^5=32) : 0b_0000_0111_1100_0100_1010_1100_1101_1101u
-            ref MemoryMarshal.GetReference(Log2DeBruijn),
-            // uint|long -> IntPtr cast on 32-bit platforms does expensive overflow checks not needed here
-            (IntPtr)(int)((value * 0x07C4ACDDu) >> 27));
+        unsafe
+        {
+            // SAFETY: (value * 0x07C4ACDDu) >> 27 is always in [0, 31] and Log2DeBruijn has 32 entries.
+            return Unsafe.AddByteOffset(
+                // Using deBruijn sequence, k=2, n=5 (2^5=32) : 0b_0000_0111_1100_0100_1010_1100_1101_1101u
+                ref MemoryMarshal.GetReference(Log2DeBruijn),
+                // uint|long -> IntPtr cast on 32-bit platforms does expensive overflow checks not needed here
+                (IntPtr)(int)((value * 0x07C4ACDDu) >> 27));
+        }
     }
 
 #endif

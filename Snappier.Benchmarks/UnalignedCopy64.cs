@@ -12,7 +12,11 @@ public class UnalignedCopy64
     [Benchmark]
     public void Default()
     {
-        ref byte ptr = ref _buffer[0];
-        CopyHelpers.UnalignedCopy64(in ptr, ref Unsafe.Add(ref ptr, 8));
+        unsafe
+        {
+            // SAFETY: _buffer is 16 bytes, so both 8-byte halves are in bounds.
+            ref byte ptr = ref _buffer[0];
+            CopyHelpers.UnalignedCopy64(in ptr, ref Unsafe.Add(ref ptr, 8));
+        }
     }
 }
