@@ -383,22 +383,22 @@ internal sealed class SnappyDecompressor : IDisposable
 
         if ((c & 0x03) == Constants.Literal)
         {
-            uint literalLength = (uint)((c >> 2) + 1);
+            nint literalLength = (c >> 2) + 1;
             if (literalLength >= 61)
             {
                 // Long literal.
-                uint literalLengthLength = literalLength - 60;
+                nint literalLengthLength = literalLength - 60;
                 uint literalLengthTemp = Helpers.UnsafeReadUInt32(in _scratch[1]);
 
-                uint literalLengthMinusOne = Helpers.ExtractLowBytes(literalLengthTemp, (int) literalLengthLength);
-                if (literalLengthMinusOne >= int.MaxValue)
+                literalLength = (nint) Helpers.ExtractLowBytes(literalLengthTemp,
+                    (int) literalLengthLength) + 1;
+
+                // On x86 nint is 32-bit, so a 4-byte length >= 0x7FFFFFFF becomes negative or wraps to zero
+                // after the + 1. See the matching check in DecompressAllTags.
+                if (IntPtr.Size == 4 && literalLength <= 0)
                 {
-                    // Output can never exceed int.MaxValue, reject before adding one so a 4-byte
-                    // length of 0xFFFFFFFF can't wrap to a zero-length literal.
                     ThrowHelper.ThrowInvalidDataException("Data too long");
                 }
-
-                literalLength = literalLengthMinusOne + 1;
             }
 
             nint inputRemaining = Unsafe.ByteOffset(in input, in inputEnd);
@@ -406,7 +406,7 @@ internal sealed class SnappyDecompressor : IDisposable
             {
                 // The rest of the literal is expected in a later call, ensure the entire literal fits
                 // in the output before accepting the partial literal.
-                EnsureLiteralFits(ref op, ref bufferEnd, (nint)literalLength);
+                EnsureLiteralFits(ref op, ref bufferEnd, literalLength);
 
                 Append(ref op, ref bufferEnd, in input, inputRemaining);
                 _remainingLiteral = (int) (literalLength - inputRemaining);
@@ -415,9 +415,9 @@ internal sealed class SnappyDecompressor : IDisposable
             }
             else
             {
-                Append(ref op, ref bufferEnd, in input, (nint)literalLength);
+                Append(ref op, ref bufferEnd, in input, literalLength);
 
-                return (inputUsed + literalLength, literalLength);
+                return (inputUsed + (uint) literalLength, (uint) literalLength);
             }
         }
         else if ((c & 3) == Constants.Copy4ByteOffset)
