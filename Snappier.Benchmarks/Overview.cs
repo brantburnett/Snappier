@@ -60,7 +60,7 @@ public class Overview
     {
         using var decompressor = new SnappyDecompressor();
 
-        decompressor.Decompress(_compressed.Span);
+        decompressor.Decompress(_compressed.Span, out _);
     }
 
     [Benchmark]

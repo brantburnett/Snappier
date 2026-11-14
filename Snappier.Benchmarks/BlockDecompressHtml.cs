@@ -25,6 +25,6 @@ public class BlockDecompressHtml
     {
         using var decompressor = new SnappyDecompressor();
 
-        decompressor.Decompress(_input.Span);
+        decompressor.Decompress(_input.Span, out _);
     }
 }
