@@ -381,8 +381,15 @@ internal sealed class SnappyDecompressor : IDisposable
                 uint literalLengthLength = literalLength - 60;
                 uint literalLengthTemp = Helpers.UnsafeReadUInt32(in _scratch[1]);
 
-                literalLength = Helpers.ExtractLowBytes(literalLengthTemp,
-                    (int) literalLengthLength) + 1;
+                uint literalLengthMinusOne = Helpers.ExtractLowBytes(literalLengthTemp, (int) literalLengthLength);
+                if (literalLengthMinusOne >= int.MaxValue)
+                {
+                    // Output can never exceed int.MaxValue, reject before adding one so a 4-byte
+                    // length of 0xFFFFFFFF can't wrap to a zero-length literal.
+                    ThrowHelper.ThrowInvalidDataException("Data too long");
+                }
+
+                literalLength = literalLengthMinusOne + 1;
             }
 
             nint inputRemaining = Unsafe.ByteOffset(in input, in inputEnd);

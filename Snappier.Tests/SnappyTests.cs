@@ -293,13 +293,19 @@ public class SnappyTests
     private static readonly byte[] LiteralLongerThanUncompressedLengthBlock =
         [0x0a, 0x34, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e];
 
+    // Uncompressed length 1, then a long literal tag (0xFC) with a 4-byte length of 0xFFFFFFFF (a 4 GiB literal),
+    // followed by a valid 1-byte literal. The 4-byte length plus one must not wrap to a zero-length literal.
+    private static readonly byte[] LongLiteralLengthOverflowBlock =
+        [0x01, 0xFC, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x42];
+
     public static TheoryData<string> LiteralOverrunBlocks =>
-        [nameof(TruncatedLiteralBlock), nameof(LiteralLongerThanUncompressedLengthBlock)];
+        [nameof(TruncatedLiteralBlock), nameof(LiteralLongerThanUncompressedLengthBlock), nameof(LongLiteralLengthOverflowBlock)];
 
     private static byte[] GetLiteralOverrunBlock(string name) => name switch
     {
         nameof(TruncatedLiteralBlock) => TruncatedLiteralBlock,
         nameof(LiteralLongerThanUncompressedLengthBlock) => LiteralLongerThanUncompressedLengthBlock,
+        nameof(LongLiteralLengthOverflowBlock) => LongLiteralLengthOverflowBlock,
         _ => throw new ArgumentOutOfRangeException(nameof(name))
     };
 
@@ -309,9 +315,7 @@ public class SnappyTests
     {
         byte[] compressed = GetLiteralOverrunBlock(blockName);
 
-        Assert.Equal(10, Snappy.GetUncompressedLength(compressed));
-
-        byte[] output = new byte[10];
+        byte[] output = new byte[Snappy.GetUncompressedLength(compressed)];
         Assert.Throws<InvalidDataException>(() => Snappy.Decompress(compressed, output));
     }
 
@@ -321,7 +325,7 @@ public class SnappyTests
     {
         byte[] compressed = GetLiteralOverrunBlock(blockName);
 
-        byte[] output = new byte[10];
+        byte[] output = new byte[Snappy.GetUncompressedLength(compressed)];
         Assert.Throws<InvalidDataException>(() => Snappy.TryDecompress(compressed, output, out _));
     }
 
