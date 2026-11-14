@@ -2,6 +2,46 @@
 
 public class HelpersTests
 {
+    #region ExtractLowBytes
+
+    [Theory]
+    [InlineData(0x12345678u, 0, 0x00000000u)]
+    [InlineData(0x12345678u, 1, 0x00000078u)]
+    [InlineData(0x12345678u, 2, 0x00005678u)]
+    [InlineData(0x12345678u, 3, 0x00345678u)]
+    [InlineData(0x12345678u, 4, 0x12345678u)]
+    [InlineData(0xFFFFFFFFu, 4, 0xFFFFFFFFu)]
+    public void ExtractLowBytes(uint value, int numBytes, uint expected)
+    {
+        // Act
+
+        uint result = Helpers.ExtractLowBytes(value, numBytes);
+
+        // Assert
+
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
+    [InlineData(0x12345678u, 0, 0x00000000u)]
+    [InlineData(0x12345678u, 1, 0x00000078u)]
+    [InlineData(0x12345678u, 2, 0x00005678u)]
+    [InlineData(0x12345678u, 3, 0x00345678u)]
+    [InlineData(0x12345678u, 4, 0x12345678u)]
+    [InlineData(0xFFFFFFFFu, 4, 0xFFFFFFFFu)]
+    public void ExtractLowBytesFallback(uint value, int numBytes, uint expected)
+    {
+        // Act
+
+        uint result = Helpers.ExtractLowBytesFallback(value, numBytes);
+
+        // Assert
+
+        Assert.Equal(expected, result);
+    }
+
+    #endregion
+
     #region LeftShiftOverflows
 
     [Theory]
