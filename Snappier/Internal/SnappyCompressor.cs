@@ -26,7 +26,7 @@ internal class SnappyCompressor : IDisposable
         ObjectDisposedException.ThrowIf(_workingMemory is null, this);
         if (input.Overlaps(output))
         {
-            ThrowHelper.ThrowInvalidOperationException("Input and output spans must not overlap.");
+            ThrowHelper.ThrowInvalidOperationExceptionOverlappingSpans();
         }
 
         _workingMemory.EnsureCapacity(input.Length);
@@ -98,7 +98,7 @@ internal class SnappyCompressor : IDisposable
         ArgumentNullException.ThrowIfNull(bufferWriter);
         if (input.Length > uint.MaxValue)
         {
-            ThrowHelper.ThrowArgumentException($"{nameof(input)} is larger than the maximum size of {uint.MaxValue} bytes.", nameof(input));
+            ThrowHelper.ThrowArgumentExceptionInputTooLarge(nameof(input));
         }
         ObjectDisposedException.ThrowIf(_workingMemory is null, this);
 
@@ -107,7 +107,7 @@ internal class SnappyCompressor : IDisposable
         Span<byte> sizeBuffer = bufferWriter.GetSpan(VarIntEncoding.MaxLength);
         if (!VarIntEncoding.TryWrite(sizeBuffer, (uint)input.Length, out int bytesWritten))
         {
-            ThrowHelper.ThrowInvalidOperationException("IBufferWriter<byte> did not return a sufficient span for length prefix.");
+            ThrowHelper.ThrowInvalidOperationExceptionBufferWriterInsufficientLengthPrefixSpan();
         }
         bufferWriter.Advance(bytesWritten);
 
@@ -175,7 +175,7 @@ internal class SnappyCompressor : IDisposable
         // Validate proper implementation of bufferWriter to prevent buffer overflows
         if (fragmentBuffer.Length < maxOutput)
         {
-            ThrowHelper.ThrowInvalidOperationException("IBufferWriter<byte> did not return a sufficient span");
+            ThrowHelper.ThrowInvalidOperationExceptionBufferWriterInsufficientSpan();
         }
 
         int bytesWritten;

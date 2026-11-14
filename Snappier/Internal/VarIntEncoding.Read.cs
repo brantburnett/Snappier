@@ -17,7 +17,7 @@ internal static partial class VarIntEncoding
     {
         if (TryRead(input, out uint result, out bytesRead) != OperationStatus.Done)
         {
-            ThrowHelper.ThrowInvalidDataException("Invalid stream length");
+            ThrowHelper.ThrowInvalidDataExceptionInvalidStreamLength();
         }
 
         return result;

@@ -44,7 +44,7 @@ internal sealed class SnappyDecompressor : IDisposable
     {
         if (AllDataDecompressed)
         {
-            ThrowHelper.ThrowInvalidOperationException("All data has been decompressed");
+            ThrowHelper.ThrowInvalidOperationExceptionAllDataDecompressed();
         }
 
         if (!ExpectedLength.HasValue)
@@ -52,7 +52,7 @@ internal sealed class SnappyDecompressor : IDisposable
             OperationStatus status = TryReadUncompressedLength(input, out int bytesConsumed);
             if (status == OperationStatus.InvalidData)
             {
-                ThrowHelper.ThrowInvalidOperationException("Invalid stream length");
+                ThrowHelper.ThrowInvalidOperationExceptionInvalidStreamLength();
             }
             else if (status != OperationStatus.Done)
             {
@@ -315,7 +315,7 @@ internal sealed class SnappyDecompressor : IDisposable
                             // constant, so this check is removed on 64-bit platforms, where Append's bounds check suffices.
                             if (IntPtr.Size == 4 && literalLength <= 0)
                             {
-                                ThrowHelper.ThrowInvalidDataException("Data too long");
+                                ThrowHelper.ThrowInvalidDataExceptionDataTooLong();
                             }
 
                             input = ref Unsafe.Add(in input, literalLengthLength);
@@ -430,7 +430,7 @@ internal sealed class SnappyDecompressor : IDisposable
                 // after the + 1. See the matching check in DecompressAllTags.
                 if (IntPtr.Size == 4 && literalLength <= 0)
                 {
-                    ThrowHelper.ThrowInvalidDataException("Data too long");
+                    ThrowHelper.ThrowInvalidDataExceptionDataTooLong();
                 }
             }
 
@@ -691,7 +691,7 @@ internal sealed class SnappyDecompressor : IDisposable
     {
         if (length > Unsafe.ByteOffset(ref op, ref bufferEnd))
         {
-            ThrowHelper.ThrowInvalidDataException("Data too long");
+            ThrowHelper.ThrowInvalidDataExceptionDataTooLong();
         }
 
         unsafe
@@ -709,7 +709,7 @@ internal sealed class SnappyDecompressor : IDisposable
         // is never negative.
         if ((nuint)literalLength > (nuint)(nint)Unsafe.ByteOffset(ref op, ref bufferEnd))
         {
-            ThrowHelper.ThrowInvalidDataException("Data too long");
+            ThrowHelper.ThrowInvalidDataExceptionDataTooLong();
         }
     }
 
@@ -749,12 +749,12 @@ internal sealed class SnappyDecompressor : IDisposable
         // as a long ensures we have enough bits to not lose data. On 64-bit platforms this is effectively a no-op.
         if (copyOffset == 0 || Unsafe.ByteOffset(ref buffer, ref op).ToInt64() < copyOffset)
         {
-            ThrowHelper.ThrowInvalidDataException("Invalid copy offset");
+            ThrowHelper.ThrowInvalidDataExceptionInvalidCopyOffset();
         }
 
         if (length > Unsafe.ByteOffset(ref op, ref bufferEnd))
         {
-            ThrowHelper.ThrowInvalidDataException("Data too long");
+            ThrowHelper.ThrowInvalidDataExceptionDataTooLong();
         }
 
         unsafe
@@ -805,7 +805,7 @@ internal sealed class SnappyDecompressor : IDisposable
         byte[]? data = _lookbackBufferArray;
         if (!ExpectedLength.HasValue)
         {
-            ThrowHelper.ThrowInvalidOperationException("No data present.");
+            ThrowHelper.ThrowInvalidOperationExceptionNoDataPresent();
         }
         else if (data is null || ExpectedLength.GetValueOrDefault() == 0)
         {
@@ -815,7 +815,7 @@ internal sealed class SnappyDecompressor : IDisposable
 
         if (!AllDataDecompressed)
         {
-            ThrowHelper.ThrowInvalidOperationException("Block is not fully decompressed.");
+            ThrowHelper.ThrowInvalidOperationExceptionBlockNotFullyDecompressed();
         }
 
         // Build the return before we reset and clear ExpectedLength
@@ -860,7 +860,7 @@ internal sealed class SnappyDecompressor : IDisposable
         ArgumentNullException.ThrowIfNull(newScratch);
         if (newScratchLength > ((ReadOnlySpan<byte>)_scratch).Length)
         {
-            ThrowHelper.ThrowArgumentOutOfRangeException(nameof(newScratchLength), "Scratch length exceeds limit");
+            ThrowHelper.ThrowArgumentOutOfRangeExceptionScratchLengthExceedsLimit(nameof(newScratchLength));
         }
 
         newScratch.AsSpan(0, (int) newScratchLength).CopyTo(_scratch);
