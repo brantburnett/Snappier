@@ -83,7 +83,8 @@ internal static class UnsafeReadonly
 
         /// <safety>
         /// <paramref name="source"/> must have <paramref name="byteCount"/> readable bytes and
-        /// <paramref name="destination"/> must have <paramref name="byteCount"/> writable bytes.
+        /// <paramref name="destination"/> must have <paramref name="byteCount"/> writable bytes. The two ranges must not
+        /// overlap. If they do, the copy stays within those bytes, but the bytes copied are unspecified.
         /// </safety>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static unsafe void CopyBlockUnaligned(ref byte destination, ref readonly byte source, uint byteCount)
