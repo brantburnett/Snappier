@@ -355,12 +355,14 @@ internal class SnappyCompressor : IDisposable
                             int bytesBetweenHashLookups = skip >> 5;
                             skip += bytesBetweenHashLookups;
 
-                            ref readonly byte nextIp = ref Unsafe.Add(in ip, bytesBetweenHashLookups);
-                            if (Unsafe.IsAddressGreaterThan(in nextIp, in ipLimit))
+                            // Check the distance before forming nextIp so it never points past the input.
+                            if (Unsafe.ByteOffset(in ip, in ipLimit) < bytesBetweenHashLookups)
                             {
                                 ip = ref nextEmit;
                                 goto emit_remainder;
                             }
+
+                            ref readonly byte nextIp = ref Unsafe.Add(in ip, bytesBetweenHashLookups);
 
                             candidate = ref Unsafe.Add(in inputStart, tableEntry);
                             DebugExtensions.Assert(!Unsafe.IsAddressLessThan(in candidate, in inputStart));
