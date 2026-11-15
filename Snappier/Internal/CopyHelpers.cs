@@ -214,18 +214,22 @@ internal class CopyHelpers
                 UnalignedCopy64(in Unsafe.Add(in source, 8), ref Unsafe.Add(ref op, 8));
 
                 // Compare distances rather than forming opEnd - N, which could point before the buffer.
+                // The checks are nested so a copy of 16 bytes or less, the common case, takes a single branch and the
+                // longer copies form one region the JIT can keep out of the hot path.
                 nint remaining = Unsafe.ByteOffset(ref op, ref opEnd);
                 if (remaining > 16) {
                     UnalignedCopy64(in Unsafe.Add(in source, 16), ref Unsafe.Add(ref op, 16));
                     UnalignedCopy64(in Unsafe.Add(in source, 24), ref Unsafe.Add(ref op, 24));
-                }
-                if (remaining > 32) {
-                    UnalignedCopy64(in Unsafe.Add(in source, 32), ref Unsafe.Add(ref op, 32));
-                    UnalignedCopy64(in Unsafe.Add(in source, 40), ref Unsafe.Add(ref op, 40));
-                }
-                if (remaining > 48) {
-                    UnalignedCopy64(in Unsafe.Add(in source, 48), ref Unsafe.Add(ref op, 48));
-                    UnalignedCopy64(in Unsafe.Add(in source, 56), ref Unsafe.Add(ref op, 56));
+
+                    if (remaining > 32) {
+                        UnalignedCopy64(in Unsafe.Add(in source, 32), ref Unsafe.Add(ref op, 32));
+                        UnalignedCopy64(in Unsafe.Add(in source, 40), ref Unsafe.Add(ref op, 40));
+
+                        if (remaining > 48) {
+                            UnalignedCopy64(in Unsafe.Add(in source, 48), ref Unsafe.Add(ref op, 48));
+                            UnalignedCopy64(in Unsafe.Add(in source, 56), ref Unsafe.Add(ref op, 56));
+                        }
+                    }
                 }
             }
 
