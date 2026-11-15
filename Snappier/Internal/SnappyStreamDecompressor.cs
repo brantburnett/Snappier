@@ -53,9 +53,7 @@ internal sealed class SnappyStreamDecompressor : IDisposable
                 case Constants.ChunkType.Null:
                     // Not in a chunk, read the chunk type and size
 
-                    uint rawChunkHeader = ReadChunkHeader(ref input);
-
-                    if (rawChunkHeader == 0)
+                    if (!TryReadChunkHeader(ref input, out uint rawChunkHeader))
                     {
                         // Not enough data, get some more
                         goto exit;
@@ -63,6 +61,13 @@ internal sealed class SnappyStreamDecompressor : IDisposable
 
                     _chunkType = (Constants.ChunkType) (rawChunkHeader & 0xff);
                     _chunkSize = unchecked((int)(rawChunkHeader >> 8));
+
+                    if (_chunkSize < 4 && _chunkType is Constants.ChunkType.CompressedData or Constants.ChunkType.UncompressedData)
+                    {
+                        // Data chunks always begin with a 4-byte CRC, so a smaller chunk is malformed
+                        ThrowHelper.ThrowInvalidDataException("Chunk too small to contain a CRC.");
+                    }
+
                     _chunkBytesProcessed = 0;
                     _scratchLength = 0;
                     _chunkCrc = 0;
@@ -217,11 +222,14 @@ internal sealed class SnappyStreamDecompressor : IDisposable
         _input = input;
     }
 
-    private uint ReadChunkHeader(ref ReadOnlySpan<byte> buffer)
+    private bool TryReadChunkHeader(ref ReadOnlySpan<byte> buffer, out uint header)
     {
+        // A header of all zeros is valid (a compressed chunk declaring zero bytes), so success is
+        // returned separately rather than using zero as an insufficient data sentinel.
+
         if (_scratchLength > 0)
         {
-            int bytesToCopyToScratch = 4 - _scratchLength;
+            int bytesToCopyToScratch = Math.Min(4 - _scratchLength, buffer.Length);
 
             Span<byte> scratch = Scratch;
             buffer.Slice(0, bytesToCopyToScratch).CopyTo(scratch.Slice(_scratchLength));
@@ -232,11 +240,13 @@ internal sealed class SnappyStreamDecompressor : IDisposable
             if (_scratchLength < 4)
             {
                 // Insufficient data
-                return 0;
+                header = 0;
+                return false;
             }
 
             _scratchLength = 0;
-            return BinaryPrimitives.ReadUInt32LittleEndian(scratch);
+            header = BinaryPrimitives.ReadUInt32LittleEndian(scratch);
+            return true;
         }
 
         if (buffer.Length < 4)
@@ -248,14 +258,13 @@ internal sealed class SnappyStreamDecompressor : IDisposable
             _scratchLength = buffer.Length;
             buffer = default;
 
-            return 0;
+            header = 0;
+            return false;
         }
-        else
-        {
-            uint result = BinaryPrimitives.ReadUInt32LittleEndian(buffer);
-            buffer = buffer.Slice(4);
-            return result;
-        }
+
+        header = BinaryPrimitives.ReadUInt32LittleEndian(buffer);
+        buffer = buffer.Slice(4);
+        return true;
     }
 
     /// <summary>
