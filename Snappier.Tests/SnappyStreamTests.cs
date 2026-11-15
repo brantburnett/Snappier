@@ -277,4 +277,66 @@ public class SnappyStreamTests(ITestOutputHelper outputHelper)
         await Assert.ThrowsAsync<InvalidDataException>(
             () => Task.Run(() => decompressor.CopyTo(destination), TestContext.Current.CancellationToken));
     }
+
+    // https://github.com/brantburnett/Snappier/security/advisories/GHSA-wc5g-7q4c-9jmw
+    [Theory]
+    [InlineData(0x00, 0)]
+    [InlineData(0x00, 1)]
+    [InlineData(0x00, 2)]
+    [InlineData(0x00, 3)]
+    [InlineData(0x01, 0)]
+    [InlineData(0x01, 1)]
+    [InlineData(0x01, 2)]
+    [InlineData(0x01, 3)]
+    public void UndersizedDataChunk_ThrowsInvalidDataException(byte chunkType, byte chunkSize)
+    {
+        byte[] data =
+        [
+            // Stream identifier
+            0xff, 0x06, 0x00, 0x00, 0x73, 0x4e, 0x61, 0x50, 0x70, 0x59,
+            // Data chunk header declaring fewer bytes than its own CRC
+            chunkType, chunkSize, 0x00, 0x00,
+            // Bytes the decoder would otherwise consume as the CRC, plus one more
+            0x01, 0x02, 0x03, 0x04, 0x09,
+        ];
+
+        using var src = new MemoryStream(data);
+        using SnappyStream decompressor = new(src, CompressionMode.Decompress);
+
+        using var destination = new MemoryStream();
+
+        Assert.Throws<InvalidDataException>(() => decompressor.CopyTo(destination));
+    }
+
+    [Fact]
+    public void Decompress_OneByteReads_RoundTrips()
+    {
+        byte[] originalBytes = Encoding.UTF8.GetBytes(string.Concat(Enumerable.Repeat("Snappier one byte at a time. ", 100)));
+
+        using var compressed = new MemoryStream();
+        using (SnappyStream compressor = new(compressed, CompressionMode.Compress, leaveOpen: true))
+        {
+            compressor.Write(originalBytes, 0, originalBytes.Length);
+        }
+
+        // Each chunk header and CRC arrives split across several reads
+        using var src = new OneByteReadStream(compressed.ToArray());
+        using SnappyStream decompressor = new(src, CompressionMode.Decompress);
+
+        using var decompressed = new MemoryStream();
+        decompressor.CopyTo(decompressed);
+
+        Assert.Equal(originalBytes, decompressed.ToArray());
+    }
+
+    private sealed class OneByteReadStream(byte[] buffer) : MemoryStream(buffer)
+    {
+        public override int Read(byte[] buffer, int offset, int count) =>
+            base.Read(buffer, offset, Math.Min(count, 1));
+
+#if NET8_0_OR_GREATER
+        public override int Read(Span<byte> buffer) =>
+            base.Read(buffer.Slice(0, Math.Min(buffer.Length, 1)));
+#endif
+    }
 }
