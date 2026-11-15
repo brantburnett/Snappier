@@ -300,43 +300,16 @@ internal sealed class SnappyDecompressor : IDisposable
                             goto skip_preload;
                         }
 
-                        if (literalLength >= 61)
+                        bool literalComplete = AppendLiteralSlow(ref op, ref bufferEnd, in input, in inputEnd,
+                            literalLength, out nint literalInputUsed, out nint literalBytesWritten);
+                        op = ref Unsafe.Add(ref op, literalBytesWritten);
+                        if (!literalComplete)
                         {
-                            // Long literal.
-                            nint literalLengthLength = literalLength - 60;
-                            uint literalLengthTemp = Helpers.UnsafeReadUInt32(in input);
-
-                            literalLength = (nint) Helpers.ExtractLowBytes(literalLengthTemp,
-                                (int) literalLengthLength) + 1;
-
-                            // On x86 nint is 32-bit, so a 4-byte length >= 0x7FFFFFFF becomes negative or wraps to zero
-                            // after the + 1. A negative length would bypass the bounds check in Append and the cast to uint
-                            // would copy ~2 GB. A valid literal is always at least 1 byte. IntPtr.Size is a JIT-time
-                            // constant, so this check is removed on 64-bit platforms, where Append's bounds check suffices.
-                            if (IntPtr.Size == 4 && literalLength <= 0)
-                            {
-                                ThrowHelper.ThrowInvalidDataExceptionDataTooLong();
-                            }
-
-                            input = ref Unsafe.Add(in input, literalLengthLength);
-                        }
-
-                        nint inputRemaining = Unsafe.ByteOffset(in input, in inputEnd);
-                        if (inputRemaining < literalLength)
-                        {
-                            // The rest of the literal is expected in a later call, ensure the entire literal fits
-                            // in the output before accepting the partial literal.
-                            EnsureLiteralFits(ref op, ref bufferEnd, literalLength);
-
-                            Append(ref op, ref bufferEnd, in input, inputRemaining);
-                            op = ref Unsafe.Add(ref op, inputRemaining);
-                            _remainingLiteral = (int) (literalLength - inputRemaining);
+                            // The rest of the literal is expected in a later call
                             break;
                         }
 
-                        Append(ref op, ref bufferEnd, in input, literalLength);
-                        op = ref Unsafe.Add(ref op, literalLength);
-                        input = ref Unsafe.Add(in input, literalLength);
+                        input = ref Unsafe.Add(in input, literalInputUsed);
                     }
                     else
                     {
@@ -710,6 +683,96 @@ internal sealed class SnappyDecompressor : IDisposable
         if ((nuint)literalLength > (nuint)(nint)Unsafe.ByteOffset(ref op, ref bufferEnd))
         {
             ThrowHelper.ThrowInvalidDataExceptionDataTooLong();
+        }
+    }
+
+    /// <summary>
+    /// Appends a literal that <see cref="TryFastAppend"/> could not handle: a long literal, or a literal near the end
+    /// of the input or the output.
+    /// </summary>
+    /// <param name="op">Output position.</param>
+    /// <param name="bufferEnd">End of the output.</param>
+    /// <param name="input">Input position immediately after the literal tag byte.</param>
+    /// <param name="inputEnd">End of the input.</param>
+    /// <param name="literalLength">Literal length decoded from the tag byte, (c >> 2) + 1.</param>
+    /// <param name="inputUsed">Input bytes consumed after the tag byte, including any length bytes.</param>
+    /// <param name="bytesWritten">Bytes written at <paramref name="op"/>.</param>
+    /// <returns>
+    /// <c>true</c> if the entire literal was appended, <c>false</c> if the input ends within the literal and the
+    /// remainder is expected in a later call.
+    /// </returns>
+    /// <remarks>
+    /// This path runs rarely compared to short literals and copies, so it is kept out of line. Inlined into
+    /// <see cref="DecompressAllTags"/> its blocks could be laid out inside the tag loop, and whether they were
+    /// depended on the profile data gathered in each process, so throughput varied between processes.
+    /// </remarks>
+    /// <safety>
+    /// <paramref name="op"/> and <paramref name="bufferEnd"/> must reference the same buffer with op &lt;= bufferEnd.
+    /// <paramref name="input"/> and <paramref name="inputEnd"/> must reference the same buffer with
+    /// input &lt;= inputEnd, and at least 4 bytes must be readable at <paramref name="input"/>, as guaranteed by the
+    /// padded scratch buffer near the end of input.
+    /// </safety>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private unsafe bool AppendLiteralSlow(ref byte op, ref byte bufferEnd, ref readonly byte input,
+        ref readonly byte inputEnd, nint literalLength, out nint inputUsed, out nint bytesWritten)
+    {
+        unchecked
+        {
+            nint literalLengthLength = 0;
+            if (literalLength >= 61)
+            {
+                // Long literal.
+                literalLengthLength = literalLength - 60;
+                // SAFETY: the caller guarantees 4 readable bytes at input.
+                uint literalLengthTemp = unsafe(Helpers.UnsafeReadUInt32(in input));
+
+                literalLength = (nint) Helpers.ExtractLowBytes(literalLengthTemp,
+                    (int) literalLengthLength) + 1;
+
+                // On x86 nint is 32-bit, so a 4-byte length >= 0x7FFFFFFF becomes negative or wraps to zero
+                // after the + 1. A negative length would bypass the bounds check in Append and the cast to uint
+                // would copy ~2 GB. A valid literal is always at least 1 byte. IntPtr.Size is a JIT-time
+                // constant, so this check is removed on 64-bit platforms, where Append's bounds check suffices.
+                if (IntPtr.Size == 4 && literalLength <= 0)
+                {
+                    ThrowHelper.ThrowInvalidDataExceptionDataTooLong();
+                }
+
+                // SAFETY: RefillTag guarantees the whole tag, including its 1 to 4 length bytes, is in the input
+                // before it is decoded, so this stays at or before inputEnd.
+                input = ref unsafe(Unsafe.Add(in input, literalLengthLength));
+            }
+
+            nint inputRemaining = Unsafe.ByteOffset(in input, in inputEnd);
+            if (inputRemaining < literalLength)
+            {
+                // The rest of the literal is expected in a later call, ensure the entire literal fits
+                // in the output before accepting the partial literal.
+                EnsureLiteralFits(ref op, ref bufferEnd, literalLength);
+
+                // SAFETY: input <= inputEnd, so inputRemaining is not negative and that many bytes are readable at
+                // input. Append checks the length against bufferEnd.
+                unsafe
+                {
+                    Append(ref op, ref bufferEnd, in input, inputRemaining);
+                }
+                _remainingLiteral = (int) (literalLength - inputRemaining);
+
+                inputUsed = literalLengthLength + inputRemaining;
+                bytesWritten = inputRemaining;
+                return false;
+            }
+
+            // SAFETY: literalLength <= inputRemaining bytes are readable at input, and it is at least 1 (see above).
+            // Append checks the length against bufferEnd.
+            unsafe
+            {
+                Append(ref op, ref bufferEnd, in input, literalLength);
+            }
+
+            inputUsed = literalLengthLength + literalLength;
+            bytesWritten = literalLength;
+            return true;
         }
     }
 
