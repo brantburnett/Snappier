@@ -39,13 +39,17 @@
     "output": "artifacts/_site",
     "template": [
       "default",
-      "material/material"
+      "material/material",
+      "templates/snappier"
     ],
     "globalMetadata": {
       "_appName": "Snappier",
       "_appTitle": "Snappier",
       "_appLogoPath": "images/icon-48.png",
-      "_disableContribution": true,
+      "_gitContribute": {
+        "repo": "https://github.com/brantburnett/Snappier",
+        "branch": "main"
+      },
       "_enableSearch": true,
       "pdf": false
     },
