@@ -39,7 +39,8 @@
     "output": "artifacts/_site",
     "template": [
       "default",
-      "material/material",
+      "modern",
+      "templates/material",
       "templates/snappier"
     ],
     "globalMetadata": {
