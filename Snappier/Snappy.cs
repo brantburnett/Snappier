@@ -133,11 +133,21 @@ public static class Snappy
     /// <summary>
     /// Get the uncompressed data length from a compressed Snappy block.
     /// </summary>
-    /// <param name="input">Compressed snappy block.</param>
+    /// <param name="input">Compressed snappy block. This must be an entire block.</param>
     /// <returns>The length of the uncompressed data in the block.</returns>
-    /// <exception cref="InvalidDataException">The data in <paramref name="input"/> has an invalid length.</exception>
+    /// <exception cref="InvalidDataException">
+    /// The data in <paramref name="input"/> has an invalid length, including a length larger than the rest of
+    /// <paramref name="input"/> could decompress to.
+    /// </exception>
     /// <remarks>
-    /// This is useful for allocating a sufficient output buffer before calling <see cref="Decompress(ReadOnlySpan{byte}, Span{byte})"/>.
+    ///     <para>
+    ///     This is useful for allocating a sufficient output buffer before calling <see cref="Decompress(ReadOnlySpan{byte}, Span{byte})"/>.
+    ///     </para>
+    ///     <para>
+    ///     The returned length is bounded by what <paramref name="input"/> could decompress to, about 21 times its size,
+    ///     but not by any application limit. When <paramref name="input"/> comes from an untrusted source, compare the
+    ///     returned length to the largest size your application accepts before allocating a buffer of that size.
+    ///     </para>
     /// </remarks>
     public static int GetUncompressedLength(ReadOnlySpan<byte> input) =>
         SnappyDecompressor.ReadUncompressedLength(input);
@@ -171,7 +181,10 @@ public static class Snappy
     /// <exception cref="InvalidDataException">Invalid Snappy block.</exception>
     public static bool TryDecompress(ReadOnlySpan<byte> input, Span<byte> output, out int bytesWritten)
     {
-        using var decompressor = new SnappyDecompressor();
+        using var decompressor = new SnappyDecompressor
+        {
+            CompressedBlockLength = input.Length
+        };
 
         decompressor.Decompress(input);
 
@@ -190,14 +203,33 @@ public static class Snappy
     /// </summary>
     /// <param name="input">Data to decompress.</param>
     /// <param name="output">Buffer writer to receive the decompressed data.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="output"/> is null.</exception>
     /// <exception cref="InvalidDataException">Invalid Snappy block.</exception>
-    public static void Decompress(ReadOnlySequence<byte> input, IBufferWriter<byte> output)
+    public static void Decompress(ReadOnlySequence<byte> input, IBufferWriter<byte> output) =>
+        Decompress(input, output, default);
+
+    /// <summary>
+    /// Decompress a block of Snappy data. This must be an entire block.
+    /// </summary>
+    /// <param name="input">Data to decompress.</param>
+    /// <param name="output">Buffer writer to receive the decompressed data.</param>
+    /// <param name="options">
+    /// Decompression options. A block declaring more than <see cref="SnappyDecompressionOptions.MaxUncompressedLength"/>
+    /// is rejected before any output is requested from <paramref name="output"/>.
+    /// </param>
+    /// <exception cref="ArgumentNullException"><paramref name="output"/> is null.</exception>
+    /// <exception cref="InvalidDataException">
+    /// Invalid Snappy block, or the uncompressed length is larger than <see cref="SnappyDecompressionOptions.MaxUncompressedLength"/>.
+    /// </exception>
+    public static void Decompress(ReadOnlySequence<byte> input, IBufferWriter<byte> output, SnappyDecompressionOptions options)
     {
         ArgumentNullException.ThrowIfNull(output);
 
         using var decompressor = new SnappyDecompressor()
         {
-            BufferWriter = output
+            BufferWriter = output,
+            CompressedBlockLength = input.Length,
+            Options = options
         };
 
         foreach (ReadOnlyMemory<byte> segment in input)
@@ -216,13 +248,35 @@ public static class Snappy
     /// </summary>
     /// <param name="input">Data to decompress.</param>
     /// <returns>An <see cref="IMemoryOwner{T}"/> with the decompressed data. The caller is responsible for disposing this object.</returns>
-    /// <exception cref="InvalidDataException">Incomplete Snappy block.</exception>
+    /// <exception cref="InvalidDataException">Invalid Snappy block.</exception>
     /// <remarks>
     /// Failing to dispose of the returned <see cref="IMemoryOwner{T}"/> may result in performance loss.
     /// </remarks>
-    public static IMemoryOwner<byte> DecompressToMemory(ReadOnlySpan<byte> input)
+    public static IMemoryOwner<byte> DecompressToMemory(ReadOnlySpan<byte> input) =>
+        DecompressToMemory(input, default);
+
+    /// <summary>
+    /// Decompress a block of Snappy data to a new memory buffer. This must be an entire block.
+    /// </summary>
+    /// <param name="input">Data to decompress.</param>
+    /// <param name="options">
+    /// Decompression options. A block declaring more than <see cref="SnappyDecompressionOptions.MaxUncompressedLength"/>
+    /// is rejected before any buffer is allocated.
+    /// </param>
+    /// <returns>An <see cref="IMemoryOwner{T}"/> with the decompressed data. The caller is responsible for disposing this object.</returns>
+    /// <exception cref="InvalidDataException">
+    /// Invalid Snappy block, or the uncompressed length is larger than <see cref="SnappyDecompressionOptions.MaxUncompressedLength"/>.
+    /// </exception>
+    /// <remarks>
+    /// Failing to dispose of the returned <see cref="IMemoryOwner{T}"/> may result in performance loss.
+    /// </remarks>
+    public static IMemoryOwner<byte> DecompressToMemory(ReadOnlySpan<byte> input, SnappyDecompressionOptions options)
     {
-        using var decompressor = new SnappyDecompressor();
+        using var decompressor = new SnappyDecompressor
+        {
+            CompressedBlockLength = input.Length,
+            Options = options
+        };
 
         decompressor.Decompress(input);
 
@@ -239,13 +293,35 @@ public static class Snappy
     /// </summary>
     /// <param name="input">Data to decompress.</param>
     /// <returns>An <see cref="IMemoryOwner{T}"/> with the decompressed data. The caller is responsible for disposing this object.</returns>
-    /// <exception cref="InvalidDataException">Incomplete Snappy block.</exception>
+    /// <exception cref="InvalidDataException">Invalid Snappy block.</exception>
     /// <remarks>
     /// Failing to dispose of the returned <see cref="IMemoryOwner{T}"/> may result in performance loss.
     /// </remarks>
-    public static IMemoryOwner<byte> DecompressToMemory(ReadOnlySequence<byte> input)
+    public static IMemoryOwner<byte> DecompressToMemory(ReadOnlySequence<byte> input) =>
+        DecompressToMemory(input, default);
+
+    /// <summary>
+    /// Decompress a block of Snappy data to a new memory buffer. This must be an entire block.
+    /// </summary>
+    /// <param name="input">Data to decompress.</param>
+    /// <param name="options">
+    /// Decompression options. A block declaring more than <see cref="SnappyDecompressionOptions.MaxUncompressedLength"/>
+    /// is rejected before any buffer is allocated.
+    /// </param>
+    /// <returns>An <see cref="IMemoryOwner{T}"/> with the decompressed data. The caller is responsible for disposing this object.</returns>
+    /// <exception cref="InvalidDataException">
+    /// Invalid Snappy block, or the uncompressed length is larger than <see cref="SnappyDecompressionOptions.MaxUncompressedLength"/>.
+    /// </exception>
+    /// <remarks>
+    /// Failing to dispose of the returned <see cref="IMemoryOwner{T}"/> may result in performance loss.
+    /// </remarks>
+    public static IMemoryOwner<byte> DecompressToMemory(ReadOnlySequence<byte> input, SnappyDecompressionOptions options)
     {
-        using var decompressor = new SnappyDecompressor();
+        using var decompressor = new SnappyDecompressor
+        {
+            CompressedBlockLength = input.Length,
+            Options = options
+        };
 
         foreach (ReadOnlyMemory<byte> segment in input)
         {
@@ -270,9 +346,29 @@ public static class Snappy
     /// The resulting byte array is allocated on the heap. If possible, <see cref="DecompressToMemory(ReadOnlySpan{byte})"/> should
     /// be used instead since it uses a shared buffer pool.
     /// </remarks>
-    public static byte[] DecompressToArray(ReadOnlySpan<byte> input)
+    public static byte[] DecompressToArray(ReadOnlySpan<byte> input) =>
+        DecompressToArray(input, default);
+
+    /// <summary>
+    /// Decompress a block of Snappy to a new byte array. This must be an entire block.
+    /// </summary>
+    /// <param name="input">Data to decompress.</param>
+    /// <param name="options">
+    /// Decompression options. A block declaring more than <see cref="SnappyDecompressionOptions.MaxUncompressedLength"/>
+    /// is rejected before any buffer is allocated.
+    /// </param>
+    /// <returns>The decompressed data.</returns>
+    /// <exception cref="InvalidDataException">
+    /// Invalid Snappy block, or the uncompressed length is larger than <see cref="SnappyDecompressionOptions.MaxUncompressedLength"/>.
+    /// </exception>
+    /// <remarks>
+    /// The resulting byte array is allocated on the heap. If possible,
+    /// <see cref="DecompressToMemory(ReadOnlySpan{byte}, SnappyDecompressionOptions)"/> should be used instead since it
+    /// uses a shared buffer pool.
+    /// </remarks>
+    public static byte[] DecompressToArray(ReadOnlySpan<byte> input, SnappyDecompressionOptions options)
     {
-        int length = GetUncompressedLength(input);
+        int length = SnappyDecompressor.ReadUncompressedLength(input, options);
 
         byte[] result = new byte[length];
 

@@ -7,6 +7,21 @@ public class SnappyDecompressorTests
     #region Decompress
 
     [Fact]
+    public void Reset_ClearsCompressedBlockLength()
+    {
+        using var decompressor = new SnappyDecompressor
+        {
+            CompressedBlockLength = 100,
+            Options = new SnappyDecompressionOptions { MaxUncompressedLength = 1000 }
+        };
+
+        decompressor.Reset();
+
+        Assert.Null(decompressor.CompressedBlockLength);
+        Assert.Equal(1000, decompressor.Options.MaxUncompressedLength);
+    }
+
+    [Fact]
     public void Decompress_SplitLength_Succeeds()
     {
         // Arrange

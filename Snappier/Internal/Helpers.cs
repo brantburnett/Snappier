@@ -49,6 +49,20 @@ internal static class Helpers
     public const int MaxBlockCompressedLength = (int)(32 + Constants.BlockSize + Constants.BlockSize / 6 + 1);
 
     /// <summary>
+    /// For a given amount of compressed tag data, calculate an upper bound on the uncompressed output it can produce.
+    /// </summary>
+    /// <param name="compressedBytes">Bytes of tag data following the uncompressed length prefix.</param>
+    /// <returns>The upper bound, or a negative value if <paramref name="compressedBytes"/> is negative.</returns>
+    public static long MaxUncompressedLength(long compressedBytes)
+    {
+        // The densest element is a copy with a 2-byte offset: a 3-byte tag that produces up to 64 bytes. Literals
+        // produce less than they consume, a 1-byte offset copy produces at most 11 bytes from 2, and a 4-byte offset
+        // copy at most 64 bytes from 5. No valid block can produce more than 64 bytes for every 3 bytes of tag data,
+        // so a declared length above this bound is invalid. Round up so the bound is never below the true maximum.
+        return compressedBytes < 0 ? -1 : (compressedBytes * 64 + 2) / 3;
+    }
+
+    /// <summary>
     /// Clears the array and returns it to the pool, clearing only the used portion of the array.
     /// This is a minor performance optimization to avoid clearing the entire array.
     /// </summary>
