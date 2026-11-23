@@ -4,15 +4,15 @@
     {
       "src": [
         {
-          "src": "./",
+          "src": "./Snappier",
           "files": [
-            "artifacts/bin/Snappier/release_net8.0/Snappier.dll"
+            "**/*.csproj"
           ]
         }
       ],
       "output": "api",
       "properties": {
-        "TargetFramework": "net8.0"
+        "TargetFramework": "net11.0"
       }
     }
   ],
