@@ -24,7 +24,11 @@ internal sealed class SnappyStreamDecompressor : IDisposable
 
     private Span<byte> Scratch => _scratch;
 
-    private SnappyDecompressor? _decompressor = new();
+    private SnappyDecompressor? _decompressor = new()
+    {
+        // The framing format limits the uncompressed data in a chunk to 65536 bytes
+        Options = new SnappyDecompressionOptions { MaxUncompressedLength = (int)Constants.BlockSize }
+    };
 
     private ReadOnlyMemory<byte> _input;
 
@@ -78,6 +82,9 @@ internal sealed class SnappyStreamDecompressor : IDisposable
                     if (_chunkBytesProcessed < 4)
                     {
                         _decompressor.Reset();
+
+                        // The block is the rest of the chunk after the CRC, which bounds its uncompressed length
+                        _decompressor.CompressedBlockLength = _chunkSize - 4;
 
                         if (!ReadChunkCrc(ref input))
                         {

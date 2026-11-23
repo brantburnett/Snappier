@@ -60,6 +60,10 @@ internal static class ThrowHelper
         throw new InvalidDataException("Invalid stream length");
 
     [DoesNotReturn]
+    public static void ThrowInvalidDataExceptionUncompressedLengthExceedsMaximum(int maxUncompressedLength) =>
+        throw new InvalidDataException($"Uncompressed length exceeds the maximum of {maxUncompressedLength} bytes.");
+
+    [DoesNotReturn]
     public static void ThrowInvalidOperationExceptionAllDataDecompressed() =>
         throw new InvalidOperationException("All data has been decompressed");
 
@@ -82,10 +86,6 @@ internal static class ThrowHelper
     [DoesNotReturn]
     public static void ThrowInvalidOperationExceptionInsufficientBufferSize() =>
         throw new InvalidOperationException("Insufficient buffer size");
-
-    [DoesNotReturn]
-    public static void ThrowInvalidOperationExceptionInvalidStreamLength() =>
-        throw new InvalidOperationException("Invalid stream length");
 
     [DoesNotReturn]
     public static void ThrowInvalidOperationExceptionNoDataPresent() =>

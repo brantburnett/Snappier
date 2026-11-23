@@ -52,7 +52,7 @@ internal sealed class SnappyDecompressor : IDisposable
             OperationStatus status = TryReadUncompressedLength(input, out int bytesConsumed);
             if (status == OperationStatus.InvalidData)
             {
-                ThrowHelper.ThrowInvalidOperationExceptionInvalidStreamLength();
+                ThrowHelper.ThrowInvalidDataExceptionInvalidStreamLength();
             }
             else if (status != OperationStatus.Done)
             {
@@ -99,6 +99,7 @@ internal sealed class SnappyDecompressor : IDisposable
         _lookbackPosition = 0;
         _readPosition = 0;
         ExpectedLength = null;
+        CompressedBlockLength = null;
 
         if (BufferWriter is not null)
         {
@@ -126,7 +127,7 @@ internal sealed class SnappyDecompressor : IDisposable
             switch (status)
             {
                 case OperationStatus.Done:
-                    ExpectedLength = (int)length;
+                    ExpectedLength = ValidateUncompressedLength(length, scratchBytesConsumed);
 
                     // The number of bytes consumed from the input is the number of bytes used by VarIntEncoding.TryRead
                     // less the number of bytes previously found in the scratch buffer
@@ -157,7 +158,7 @@ internal sealed class SnappyDecompressor : IDisposable
             switch (status)
             {
                 case OperationStatus.Done:
-                    ExpectedLength = (int)length;
+                    ExpectedLength = ValidateUncompressedLength(length, bytesConsumed);
                     break;
 
                 case OperationStatus.NeedMoreData:
@@ -172,14 +173,53 @@ internal sealed class SnappyDecompressor : IDisposable
         return status;
     }
 
+    private int ValidateUncompressedLength(uint length, int lengthPrefixSize) =>
+        ValidateUncompressedLength(length, CompressedBlockLength - lengthPrefixSize, Options);
+
     /// <summary>
-    /// Read the uncompressed length stored at the start of the compressed data.
+    /// Validate a declared uncompressed length before any buffer is allocated for it.
     /// </summary>
-    /// <param name="input">Input data, which should begin with the varint encoded uncompressed length.</param>
+    /// <param name="length">Declared uncompressed length.</param>
+    /// <param name="compressedBytes">
+    /// Bytes of tag data following the length prefix, or <c>null</c> if unknown. When known, the declared length may
+    /// not exceed what that much tag data can produce.
+    /// </param>
+    /// <param name="options">Decompression options.</param>
+    /// <returns>The validated length.</returns>
+    /// <exception cref="InvalidDataException">
+    /// The declared length is invalid or exceeds <see cref="SnappyDecompressionOptions.MaxUncompressedLength"/>.
+    /// </exception>
+    private static int ValidateUncompressedLength(uint length, long? compressedBytes, SnappyDecompressionOptions options)
+    {
+        if (length > int.MaxValue ||
+            (compressedBytes is long knownCompressedBytes && length > Helpers.MaxUncompressedLength(knownCompressedBytes)))
+        {
+            ThrowHelper.ThrowInvalidDataExceptionInvalidStreamLength();
+        }
+
+        if (options.MaxUncompressedLength is int maxUncompressedLength && length > (uint)maxUncompressedLength)
+        {
+            ThrowHelper.ThrowInvalidDataExceptionUncompressedLengthExceedsMaximum(maxUncompressedLength);
+        }
+
+        return (int)length;
+    }
+
+    /// <summary>
+    /// Read and validate the uncompressed length stored at the start of a complete compressed block.
+    /// </summary>
+    /// <param name="input">A complete compressed block, beginning with the varint encoded uncompressed length.</param>
+    /// <param name="options">Decompression options.</param>
     /// <returns>The length of the uncompressed data.</returns>
-    /// <exception cref="InvalidDataException">Invalid stream length</exception>
-    public static int ReadUncompressedLength(ReadOnlySpan<byte> input) =>
-        (int) VarIntEncoding.Read(input, out _);
+    /// <exception cref="InvalidDataException">
+    /// The length is malformed, larger than <paramref name="input"/> could produce, or larger than
+    /// <see cref="SnappyDecompressionOptions.MaxUncompressedLength"/>.
+    /// </exception>
+    public static int ReadUncompressedLength(ReadOnlySpan<byte> input, SnappyDecompressionOptions options = default)
+    {
+        uint length = VarIntEncoding.Read(input, out int bytesRead);
+        return ValidateUncompressedLength(length, input.Length - bytesRead, options);
+    }
 
     internal void DecompressAllTags(ReadOnlySpan<byte> inputSpan)
     {
@@ -582,6 +622,19 @@ internal sealed class SnappyDecompressor : IDisposable
     /// Buffer writer for the output data. Incompatible with <see cref="ExtractData"/> and <see cref="Read"/>.
     /// </summary>
     public IBufferWriter<byte>? BufferWriter { get; init; }
+
+    /// <summary>
+    /// Decompression options. A block declaring more than <see cref="SnappyDecompressionOptions.MaxUncompressedLength"/>
+    /// is rejected with <see cref="InvalidDataException"/> before any buffer is allocated for it. Persists across <see cref="Reset"/>.
+    /// </summary>
+    public SnappyDecompressionOptions Options { get; init; }
+
+    /// <summary>
+    /// Total length of the compressed block, including the uncompressed length prefix, or <c>null</c> if unknown. When
+    /// known, a block declaring more uncompressed data than its tag data could produce is rejected before any buffer is
+    /// allocated for it. <see cref="Reset"/> sets it back to <c>null</c>, so set it after each reset.
+    /// </summary>
+    public long? CompressedBlockLength { get; set; }
 
     private byte[]? _lookbackBufferArray;
     private Memory<byte> _lookbackBuffer;

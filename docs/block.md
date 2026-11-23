@@ -105,6 +105,47 @@ public class Program
 }
 ```
 
+## Decompressing untrusted data
+
+A Snappy block begins with its uncompressed length, and decompression allocates a buffer of that size before reading
+the rest of the block. Snappier rejects lengths larger than the block could decompress to, which bounds the buffer to
+about 21 times the size of the compressed block. When the data comes from an untrusted source, also set
+`SnappyDecompressionOptions.MaxUncompressedLength` to the largest uncompressed length your application accepts. A block
+declaring more is rejected with `InvalidDataException` before any buffer is allocated.
+
+```cs
+using Snappier;
+
+public class Program
+{
+    // The largest message your application expects
+    private static readonly SnappyDecompressionOptions Options = new() { MaxUncompressedLength = 1024 * 1024 };
+
+    public static void Process(byte[] compressed)
+    {
+        // Throws InvalidDataException if the block declares more than 1MB
+        byte[] decompressed = Snappy.DecompressToArray(compressed, Options);
+
+        // The same options are accepted by DecompressToMemory and Decompress with an IBufferWriter<byte>
+    }
+
+    public static void ProcessIntoBuffer(byte[] compressed)
+    {
+        // When allocating your own buffer, check the length before allocating
+        int length = Snappy.GetUncompressedLength(compressed);
+        if (length > Options.MaxUncompressedLength)
+        {
+            throw new InvalidDataException("Message too large");
+        }
+
+        byte[] outputBuffer = new byte[length];
+        Snappy.Decompress(compressed, outputBuffer);
+    }
+}
+```
+
+`SnappyStream` needs no limit: the framing format limits each chunk to 64KB, and larger chunks are rejected.
+
 ## Block compression/decompression using heap allocated byte[]
 
 ```cs
