@@ -144,7 +144,10 @@ public class Program
 }
 ```
 
-`SnappyStream` needs no limit: the framing format limits each chunk to 64KB, and larger chunks are rejected.
+`SnappyStream` limits its own buffers: a compressed chunk declaring more than 64KB of output, the most the framing
+format allows, is rejected, and uncompressed chunks are copied to your buffer without being buffered. A stream may
+contain any number of chunks, so its total output is unbounded. When reading untrusted data, limit the total number of
+bytes you read from the stream, especially when collecting the output with `CopyTo` into a `MemoryStream`.
 
 ## Block compression/decompression using heap allocated byte[]
 
