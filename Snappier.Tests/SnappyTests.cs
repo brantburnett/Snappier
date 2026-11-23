@@ -542,6 +542,228 @@ public class SnappyTests
         }
     }
 
+    // Declares 1,500,000,000 bytes with no tag data following.
+    private static readonly byte[] OversizedLengthBlock = [0x80, 0xDE, 0xA0, 0xCB, 0x05];
+
+    // Declares 0xFFFFFFF0 bytes, which does not fit in an int.
+    private static readonly byte[] LengthAboveIntMaxBlock = [0xF0, 0xFF, 0xFF, 0xFF, 0x0F];
+
+    public static TheoryData<string> InvalidDeclaredLengthBlocks =>
+        [nameof(OversizedLengthBlock), nameof(LengthAboveIntMaxBlock)];
+
+    private static byte[] GetInvalidDeclaredLengthBlock(string name) => name switch
+    {
+        nameof(OversizedLengthBlock) => OversizedLengthBlock,
+        nameof(LengthAboveIntMaxBlock) => LengthAboveIntMaxBlock,
+        _ => throw new ArgumentOutOfRangeException(nameof(name))
+    };
+
+    [Theory]
+    [MemberData(nameof(InvalidDeclaredLengthBlocks))]
+    public void BadData_InvalidDeclaredLength_ThrowsInvalidDataExceptionWithoutAllocating(string blockName)
+    {
+        byte[] compressed = GetInvalidDeclaredLengthBlock(blockName);
+        byte[] output = new byte[16];
+
+#if NET
+        long allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+#endif
+
+        Assert.Throws<InvalidDataException>(() => Snappy.GetUncompressedLength(compressed));
+        Assert.Throws<InvalidDataException>(() => Snappy.Decompress(compressed, output));
+        Assert.Throws<InvalidDataException>(() => Snappy.TryDecompress(compressed, output, out _));
+        Assert.Throws<InvalidDataException>(() => Snappy.DecompressToMemory(compressed).Dispose());
+        Assert.Throws<InvalidDataException>(() => Snappy.DecompressToArray(compressed));
+
+        for (int segmentSize = 1; segmentSize <= compressed.Length; segmentSize++)
+        {
+            ReadOnlySequence<byte> sequence = SequenceHelpers.CreateSequence(compressed, segmentSize);
+
+            Assert.Throws<InvalidDataException>(() => Snappy.DecompressToMemory(sequence).Dispose());
+#if NET6_0_OR_GREATER
+            Assert.Throws<InvalidDataException>(() => Snappy.Decompress(sequence, new ArrayBufferWriter<byte>()));
+#endif
+        }
+
+#if NET
+        // The declared length is rejected before a buffer is allocated for it
+        Assert.InRange(GC.GetAllocatedBytesForCurrentThread() - allocatedBefore, 0, 1 << 20);
+#endif
+    }
+
+    // Builds a block of a 1-byte literal followed by copies of 64 bytes at offset 1. Each copy is a 3-byte tag,
+    // the densest valid encoding, so the block decompresses to the most data its size allows.
+    private static byte[] CreateMaxExpansionBlock(int copies, uint? declaredLength = null)
+    {
+        var block = new List<byte>();
+
+        uint length = declaredLength ?? (uint)(1 + 64 * copies);
+        while (length >= 0x80)
+        {
+            block.Add((byte)(length | 0x80));
+            length >>= 7;
+        }
+        block.Add((byte)length);
+
+        block.Add(0x00); // Literal tag, length 1
+        block.Add((byte)'A');
+
+        for (int i = 0; i < copies; i++)
+        {
+            block.Add(0xFE); // Copy tag with a 2-byte offset, length 64
+            block.Add(0x01); // Offset 1, little-endian
+            block.Add(0x00);
+        }
+
+        return block.ToArray();
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(1000)]
+    [InlineData(40000)]
+    public void MaxExpansionBlock_Decompresses(int copies)
+    {
+        byte[] compressed = CreateMaxExpansionBlock(copies);
+        byte[] expected = new byte[1 + 64 * copies];
+        ArrayFill(expected, (byte)'A');
+
+        Assert.Equal(expected.Length, Snappy.GetUncompressedLength(compressed));
+        Assert.Equal(expected, Snappy.DecompressToArray(compressed));
+
+        using (IMemoryOwner<byte> memory = Snappy.DecompressToMemory(compressed))
+        {
+            Assert.Equal(expected, memory.Memory.ToArray());
+        }
+
+        ReadOnlySequence<byte> sequence = SequenceHelpers.CreateSequence(compressed, 7);
+        using (IMemoryOwner<byte> memory = Snappy.DecompressToMemory(sequence))
+        {
+            Assert.Equal(expected, memory.Memory.ToArray());
+        }
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(1000)]
+    public void GetUncompressedLength_AboveMaxExpansion_ThrowsInvalidDataException(int copies)
+    {
+        // The tag data is 2 + 3 * copies bytes, which can produce at most (64 * (2 + 3 * copies) + 2) / 3 bytes
+        uint bound = (uint)((64L * (2 + 3 * copies) + 2) / 3);
+
+        Assert.Equal((int)bound, Snappy.GetUncompressedLength(CreateMaxExpansionBlock(copies, bound)));
+        Assert.Throws<InvalidDataException>(() => Snappy.GetUncompressedLength(CreateMaxExpansionBlock(copies, bound + 1)));
+    }
+
+    [Fact]
+    public void EmptyBlock_Decompresses()
+    {
+        byte[] compressed = [0x00];
+
+        Assert.Equal(0, Snappy.GetUncompressedLength(compressed));
+        Assert.Empty(Snappy.DecompressToArray(compressed));
+        Assert.True(Snappy.TryDecompress(compressed, [], out int bytesWritten));
+        Assert.Equal(0, bytesWritten);
+
+        using IMemoryOwner<byte> memory = Snappy.DecompressToMemory(compressed);
+        Assert.Equal(0, memory.Memory.Length);
+    }
+
+    [Fact]
+    public void MaxUncompressedLength_AtLimit_Decompresses()
+    {
+        byte[] input = Encoding.UTF8.GetBytes(string.Concat(Enumerable.Repeat("Snappier maximum length. ", 40)));
+        byte[] compressed = Snappy.CompressToArray(input);
+        var options = new SnappyDecompressionOptions { MaxUncompressedLength = input.Length };
+
+        Assert.Equal(input, Snappy.DecompressToArray(compressed, options));
+
+        using (IMemoryOwner<byte> memory = Snappy.DecompressToMemory(compressed, options))
+        {
+            Assert.Equal(input, memory.Memory.ToArray());
+        }
+
+        using (IMemoryOwner<byte> memory = Snappy.DecompressToMemory(new ReadOnlySequence<byte>(compressed), options))
+        {
+            Assert.Equal(input, memory.Memory.ToArray());
+        }
+
+#if NET6_0_OR_GREATER
+        var writer = new ArrayBufferWriter<byte>();
+        Snappy.Decompress(new ReadOnlySequence<byte>(compressed), writer, options);
+        Assert.Equal(input, writer.WrittenSpan.ToArray());
+#endif
+    }
+
+    [Fact]
+    public void MaxUncompressedLength_AboveLimit_ThrowsInvalidDataException()
+    {
+        byte[] input = Encoding.UTF8.GetBytes(string.Concat(Enumerable.Repeat("Snappier maximum length. ", 40)));
+        byte[] compressed = Snappy.CompressToArray(input);
+        var options = new SnappyDecompressionOptions { MaxUncompressedLength = input.Length - 1 };
+
+        Assert.Throws<InvalidDataException>(() => Snappy.DecompressToArray(compressed, options));
+        Assert.Throws<InvalidDataException>(() => Snappy.DecompressToMemory(compressed, options).Dispose());
+
+        for (int segmentSize = 1; segmentSize <= 6; segmentSize++)
+        {
+            ReadOnlySequence<byte> sequence = SequenceHelpers.CreateSequence(compressed, segmentSize);
+
+            Assert.Throws<InvalidDataException>(() => Snappy.DecompressToMemory(sequence, options).Dispose());
+
+#if NET6_0_OR_GREATER
+            // No output is requested from the writer before the length is rejected
+            var writer = new ArrayBufferWriter<byte>();
+            Assert.Throws<InvalidDataException>(() => Snappy.Decompress(sequence, writer, options));
+            Assert.Equal(0, writer.Capacity);
+#endif
+        }
+    }
+
+    [Fact]
+    public void MaxUncompressedLength_One_AcceptsEmptyAndOneByteBlocks()
+    {
+        var options = new SnappyDecompressionOptions { MaxUncompressedLength = 1 };
+
+        Assert.Empty(Snappy.DecompressToArray([0x00], options));
+        Assert.Equal(new byte[] { 1 }, Snappy.DecompressToArray(Snappy.CompressToArray([1]), options));
+        Assert.Throws<InvalidDataException>(() => Snappy.DecompressToArray(Snappy.CompressToArray([1, 2]), options));
+    }
+
+    [Fact]
+    public void DecompressionOptions_Default_HasNoMaximum()
+    {
+        byte[] input = new byte[100000];
+        byte[] compressed = Snappy.CompressToArray(input);
+
+        Assert.Null(default(SnappyDecompressionOptions).MaxUncompressedLength);
+        Assert.Null(new SnappyDecompressionOptions().MaxUncompressedLength);
+        Assert.Equal(input, Snappy.DecompressToArray(compressed, default));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData(1)]
+    [InlineData(65536)]
+    [InlineData(int.MaxValue)]
+    public void DecompressionOptions_MaxUncompressedLength_RoundTrips(int? value)
+    {
+        var options = new SnappyDecompressionOptions { MaxUncompressedLength = value };
+
+        Assert.Equal(value, options.MaxUncompressedLength);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(int.MinValue)]
+    public void DecompressionOptions_NonPositiveMaxUncompressedLength_ThrowsArgumentOutOfRangeException(int value)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => new SnappyDecompressionOptions { MaxUncompressedLength = value });
+    }
+
     private const int LongLiteralBlockUncompressedLength = 32;
 
     // Builds a block with a long literal tag (0xFC) followed by a 4-byte little-endian length, where

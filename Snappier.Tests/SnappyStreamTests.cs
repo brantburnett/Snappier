@@ -308,6 +308,92 @@ public class SnappyStreamTests(ITestOutputHelper outputHelper)
         Assert.Throws<InvalidDataException>(() => decompressor.CopyTo(destination));
     }
 
+    // Builds a framed stream with one compressed data chunk holding a placeholder CRC and the given block.
+    private static byte[] CreateCompressedChunkStream(byte[] block)
+    {
+        int chunkSize = 4 + block.Length;
+
+        return
+        [
+            // Stream identifier
+            0xff, 0x06, 0x00, 0x00, 0x73, 0x4e, 0x61, 0x50, 0x70, 0x59,
+            // Compressed data chunk header
+            0x00, (byte)chunkSize, (byte)(chunkSize >> 8), (byte)(chunkSize >> 16),
+            // CRC, never checked because the block is rejected first
+            0x00, 0x00, 0x00, 0x00,
+            ..block,
+        ];
+    }
+
+    [Fact]
+    public void CompressedChunk_DeclaredLengthAboveChunkExpansion_ThrowsInvalidDataException()
+    {
+        // The block declares 1,500,000,000 bytes but holds no tag data
+        byte[] data = CreateCompressedChunkStream([0x80, 0xDE, 0xA0, 0xCB, 0x05]);
+
+        using var src = new MemoryStream(data);
+        using SnappyStream decompressor = new(src, CompressionMode.Decompress);
+
+#if NET
+        long allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+#endif
+
+        InvalidDataException ex = Assert.Throws<InvalidDataException>(() => decompressor.ReadByte());
+        Assert.Equal("Invalid stream length", ex.Message);
+
+#if NET
+        // The declared length is rejected before a buffer is allocated for it
+        Assert.InRange(GC.GetAllocatedBytesForCurrentThread() - allocatedBefore, 0, 1 << 20);
+#endif
+    }
+
+    [Fact]
+    public void CompressedChunk_DeclaredLengthAbove64KiB_ThrowsInvalidDataException()
+    {
+        // A 1-byte literal followed by 1024 copies of 64 bytes, each a 3-byte tag, decompresses to 65,537 bytes.
+        // The chunk holds enough tag data to produce that, but the framing format limits a chunk to 65,536 bytes.
+        const int copies = 1024;
+        byte[] block = new byte[3 + 2 + 3 * copies];
+        block[0] = 0x81; // Uncompressed length 65,537 as a varint
+        block[1] = 0x80;
+        block[2] = 0x04;
+        block[3] = 0x00; // Literal tag, length 1
+        block[4] = (byte)'A';
+        for (int i = 0; i < copies; i++)
+        {
+            block[5 + 3 * i] = 0xFE; // Copy tag with a 2-byte offset, length 64
+            block[6 + 3 * i] = 0x01; // Offset 1, little-endian
+            block[7 + 3 * i] = 0x00;
+        }
+
+        using var src = new MemoryStream(CreateCompressedChunkStream(block));
+        using SnappyStream decompressor = new(src, CompressionMode.Decompress);
+
+        InvalidDataException ex = Assert.Throws<InvalidDataException>(() => decompressor.ReadByte());
+        Assert.Contains("65536", ex.Message);
+    }
+
+    [Fact]
+    public void CompressAndDecompress_FullSizeChunks_RoundTrips()
+    {
+        // Highly compressible data fills each chunk with the full 65,536 bytes the framing format allows
+        byte[] originalBytes = new byte[5 * 65536 + 17];
+
+        using var compressed = new MemoryStream();
+        using (SnappyStream compressor = new(compressed, CompressionMode.Compress, leaveOpen: true))
+        {
+            compressor.Write(originalBytes, 0, originalBytes.Length);
+        }
+
+        compressed.Position = 0;
+
+        using SnappyStream decompressor = new(compressed, CompressionMode.Decompress);
+        using var decompressed = new MemoryStream();
+        decompressor.CopyTo(decompressed);
+
+        Assert.Equal(originalBytes, decompressed.ToArray());
+    }
+
     [Fact]
     public void Decompress_OneByteReads_RoundTrips()
     {
